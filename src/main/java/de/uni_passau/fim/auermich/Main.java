@@ -6,8 +6,10 @@ import de.uni_passau.fim.auermich.jcommander.CommandLineArguments;
 import de.uni_passau.fim.auermich.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.IntraCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.MainCommand;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.iface.DexFile;
@@ -46,6 +48,13 @@ public final class Main {
         commander.parse(argv);
 
         System.out.println(commander.getParsedCommand());
+
+        // determine which logging level should be used
+        if(mainCmd.isDebug()) {
+            Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
+        } else {
+            Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.INFO);
+        }
 
         /*
 

@@ -12,11 +12,8 @@ import java.nio.file.Path;
 @Parameters(commandDescription = "Add file contents to the index")
 public class MainCommand {
 
-    @Parameter(description = "Path to the classes.dex file we want to analyze.", required = true, converter = PathConverter.class)
+    @Parameter(names = {"-f", "-file"}, description = "Path to the classes.dex file we want to analyze.", required = true, converter = PathConverter.class)
     private Path dexFile;
-
-    @Parameter(names = { "-g", "-graph" }, description = "The graph we want to generate.", required = true, converter = GraphTypeConverter.class)
-    private GraphType graph;
 
     @Parameter(names = { "-e", "-exceptional" }, description = "Whether the graph should contain edges from try-catch blocks.")
     private boolean exceptionalFlow = false;
@@ -26,4 +23,20 @@ public class MainCommand {
 
     @Parameter(names = { "-h", "--help" }, help = true)
     private boolean help;
+
+    public Path getDexFile() {
+        return dexFile;
+    }
+
+    public boolean isExceptionalFlow() {
+        return exceptionalFlow;
+    }
+
+    public boolean isDebug() {
+        return debug;
+    }
+
+    public boolean isHelp() {
+        return help;
+    }
 }
