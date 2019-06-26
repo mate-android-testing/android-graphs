@@ -3,6 +3,9 @@ package de.uni_passau.fim.auermich;
 import com.beust.jcommander.JCommander;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.jcommander.CommandLineArguments;
+import de.uni_passau.fim.auermich.jcommander.InterCFGCommand;
+import de.uni_passau.fim.auermich.jcommander.IntraCFGCommand;
+import de.uni_passau.fim.auermich.jcommander.MainCommand;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.DexFileFactory;
@@ -29,9 +32,22 @@ public final class Main {
 
         // parse command line arguments
         CommandLineArguments cmdArgs = new CommandLineArguments();
-        JCommander commander = JCommander.newBuilder().addObject(cmdArgs).build();
+        MainCommand mainCmd = new MainCommand();
+        InterCFGCommand interCFGCmd = new InterCFGCommand();
+        IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
+        JCommander commander = JCommander.newBuilder()
+                .addObject(cmdArgs)
+                //.addCommand("main", mainCmd)
+                .addCommand("intra", intraCFGCmd)
+                // .addCommand("inter", interCFGCmd)
+                .build();
         commander.setProgramName("Android-Graphs");
-        commander.parse(args);
+        String[] argv = { "intra", "-m", "one", "C:\\Users\\Michael\\matecommander.py" };
+        commander.parse(argv);
+
+        System.out.println(commander.getParsedCommand());
+
+        /*
 
         // check whether help command is executed
         if (cmdArgs.isHelp()) {
@@ -55,6 +71,7 @@ public final class Main {
             // process apk and construct desired graph
             run(cmdArgs.getDexFile(), cmdArgs.getGraph(), exceptionalFlow);
         }
+        */
     }
 
     /**
@@ -64,8 +81,8 @@ public final class Main {
      * @param args The command line arguments.
      */
     private static void checkArguments(CommandLineArguments args) {
-        Objects.requireNonNull(args.getDexFile(), "Path to dex file is missing!");
-        Objects.requireNonNull(args.getGraph(), "Graph type is missing!");
+        // Objects.requireNonNull(args.getDexFile(), "Path to dex file is missing!");
+        // Objects.requireNonNull(args.getGraph(), "Graph type is missing!");
     }
 
 
