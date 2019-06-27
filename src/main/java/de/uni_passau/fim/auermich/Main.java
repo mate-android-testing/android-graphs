@@ -16,24 +16,25 @@ import org.jf.dexlib2.iface.DexFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 public final class Main {
-
-    private Main() {
-        throw new UnsupportedOperationException("Utility class!");
-    }
 
     private static final Logger LOGGER = LogManager.getLogger(Main.class);
 
     public static final Opcodes API_OPCODE = Opcodes.forApi(28);
 
-    public static void main(String[] args) throws IOException {
+    private static final MainCommand mainCmd = new MainCommand();
+    private static final InterCFGCommand interCFGCmd = new InterCFGCommand();
+    private static final IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
 
-        // the set of possible commnads
-        MainCommand mainCmd = new MainCommand();
-        InterCFGCommand interCFGCmd = new InterCFGCommand();
-        IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
+    private Main() {
+        throw new UnsupportedOperationException("Utility class!");
+    }
+
+    public static void main(String[] args) throws IOException {
 
         /*
         * TODO: allow custom order of arguments
@@ -96,12 +97,40 @@ public final class Main {
         // Objects.requireNonNull(args.getGraph(), "Graph type is missing!");
     }
 
+    private static void checkArguments(IntraCFGCommand cmd) {
+        assert cmd.getGraphType() == GraphType.INTRACFG;
+        Objects.requireNonNull(cmd.getMetric());
+        Objects.requireNonNull(cmd.getTarget());
+    }
+
 
     private static void run(JCommander commander, boolean exceptionalFlow) throws IOException {
 
         LOGGER.debug("Determining which action to take dependent on given command");
 
+        Map<String, JCommander> commandMap = commander.getCommands();
+        String selectedCommand = commander.getParsedCommand();
+        Optional<GraphType> graphType = GraphType.fromString(selectedCommand);
+
+        if (!graphType.isPresent()) {
+            LOGGER.warn("Enter a valid commando please!");
+            commander.usage();
+            return;
+        }
+
+        // determine which sub-commando was executed
+        switch (graphType.get()) {
+            case INTRACFG:
+                checkArguments(intraCFGCmd);
+                break;
+            case INTERCFG:
+                LOGGER.debug(commandMap.get(selectedCommand).getParameters());
+                break;
+        }
+
         System.out.println(commander.getParameters());
+        System.out.println(commander.getObjects());
+        System.out.println(commander.getCommands());
 
     }
 

@@ -15,7 +15,7 @@ public enum GraphType {
 
         @Override
         public String toString() {
-            return "intra-cfg";
+            return "intra";
         }
     },
 
@@ -26,7 +26,7 @@ public enum GraphType {
 
         @Override
         public String toString() {
-            return "inter-cfg";
+            return "inter";
         }
     },
 

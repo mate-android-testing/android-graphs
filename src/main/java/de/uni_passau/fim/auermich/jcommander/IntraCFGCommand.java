@@ -12,12 +12,23 @@ import java.nio.file.Path;
 @Parameters(commandDescription = "Add file contents to the index")
 public class IntraCFGCommand {
 
-    // @Parameter(description = "Path to the classes.dex file we want to analyze.", required = true)
-    // private String dexFile;
-
     @Parameter(names = { "-m", "-metric" }, description = "Metric.")
     private String metric;
 
     @Parameter(names = { "-t", "-target" }, description = "Target.")
     private String target;
+
+    private GraphType graphType = GraphType.INTRACFG;
+
+    public String getMetric() {
+        return metric;
+    }
+
+    public String getTarget() {
+        return target;
+    }
+
+    public GraphType getGraphType() {
+        return graphType;
+    }
 }
