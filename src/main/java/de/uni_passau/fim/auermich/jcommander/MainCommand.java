@@ -18,8 +18,9 @@ public class MainCommand {
      * We can make use of the built-in PathConverter.class to check if the input represents a path.
      */
 
-    @Parameter(names = { "-f", "-file"}, description = "File path to the classes.dex file we want to analyze.", required = true)
-    private String dexFile;
+    @Parameter(names = { "-f", "-file"}, description = "File path to the classes.dex file we want to analyze.",
+            required = true, converter = FileConverter.class)
+    private File dexFile;
 
     @Parameter(names = { "-e", "-exceptional" }, description = "Whether the graph should contain edges from try-catch blocks.")
     private boolean exceptionalFlow = false;
@@ -30,7 +31,7 @@ public class MainCommand {
     @Parameter(names = { "-h", "--help" }, help = true)
     private boolean help;
 
-    public String getDexFile() {
+    public File getDexFile() {
         return dexFile;
     }
 

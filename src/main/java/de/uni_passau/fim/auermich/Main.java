@@ -9,8 +9,11 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcodes;
+import org.jf.dexlib2.iface.DexFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
@@ -70,7 +73,6 @@ public final class Main {
         if (mainCmd.isHelp()) {
             commander.usage();
         } else {
-
             boolean exceptionalFlow = false;
 
             // check whether we want to model edges from try-catch blocks
@@ -87,19 +89,21 @@ public final class Main {
      * Verifies that the given arguments are valid.
      * @param cmd
      */
-    private static void checkArguments(IntraCFGCommand cmd) {
+    private static boolean checkArguments(IntraCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTRACFG;
         Objects.requireNonNull(cmd.getMetric());
         Objects.requireNonNull(cmd.getTarget());
+        return true;
     }
 
     /**
      *
      * @param cmd
      */
-    private static void checkArguments(InterCFGCommand cmd) {
+    private static boolean checkArguments(InterCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTERCFG;
         Objects.requireNonNull(cmd.getMetric());
+        return true;
     }
 
 
@@ -114,24 +118,47 @@ public final class Main {
 
         LOGGER.debug("Determining which action to take dependent on given command");
 
+        if (!mainCmd.getDexFile().exists()) {
+            LOGGER.warn("Path to classes.dex file not valid!");
+            return;
+        }
+
         String selectedCommand = commander.getParsedCommand();
         Optional<GraphType> graphType = GraphType.fromString(selectedCommand);
 
         if (!graphType.isPresent()) {
-            LOGGER.warn("Enter a valid commando please!");
+            LOGGER.warn("Enter a valid command please!");
             commander.usage();
         } else {
+
+            DexFile dexFile = DexFileFactory.loadDexFile(mainCmd.getDexFile(), API_OPCODE);
 
             // determine which sub-commando was executed
             switch (graphType.get()) {
                 case INTRACFG:
-                    checkArguments(intraCFGCmd);
+                    if(checkArguments(intraCFGCmd)) {
+                        computeIntraProceduralCFG(dexFile);
+                    }
                     break;
                 case INTERCFG:
-                    checkArguments(interCFGCmd);
+                    if(checkArguments(interCFGCmd)) {
+                        computeInterProceduralCFG(dexFile);
+                    }
                     break;
             }
         }
     }
 
+    /*
+    * TODO: add params for metric and return some result datatype
+    *
+     */
+
+    private static void computeInterProceduralCFG(DexFile dexFile) {
+
+    }
+
+    private static void computeIntraProceduralCFG(DexFile dexFile) {
+
+    }
 }
