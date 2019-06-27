@@ -9,7 +9,6 @@ import de.uni_passau.fim.auermich.graphs.GraphType;
 import java.io.File;
 import java.nio.file.Path;
 
-// @Parameters(commandDescription = "Defines the most general commands like help, debug, etc.")
 public class MainCommand {
 
     /*
@@ -19,7 +18,7 @@ public class MainCommand {
      * We can make use of the built-in PathConverter.class to check if the input represents a path.
      */
 
-    @Parameter(names = { "-f", "-file"}, description = "File path to the classes.dex file we want to analyze.")
+    @Parameter(names = { "-f", "-file"}, description = "File path to the classes.dex file we want to analyze.", required = true)
     private String dexFile;
 
     @Parameter(names = { "-e", "-exceptional" }, description = "Whether the graph should contain edges from try-catch blocks.")

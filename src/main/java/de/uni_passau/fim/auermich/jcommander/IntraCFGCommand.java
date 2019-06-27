@@ -9,7 +9,7 @@ import de.uni_passau.fim.auermich.graphs.GraphType;
 import java.io.File;
 import java.nio.file.Path;
 
-@Parameters(commandDescription = "Add file contents to the index")
+@Parameters(commandDescription = "Produces an intra-procedural CFG for a given method.")
 public class IntraCFGCommand {
 
     @Parameter(names = { "-m", "-metric" }, description = "Metric.")
