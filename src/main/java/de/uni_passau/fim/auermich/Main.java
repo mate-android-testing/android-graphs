@@ -26,61 +26,63 @@ public final class Main {
 
     private static final Logger LOGGER = LogManager.getLogger(Main.class);
 
-    private static boolean debug = false;
-
     public static final Opcodes API_OPCODE = Opcodes.forApi(28);
 
     public static void main(String[] args) throws IOException {
 
-        // parse command line arguments
-        CommandLineArguments cmdArgs = new CommandLineArguments();
+        // the set of possible commnads
         MainCommand mainCmd = new MainCommand();
         InterCFGCommand interCFGCmd = new InterCFGCommand();
         IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
-        JCommander commander = JCommander.newBuilder()
-                .addObject(cmdArgs)
-                //.addCommand("main", mainCmd)
-                .addCommand("intra", intraCFGCmd)
-                // .addCommand("inter", interCFGCmd)
-                .build();
-        commander.setProgramName("Android-Graphs");
-        String[] argv = { "intra", "-m", "one", "C:\\Users\\Michael\\matecommander.py" };
-        commander.parse(argv);
 
-        System.out.println(commander.getParsedCommand());
+        /*
+        * TODO: allow custom order of arguments
+        * The current implementation only allows to specify
+        * the cmd-line args in a pre-defined order, i.e.
+        * first comes the option of the main command
+        * and afterwards the remaining arguments of
+        * sub-commands like 'intra'. However, we would
+        * like to specify the main arguments in any order
+        * without having to define any prefix.
+         */
+
+        JCommander commander = JCommander.newBuilder()
+                .addObject(mainCmd)
+                .addCommand("intra", intraCFGCmd)
+                .addCommand("inter", interCFGCmd)
+                .build();
+
+        // the program name displayed in the help/usage cmd.
+        commander.setProgramName("Android-Graphs");
+
+        // parse command line arguments
+        commander.parse(args);
+
+        LOGGER.debug("Command input: " + commander.getParsedCommand());
 
         // determine which logging level should be used
         if(mainCmd.isDebug()) {
+            LOGGER.debug("Debug mode is enabled!");
             Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
         } else {
             Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.INFO);
         }
 
-        /*
-
         // check whether help command is executed
-        if (cmdArgs.isHelp()) {
+        if (mainCmd.isHelp()) {
             commander.usage();
         } else {
-            // check whether input args are valid
-            checkArguments(cmdArgs);
-
-            // check whether we run in debug mode
-            if (cmdArgs.isDebug()) {
-                debug = true;
-            }
 
             boolean exceptionalFlow = false;
 
             // check whether we want to model edges from try-catch blocks
-            if (cmdArgs.isExceptionalFlow()) {
+            if (mainCmd.isExceptionalFlow()) {
                 exceptionalFlow = true;
             }
 
             // process apk and construct desired graph
-            run(cmdArgs.getDexFile(), cmdArgs.getGraph(), exceptionalFlow);
+            run(commander, exceptionalFlow);
         }
-        */
     }
 
     /**
@@ -95,19 +97,11 @@ public final class Main {
     }
 
 
-    private static void run(File dexFilePath, GraphType graphType, boolean exceptionalFlow) throws IOException {
+    private static void run(JCommander commander, boolean exceptionalFlow) throws IOException {
 
-        LOGGER.debug("Initial log");
+        LOGGER.debug("Determining which action to take dependent on given command");
 
-        DexFile dexFile = DexFileFactory.loadDexFile(dexFilePath, API_OPCODE);
-
-        switch (graphType) {
-            case INTRACFG:
-            case INTERCFG:
-            case SGD:
-            default:
-
-        }
+        System.out.println(commander.getParameters());
 
     }
 
