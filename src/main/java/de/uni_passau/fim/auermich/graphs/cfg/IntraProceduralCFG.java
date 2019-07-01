@@ -17,6 +17,7 @@ public class IntraProceduralCFG {
     public IntraProceduralCFG(String methodName) {
         this.methodName = methodName;
         graph.addVertex(entry);
+        graph.addVertex(exit);
     }
 
     public void addEdge(Vertex src, Vertex dest) {

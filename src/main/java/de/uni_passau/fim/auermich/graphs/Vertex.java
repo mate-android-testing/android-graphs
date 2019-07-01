@@ -19,4 +19,8 @@ public class Vertex {
         return String.valueOf(id);
     }
 
+    public boolean isEntryVertex() {
+        return id == -1;
+    }
+
 }
