@@ -193,6 +193,15 @@ public final class Main {
 
             List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
 
+            List<Vertex> vertices = new ArrayList<>();
+
+            // pre-create vertices
+            for(int index=0; index < instructions.size(); index++) {
+                Vertex vertex = new Vertex(index, instructions.get(index));
+                cfg.addVertex(vertex);
+                vertices.add(vertex);
+            }
+
             for(int index=0; index < instructions.size(); index++) {
 
                 LOGGER.info("Instruction index: " + index);
@@ -200,9 +209,8 @@ public final class Main {
                 Instruction instruction = instructions.get(index);
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
 
-                // each instruction is represented by a vertex
-                Vertex vertex = new Vertex(index, instruction);
-                cfg.addVertex(vertex);
+                // the current instruction represented as vertex
+                Vertex vertex = vertices.get(index);
 
                 // special treatment for first instruction (virtual entry node as predecessor)
                 if (analyzedInstruction.isBeginningInstruction()) {
@@ -211,21 +219,26 @@ public final class Main {
 
                 Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
 
+                // add for each predecessor an incoming edge to the current vertex
                 for(int i=0; i < analyzedInstruction.getPredecessorCount(); i++) {
                     Vertex src = Utility.getPredecessor(predecessors, i);
                     LOGGER.info("Predecessor: " + src);
-                    cfg.addVertex(src);
                     cfg.addEdge(src, vertex);
                 }
 
                 List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
 
-                for (int i=0; i < successors.size(); i++) {
-                    Instruction successor = successors.get(i).getInstruction();
-                    Vertex dest = new Vertex(successors.get(i).getInstructionIndex(), successor);
-                    LOGGER.info("Successor: " + dest);
-                    cfg.addVertex(dest);
-                    cfg.addEdge(vertex, dest);
+                if (successors.isEmpty()) {
+                    // must be a return statement, thus we need to insert an edge to the exit vertex
+                    cfg.addEdge(vertex, cfg.getExit());
+                } else {
+                    // add for each successor an outgoing each from the current vertex
+                    for (int i = 0; i < successors.size(); i++) {
+                        Instruction successor = successors.get(i).getInstruction();
+                        Vertex dest = new Vertex(successors.get(i).getInstructionIndex(), successor);
+                        LOGGER.info("Successor: " + dest);
+                        cfg.addEdge(vertex, dest);
+                    }
                 }
 
                 /*
