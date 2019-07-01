@@ -15,7 +15,7 @@ public class IntraCFGCommand {
     @Parameter(names = { "-m", "-metric" }, description = "Metric.")
     private String metric;
 
-    @Parameter(names = { "-t", "-target" }, description = "Target.")
+    @Parameter(names = { "-t", "-target" }, description = "The full-qualified name of the target method.", required = true)
     private String target;
 
     private GraphType graphType = GraphType.INTRACFG;

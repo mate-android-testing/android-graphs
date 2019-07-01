@@ -17,6 +17,9 @@ dependencies {
     // https://mvnrepository.com/artifact/org.jgrapht/jgrapht
     compile group: 'org.jgrapht', name: 'jgrapht', version: '1.3.1', ext: 'pom'
 
+    // https://mvnrepository.com/artifact/org.jgrapht/jgrapht-core
+    compile group: 'org.jgrapht', name: 'jgrapht-core', version: '1.3.1'
+
     // https://mvnrepository.com/artifact/org.smali/dexlib2
     compile group: 'org.smali', name: 'dexlib2', version: '2.2.7'
 
