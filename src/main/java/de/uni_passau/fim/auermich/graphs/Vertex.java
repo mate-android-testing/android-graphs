@@ -7,7 +7,7 @@ import java.util.Objects;
 
 public class Vertex {
 
-    // TODO: may use inheritance for virtual vertex or some boolean flag
+    // TODO: may use inheritance for virtual vertices (entry,exit)
 
     private final int id;
     private final Instruction instruction;
@@ -18,6 +18,8 @@ public class Vertex {
     }
 
     public String toString() {
+
+        // TODO: may use instruction opcode as representation
 
         if (isEntryVertex()) {
             return "entry";
