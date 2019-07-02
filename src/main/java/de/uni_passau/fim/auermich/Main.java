@@ -4,6 +4,7 @@ import com.beust.jcommander.JCommander;
 import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
+import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.graphs.cfg.IntraProceduralCFG;
 import de.uni_passau.fim.auermich.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.IntraCFGCommand;
@@ -179,7 +180,7 @@ public final class Main {
             LOGGER.warn("Couldn't find target method! Provide the fully-qualified name!");
         } else {
 
-            IntraProceduralCFG cfg = new IntraProceduralCFG(methodName);
+            BaseCFG cfg = new IntraProceduralCFG(methodName);
 
             LOGGER.info("Method: " + methodName);
 
@@ -195,18 +196,19 @@ public final class Main {
 
             List<Vertex> vertices = new ArrayList<>();
 
-            // pre-create vertices
+            // pre-create vertices for each single instruction
             for(int index=0; index < instructions.size(); index++) {
                 Vertex vertex = new Vertex(index, instructions.get(index));
                 cfg.addVertex(vertex);
                 vertices.add(vertex);
             }
 
+            LOGGER.info(cfg.toString());
+
             for(int index=0; index < instructions.size(); index++) {
 
                 LOGGER.info("Instruction: " + vertices.get(index));
 
-                Instruction instruction = instructions.get(index);
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
 
                 // the current instruction represented as vertex
@@ -218,15 +220,17 @@ public final class Main {
                 }
 
                 Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
-
                 Iterator<AnalyzedInstruction> iterator = predecessors.iterator();
 
                 // add for each predecessor an incoming edge to the current vertex
                 while (iterator.hasNext()) {
                     AnalyzedInstruction predecessor = iterator.next();
-                    Vertex src = new Vertex(predecessor.getInstructionIndex(), predecessor.getInstruction());
-                    LOGGER.info("Predecessor: " + src);
-                    if (!src.isEntryVertex()) {
+
+                    if (predecessor.getInstructionIndex() != -1) {
+                        // not entry vertex
+                        Vertex src = vertices.get(predecessor.getInstructionIndex());
+                        // Vertex src = new Vertex(predecessor.getInstructionIndex(), predecessor.getInstruction());
+                        LOGGER.info("Predecessor: " + src);
                         cfg.addEdge(src, vertex);
                     }
                 }
@@ -239,38 +243,15 @@ public final class Main {
                 } else {
                     // add for each successor an outgoing each from the current vertex
                     for (AnalyzedInstruction successor: successors) {
-                        Vertex dest = new Vertex(successor.getInstructionIndex(), successor.getInstruction());
+                        Vertex dest = vertices.get(successor.getInstructionIndex());
+                        // Vertex dest = new Vertex(successor.getInstructionIndex(), successor.getInstruction());
                         LOGGER.info("Successor: " + dest);
                         cfg.addEdge(vertex, dest);
                     }
                 }
-
-                /*
-                switch (instruction.getOpcode()) {
-                    case IF_EQ:
-                    case IF_EQZ:
-                    case IF_GE:
-                    case IF_GEZ:
-                    case IF_GT:
-                    case IF_GTZ:
-                    case IF_LE:
-                    case IF_LEZ:
-                    case IF_LT:
-                    case IF_LTZ:
-                    case IF_NE:
-                    case IF_NEZ:
-                        break;
-                    case GOTO:
-                    case GOTO_16:
-                    case GOTO_32:
-                        break;
-
-                        default:
-
-                }
-                */
             }
             LOGGER.info(cfg.toString());
+            cfg.drawGraph();
         }
     }
 }

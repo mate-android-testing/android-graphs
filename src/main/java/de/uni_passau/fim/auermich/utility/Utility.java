@@ -59,18 +59,4 @@ public final class Utility {
         return Optional.empty();
     }
 
-    public static Vertex getPredecessor(Set<AnalyzedInstruction> predecessors, int index) {
-
-        Iterator<AnalyzedInstruction> iterator = predecessors.iterator();
-        int ctr = -1;
-        while (iterator.hasNext()) {
-            ctr++;
-            AnalyzedInstruction instruction = iterator.next();
-
-            if (ctr == index) {
-                return new Vertex(instruction.getInstructionIndex(),instruction.getInstruction());
-            }
-        }
-        return null;
-    }
 }
