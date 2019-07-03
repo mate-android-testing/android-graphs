@@ -50,14 +50,14 @@ public final class Main {
     public static void main(String[] args) throws IOException {
 
         /*
-        * TODO: allow custom order of arguments
-        * The current implementation only allows to specify
-        * the cmd-line args in a pre-defined order, i.e.
-        * first comes the option of the main command
-        * and afterwards the remaining arguments of
-        * sub-commands like 'intra'. However, we would
-        * like to specify the main arguments in any order
-        * without having to define any prefix.
+         * TODO: allow custom order of arguments
+         * The current implementation only allows to specify
+         * the cmd-line args in a pre-defined order, i.e.
+         * first comes the option of the main command
+         * and afterwards the remaining arguments of
+         * sub-commands like 'intra'. However, we would
+         * like to specify the main arguments in any order
+         * without having to define any prefix.
          */
 
         JCommander commander = JCommander.newBuilder()
@@ -75,7 +75,7 @@ public final class Main {
         LOGGER.debug("Command input: " + commander.getParsedCommand());
 
         // determine which logging level should be used
-        if(mainCmd.isDebug()) {
+        if (mainCmd.isDebug()) {
             LOGGER.debug("Debug mode is enabled!");
             Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
         } else {
@@ -100,6 +100,7 @@ public final class Main {
 
     /**
      * Verifies that the given arguments are valid.
+     *
      * @param cmd
      */
     private static boolean checkArguments(IntraCFGCommand cmd) {
@@ -110,12 +111,11 @@ public final class Main {
     }
 
     /**
-     *
      * @param cmd
      */
     private static boolean checkArguments(InterCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTERCFG;
-        Objects.requireNonNull(cmd.getMetric());
+        // Objects.requireNonNull(cmd.getMetric());
         return true;
     }
 
@@ -123,10 +123,10 @@ public final class Main {
     private static void run(JCommander commander, boolean exceptionalFlow) throws IOException {
 
         /*
-        * TODO: define some result data type
-        * We basically want to return something, e.g. a distance between two nodes. This
-        * should be stored in some result data type. Since mandatory options are missing
-        * potentially, we may want to return an empty result -> Optional.
+         * TODO: define some result data type
+         * We basically want to return something, e.g. a distance between two nodes. This
+         * should be stored in some result data type. Since mandatory options are missing
+         * potentially, we may want to return an empty result -> Optional.
          */
 
         LOGGER.debug("Determining which action to take dependent on given command");
@@ -151,114 +151,114 @@ public final class Main {
             // determine which sub-commando was executed
             switch (graphType.get()) {
                 case INTRACFG:
-                    if(checkArguments(intraCFGCmd)) {
-                        BaseCFG intraCFG = computeIntraProceduralCFG(dexFile, intraCFGCmd.getTarget());
+                    // check that specified target method is part of some class
+                    Optional<Method> targetMethod = Utility.searchForTargetMethod(dexFile, intraCFGCmd.getTarget());
+
+                    if (checkArguments(intraCFGCmd) && targetMethod.isPresent()) {
+                        BaseCFG intraCFG = computeIntraProceduralCFG(dexFile, targetMethod.get());
                         // TODO: perform some computation on the graph (check for != null)
                     }
                     break;
                 case INTERCFG:
-                    if(checkArguments(interCFGCmd)) {
-                        computeInterProceduralCFG(dexFile);
+                    if (checkArguments(interCFGCmd)) {
+                        BaseCFG interCFG = computeInterProceduralCFG(dexFile);
+                        // TODO: perform some computation on the graph
                     }
                     break;
             }
         }
     }
 
-    /*
-    * TODO: add params for metric and return some result datatype
-    *
-     */
-
     private static BaseCFG computeInterProceduralCFG(DexFile dexFile) {
 
         BaseCFG cfg = new InterProceduralCFG();
+
+        // construct for each method firs the intra-procedural CFG
+        List<BaseCFG> intraCFGs = new ArrayList<>();
+
+        // TODO: may filter out certain methods, e.g. methods of android itself
+        dexFile.getClasses().forEach(classDef ->
+                classDef.getMethods().forEach(method ->
+                        intraCFGs.add(computeIntraProceduralCFG(dexFile, method))));
+
         return cfg;
 
     }
 
-    private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, String methodName) {
+    private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, Method targetMethod) {
 
-        Optional<Method> method = Utility.searchForTargetMethod(dexFile, methodName);
+        LOGGER.info("Method: " + targetMethod.getName());
 
-        if (!method.isPresent()) {
-            LOGGER.warn("Couldn't find target method! Provide the fully-qualified name!");
-            return null;
-        } else {
+        BaseCFG cfg = new IntraProceduralCFG(targetMethod.getName());
 
-            BaseCFG cfg = new IntraProceduralCFG(methodName);
+        MethodImplementation methodImplementation = targetMethod.getImplementation();
+        List<Instruction> instructions = Lists.newArrayList(methodImplementation.getInstructions());
 
-            LOGGER.info("Method: " + methodName);
+        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                true, ClassPath.NOT_ART), targetMethod,
+                null, false);
 
-            Method targetMethod = method.get();
-            MethodImplementation methodImplementation = targetMethod.getImplementation();
-            List<Instruction> instructions = Lists.newArrayList(methodImplementation.getInstructions());
+        List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
 
-            MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
-                    true, ClassPath.NOT_ART), targetMethod,
-                    null, false);
+        List<Vertex> vertices = new ArrayList<>();
 
-            List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
-
-            List<Vertex> vertices = new ArrayList<>();
-
-            // pre-create vertices for each single instruction
-            for(int index=0; index < instructions.size(); index++) {
-                Vertex vertex = new Vertex(index, instructions.get(index));
-                cfg.addVertex(vertex);
-                vertices.add(vertex);
-            }
-
-            LOGGER.info(cfg.toString());
-
-            for(int index=0; index < instructions.size(); index++) {
-
-                LOGGER.info("Instruction: " + vertices.get(index));
-
-                AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
-
-                // the current instruction represented as vertex
-                Vertex vertex = vertices.get(index);
-
-                // special treatment for first instruction (virtual entry node as predecessor)
-                if (analyzedInstruction.isBeginningInstruction()) {
-                    cfg.addEdge(cfg.getEntry(),vertex);
-                }
-
-                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
-                Iterator<AnalyzedInstruction> iterator = predecessors.iterator();
-
-                // add for each predecessor an incoming edge to the current vertex
-                while (iterator.hasNext()) {
-                    AnalyzedInstruction predecessor = iterator.next();
-
-                    if (predecessor.getInstructionIndex() != -1) {
-                        // not entry vertex
-                        Vertex src = vertices.get(predecessor.getInstructionIndex());
-                        // Vertex src = new Vertex(predecessor.getInstructionIndex(), predecessor.getInstruction());
-                        LOGGER.info("Predecessor: " + src);
-                        cfg.addEdge(src, vertex);
-                    }
-                }
-
-                List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
-
-                if (successors.isEmpty()) {
-                    // must be a return statement, thus we need to insert an edge to the exit vertex
-                    cfg.addEdge(vertex, cfg.getExit());
-                } else {
-                    // add for each successor an outgoing each from the current vertex
-                    for (AnalyzedInstruction successor: successors) {
-                        Vertex dest = vertices.get(successor.getInstructionIndex());
-                        // Vertex dest = new Vertex(successor.getInstructionIndex(), successor.getInstruction());
-                        LOGGER.info("Successor: " + dest);
-                        cfg.addEdge(vertex, dest);
-                    }
-                }
-            }
-            LOGGER.info(cfg.toString());
-            cfg.drawGraph();
-            return cfg;
+        // pre-create vertices for each single instruction
+        for (int index = 0; index < instructions.size(); index++) {
+            Vertex vertex = new Vertex(index, instructions.get(index));
+            cfg.addVertex(vertex);
+            vertices.add(vertex);
         }
+
+        LOGGER.info(cfg.toString());
+
+        for (int index = 0; index < instructions.size(); index++) {
+
+            LOGGER.info("Instruction: " + vertices.get(index));
+
+            AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
+
+            // the current instruction represented as vertex
+            Vertex vertex = vertices.get(index);
+
+            // special treatment for first instruction (virtual entry node as predecessor)
+            if (analyzedInstruction.isBeginningInstruction()) {
+                cfg.addEdge(cfg.getEntry(), vertex);
+            }
+
+            Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+            Iterator<AnalyzedInstruction> iterator = predecessors.iterator();
+
+            // add for each predecessor an incoming edge to the current vertex
+            while (iterator.hasNext()) {
+                AnalyzedInstruction predecessor = iterator.next();
+
+                if (predecessor.getInstructionIndex() != -1) {
+                    // not entry vertex
+                    Vertex src = vertices.get(predecessor.getInstructionIndex());
+                    // Vertex src = new Vertex(predecessor.getInstructionIndex(), predecessor.getInstruction());
+                    LOGGER.info("Predecessor: " + src);
+                    cfg.addEdge(src, vertex);
+                }
+            }
+
+            List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
+
+            if (successors.isEmpty()) {
+                // must be a return statement, thus we need to insert an edge to the exit vertex
+                cfg.addEdge(vertex, cfg.getExit());
+            } else {
+                // add for each successor an outgoing each from the current vertex
+                for (AnalyzedInstruction successor : successors) {
+                    Vertex dest = vertices.get(successor.getInstructionIndex());
+                    // Vertex dest = new Vertex(successor.getInstructionIndex(), successor.getInstruction());
+                    LOGGER.info("Successor: " + dest);
+                    cfg.addEdge(vertex, dest);
+                }
+            }
+        }
+
+        LOGGER.info(cfg.toString());
+        cfg.drawGraph();
+        return cfg;
     }
 }
