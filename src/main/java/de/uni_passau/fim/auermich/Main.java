@@ -21,10 +21,8 @@ import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MethodImplementation;
+import org.jf.dexlib2.dexbacked.DexBackedDexFile;
+import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
@@ -148,6 +146,9 @@ public final class Main {
             commander.usage();
         } else {
 
+            MultiDexContainer<? extends DexBackedDexFile> apk = DexFileFactory.loadDexContainer(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_15.apk"), API_OPCODE);
+            LOGGER.info(apk.getDexEntryNames());
+
             DexFile dexFile = DexFileFactory.loadDexFile(mainCmd.getDexFile(), API_OPCODE);
 
             // determine which sub-commando was executed
@@ -213,14 +214,13 @@ public final class Main {
         }
 
         return interCFG;
-
     }
 
     private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, Method targetMethod) {
 
         LOGGER.info("Method Signature: " + Utility.deriveMethodSignature(targetMethod));
 
-        BaseCFG cfg = new IntraProceduralCFG(targetMethod.getName());
+        BaseCFG cfg = new IntraProceduralCFG(Utility.deriveMethodSignature(targetMethod));
 
         MethodImplementation methodImplementation = targetMethod.getImplementation();
         List<Instruction> instructions = Lists.newArrayList(methodImplementation.getInstructions());

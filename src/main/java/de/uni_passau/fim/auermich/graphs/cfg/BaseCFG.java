@@ -18,6 +18,8 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Set;
 
 public abstract class BaseCFG {
@@ -77,7 +79,9 @@ public abstract class BaseCFG {
         BufferedImage image =
                 mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
 
-        File file = new File("src/test/resources/graph.png");
+        Path resourceDirectory = Paths.get("src","test","resources");
+        File file = new File(resourceDirectory.toFile(), "graph.png");
+        LOGGER.debug(file.getPath());
 
         try {
             file.createNewFile();

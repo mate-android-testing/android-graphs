@@ -16,6 +16,8 @@ public class MainCommand {
      * The current implementation can only handle a single dex file, although APKs may consist of multiple dex files.
      * Thus we should use in some point in time a path instead of a file, which refers to the parent directory of the classes.dex file.
      * We can make use of the built-in PathConverter.class to check if the input represents a path.
+     *
+     * THERE SHOULD BE ALREADY SOME FUNCTIONALITY INTEGRATED INTO DEXLIB2 TO PROCESS DIRECTLY APK FILES. (ASK FELIX)
      */
 
     @Parameter(names = { "-f", "-file"}, description = "File path to the classes.dex file we want to analyze.",

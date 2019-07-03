@@ -24,6 +24,10 @@ public class IntraCFGCommand {
     @Parameter(names = { "-t", "-target" }, description = "The full-qualified name of the target method.", required = true)
     private String target;
 
+    /**
+     * TODO: use -d, -draw parameter in combination with path for output of cfg.drawGraph() (windows/linux issue)
+     */
+
     private GraphType graphType = GraphType.INTRACFG;
 
     public String getMetric() {
