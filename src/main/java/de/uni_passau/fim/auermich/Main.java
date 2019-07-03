@@ -21,6 +21,9 @@ import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
+import org.jf.dexlib2.builder.BuilderInstruction;
+import org.jf.dexlib2.builder.instruction.BuilderInstruction35c;
+import org.jf.dexlib2.builder.instruction.BuilderInstruction3rc;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
@@ -162,6 +165,7 @@ public final class Main {
                 }
             });
 
+            // TODO: change methods to support a list of dexFiles, now just pick first one
             DexFile dexFile = dexFiles.get(0);
 
             // determine which sub-commando was executed
@@ -196,36 +200,64 @@ public final class Main {
         dexFile.getClasses().forEach(classDef ->
                 classDef.getMethods().forEach(method -> {
                     String methodSignature = Utility.deriveMethodSignature(method);
-                    intraCFGs.put(methodSignature, computeIntraProceduralCFG(dexFile, method));
+
+                    if (methodSignature.equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")
+                    || methodSignature.equals("Landroid/support/v4/content/ContextCompat;->checkSelfPermission(Landroid/content/Context;Ljava/lang/String;)I")) {
+                        intraCFGs.put(methodSignature, computeIntraProceduralCFG(dexFile, method));
+                    }
                 }));
+
+        LOGGER.debug(intraCFGs.size());
+        LOGGER.debug(intraCFGs);
 
         // compute inter-procedural cfg
         for (Map.Entry<String, BaseCFG> entry : intraCFGs.entrySet()) {
             BaseCFG cfg = entry.getValue();
 
+            IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
+
+            if (!intraCFG.getMethodName().equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")) {
+                continue;
+            }
+
+            LOGGER.debug("Searching for invoke instructions!");
+
             // TODO: may track separately all call instructions when computing intraCFG
             for (Vertex vertex : cfg.getVertices()) {
 
-                AnalyzedInstruction instruction = vertex.getInstruction();
+                if (vertex.isEntryVertex() || vertex.isExitVertex()) {
+                    // entry and exit vertices do not have instructions attached, skip
+                    continue;
+                }
+
+                Instruction instruction = vertex.getInstruction().getInstruction();
 
                 // TODO: may use instruction.getOriginalInstruction()
-                if (instruction instanceof Instruction35c
-                        || instruction instanceof Instruction3rc) {
+                if (instruction instanceof Instruction35c) {
                     // some invoke instruction
 
+                    Instruction35c invokeInstruction = (Instruction35c) instruction;
+
                     // search for target CFG (CFG containing the instruction target (method))
+                    LOGGER.info("Invoke: " + invokeInstruction.getReference().toString());
+
+                    String methodSignature = invokeInstruction.getReference().toString();
+                    BaseCFG targetCFG = intraCFGs.get(methodSignature);
+                    LOGGER.debug("Target CFG: " + ((IntraProceduralCFG)targetCFG).getMethodName());
+
                     // add edge to entry node of this target CFG
                     // insert dummy return vertex
                     // remove edge from invoke to its successor instruction(s)
                     // add edge from exit of target CFG to dummy return vertex
                     // add edge from dummy return vertex to the original successor of the invoke instruction
 
+                } else if (instruction instanceof Instruction3rc) {
+                    // some invoke-range instruction
+                    Instruction3rc invokeRangeInstruction = (Instruction3rc) instruction;
+                    LOGGER.info(invokeRangeInstruction.getReference().toString());
                 }
-
             }
-
         }
-
         return interCFG;
     }
 
@@ -236,6 +268,12 @@ public final class Main {
         BaseCFG cfg = new IntraProceduralCFG(Utility.deriveMethodSignature(targetMethod));
 
         MethodImplementation methodImplementation = targetMethod.getImplementation();
+
+        // FIXME: negate condition and return empty cfg in this, or sort them out already before
+        if (methodImplementation == null) {
+            return cfg;
+        }
+
         List<Instruction> instructions = Lists.newArrayList(methodImplementation.getInstructions());
 
         MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
@@ -302,7 +340,7 @@ public final class Main {
         }
 
         LOGGER.info(cfg.toString());
-        cfg.drawGraph();
+        // cfg.drawGraph();
         return cfg;
     }
 }

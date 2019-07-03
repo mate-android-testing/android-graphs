@@ -17,4 +17,7 @@ public class IntraProceduralCFG extends BaseCFG {
         this.methodName = methodName;
     }
 
+    public String getMethodName() {
+        return methodName;
+    }
 }
