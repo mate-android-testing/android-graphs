@@ -21,8 +21,6 @@ import java.util.Set;
 
 public final class Utility {
 
-    private static final Logger LOGGER = LogManager.getLogger(Utility.class);
-
     private Utility() {
         throw new UnsupportedOperationException("Utility class!");
     }
@@ -72,7 +70,6 @@ public final class Utility {
 
         builder.append(")");
         builder.append(returnType);
-        LOGGER.info(builder.toString());
         return builder.toString();
     }
 

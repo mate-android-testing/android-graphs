@@ -1,6 +1,7 @@
 package de.uni_passau.fim.auermich.graphs;
 
 
+import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
 import java.util.Objects;
@@ -10,9 +11,9 @@ public class Vertex {
     // TODO: may use inheritance for virtual vertices (entry,exit)
 
     private final int id;
-    private final Instruction instruction;
+    private final AnalyzedInstruction instruction;
 
-    public Vertex(int id, Instruction instruction) {
+    public Vertex(int id, AnalyzedInstruction instruction) {
         this.id = id;
         this.instruction = instruction;
     }
@@ -35,6 +36,10 @@ public class Vertex {
     }
 
     public boolean isExitVertex() { return id == -2; }
+
+    public AnalyzedInstruction getInstruction() {
+        return instruction;
+    }
 
     @Override
     public boolean equals(Object o) {

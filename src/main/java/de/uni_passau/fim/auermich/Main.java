@@ -26,6 +26,8 @@ import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MethodImplementation;
 import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
+import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
 
 import java.io.File;
 import java.io.IOException;
@@ -171,23 +173,52 @@ public final class Main {
 
     private static BaseCFG computeInterProceduralCFG(DexFile dexFile) {
 
-        BaseCFG cfg = new InterProceduralCFG();
+        BaseCFG interCFG = new InterProceduralCFG();
 
-        // construct for each method firs the intra-procedural CFG
-        List<BaseCFG> intraCFGs = new ArrayList<>();
+        // construct for each method firs the intra-procedural CFG (key: method signature)
+        Map<String, BaseCFG> intraCFGs = new HashMap<>();
 
         // TODO: may filter out certain methods, e.g. methods of android itself
         dexFile.getClasses().forEach(classDef ->
-                classDef.getMethods().forEach(method ->
-                        intraCFGs.add(computeIntraProceduralCFG(dexFile, method))));
+                classDef.getMethods().forEach(method -> {
+                    String methodSignature = Utility.deriveMethodSignature(method);
+                    intraCFGs.put(methodSignature, computeIntraProceduralCFG(dexFile, method));
+                }));
 
-        return cfg;
+        // compute inter-procedural cfg
+        for (Map.Entry<String, BaseCFG> entry : intraCFGs.entrySet()) {
+            BaseCFG cfg = entry.getValue();
+
+            // TODO: may track separately all call instructions when computing intraCFG
+            for(Vertex vertex : cfg.getVertices()) {
+
+                AnalyzedInstruction instruction = vertex.getInstruction();
+
+                // TODO: may use instruction.getOriginalInstruction()
+                if (instruction instanceof Instruction35c
+                    || instruction instanceof Instruction3rc) {
+                    // some invoke instruction
+
+                    // search for target CFG (CFG containing the instruction target (method))
+                    // add edge to entry node of this target CFG
+                    // insert dummy return vertex
+                    // remove edge from invoke to its successor instruction(s)
+                    // add edge from exit of target CFG to dummy return vertex
+                    // add edge from dummy return vertex to the original successor of the invoke instruction
+
+                }
+
+            }
+
+        }
+
+        return interCFG;
 
     }
 
     private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, Method targetMethod) {
 
-        LOGGER.info("Method: " + targetMethod.getName());
+        LOGGER.info("Method Signature: " + Utility.deriveMethodSignature(targetMethod));
 
         BaseCFG cfg = new IntraProceduralCFG(targetMethod.getName());
 
@@ -204,7 +235,7 @@ public final class Main {
 
         // pre-create vertices for each single instruction
         for (int index = 0; index < instructions.size(); index++) {
-            Vertex vertex = new Vertex(index, instructions.get(index));
+            Vertex vertex = new Vertex(index, analyzedInstructions.get(index));
             cfg.addVertex(vertex);
             vertices.add(vertex);
         }

@@ -18,6 +18,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
 
 public abstract class BaseCFG {
 
@@ -49,6 +50,10 @@ public abstract class BaseCFG {
 
     public Vertex getExit() {
         return exit;
+    }
+
+    public Set<Vertex> getVertices() {
+        return graph.vertexSet();
     }
 
     @Override
