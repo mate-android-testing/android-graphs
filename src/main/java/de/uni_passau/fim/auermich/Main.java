@@ -5,6 +5,7 @@ import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.graphs.cfg.InterProceduralCFG;
 import de.uni_passau.fim.auermich.graphs.cfg.IntraProceduralCFG;
 import de.uni_passau.fim.auermich.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.IntraCFGCommand;
@@ -151,7 +152,8 @@ public final class Main {
             switch (graphType.get()) {
                 case INTRACFG:
                     if(checkArguments(intraCFGCmd)) {
-                        computeIntraProceduralCFG(dexFile, intraCFGCmd.getTarget());
+                        BaseCFG intraCFG = computeIntraProceduralCFG(dexFile, intraCFGCmd.getTarget());
+                        // TODO: perform some computation on the graph (check for != null)
                     }
                     break;
                 case INTERCFG:
@@ -168,16 +170,20 @@ public final class Main {
     *
      */
 
-    private static void computeInterProceduralCFG(DexFile dexFile) {
+    private static BaseCFG computeInterProceduralCFG(DexFile dexFile) {
+
+        BaseCFG cfg = new InterProceduralCFG();
+        return cfg;
 
     }
 
-    private static void computeIntraProceduralCFG(DexFile dexFile, String methodName) {
+    private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, String methodName) {
 
         Optional<Method> method = Utility.searchForTargetMethod(dexFile, methodName);
 
         if (!method.isPresent()) {
             LOGGER.warn("Couldn't find target method! Provide the fully-qualified name!");
+            return null;
         } else {
 
             BaseCFG cfg = new IntraProceduralCFG(methodName);
@@ -252,6 +258,7 @@ public final class Main {
             }
             LOGGER.info(cfg.toString());
             cfg.drawGraph();
+            return cfg;
         }
     }
 }

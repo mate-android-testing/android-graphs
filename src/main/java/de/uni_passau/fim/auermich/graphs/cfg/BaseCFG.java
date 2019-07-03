@@ -24,12 +24,13 @@ public abstract class BaseCFG {
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
     protected AbstractGraph graph = new DirectedMultigraph(DefaultEdge.class);
-    private final String methodName;
     private Vertex entry = new Vertex(-1, null);
     private Vertex exit = new Vertex(-2, null);
 
-    public BaseCFG(String methodName) {
-        this.methodName = methodName;
+    /**
+     * Used to initialize an inter-procedural CFG.
+     */
+    public BaseCFG() {
         graph.addVertex(entry);
         graph.addVertex(exit);
     }
