@@ -20,9 +20,9 @@ public class MainCommand {
      * THERE SHOULD BE ALREADY SOME FUNCTIONALITY INTEGRATED INTO DEXLIB2 TO PROCESS DIRECTLY APK FILES. (ASK FELIX)
      */
 
-    @Parameter(names = { "-f", "-file"}, description = "File path to the classes.dex file we want to analyze.",
-            required = true, converter = FileConverter.class)
-    private File dexFile;
+    @Parameter(names = { "-f", "-file"}, description = "File path to the APK file we want to analyze.",
+            required = true, converter = CustomFileConverter.class)
+    private File apkFile;
 
     @Parameter(names = { "-e", "-exceptional" }, description = "Whether the graph should contain edges from try-catch blocks.")
     private boolean exceptionalFlow = false;
@@ -33,8 +33,8 @@ public class MainCommand {
     @Parameter(names = { "-h", "--help" }, help = true)
     private boolean help;
 
-    public File getDexFile() {
-        return dexFile;
+    public File getAPKFile() {
+        return apkFile;
     }
 
     public boolean isExceptionalFlow() {

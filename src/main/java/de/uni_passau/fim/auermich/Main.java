@@ -131,9 +131,9 @@ public final class Main {
 
         LOGGER.debug("Determining which action to take dependent on given command");
 
-        LOGGER.info(mainCmd.getDexFile().getAbsolutePath());
+        LOGGER.info(mainCmd.getAPKFile().getAbsolutePath());
 
-        if (!mainCmd.getDexFile().exists()) {
+        if (!mainCmd.getAPKFile().exists()) {
             LOGGER.warn("Path to classes.dex file not valid!");
             return;
         }
@@ -146,10 +146,23 @@ public final class Main {
             commander.usage();
         } else {
 
-            MultiDexContainer<? extends DexBackedDexFile> apk = DexFileFactory.loadDexContainer(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_15.apk"), API_OPCODE);
-            LOGGER.info(apk.getDexEntryNames());
+            // process directly apk file (support for multi-dex)
+            MultiDexContainer<? extends DexBackedDexFile> apk
+                    = DexFileFactory.loadDexContainer(mainCmd.getAPKFile(), API_OPCODE);
 
-            DexFile dexFile = DexFileFactory.loadDexFile(mainCmd.getDexFile(), API_OPCODE);
+            List<DexFile> dexFiles = new ArrayList<>();
+
+            apk.getDexEntryNames().forEach(dexFile -> {
+                try {
+                    dexFiles.add(apk.getEntry(dexFile));
+                } catch (IOException e) {
+                    LOGGER.warn("Failure loading dexFile");
+                    LOGGER.warn(e.getMessage());
+                    return;
+                }
+            });
+
+            DexFile dexFile = dexFiles.get(0);
 
             // determine which sub-commando was executed
             switch (graphType.get()) {
@@ -191,13 +204,13 @@ public final class Main {
             BaseCFG cfg = entry.getValue();
 
             // TODO: may track separately all call instructions when computing intraCFG
-            for(Vertex vertex : cfg.getVertices()) {
+            for (Vertex vertex : cfg.getVertices()) {
 
                 AnalyzedInstruction instruction = vertex.getInstruction();
 
                 // TODO: may use instruction.getOriginalInstruction()
                 if (instruction instanceof Instruction35c
-                    || instruction instanceof Instruction3rc) {
+                        || instruction instanceof Instruction3rc) {
                     // some invoke instruction
 
                     // search for target CFG (CFG containing the instruction target (method))
