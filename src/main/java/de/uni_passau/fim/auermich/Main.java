@@ -33,6 +33,7 @@ import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public final class Main {
 
@@ -196,6 +197,9 @@ public final class Main {
 
         // construct for each method firs the intra-procedural CFG (key: method signature)
         Map<String, BaseCFG> intraCFGs = new HashMap<>();
+
+        // only use dummy CFGs for ART classes
+        Pattern exclusionPattern = Utility.readExcludePatterns();
 
         // TODO: may filter out certain methods, e.g. methods of android itself
         dexFile.getClasses().forEach(classDef ->
