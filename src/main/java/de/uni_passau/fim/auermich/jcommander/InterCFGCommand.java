@@ -13,7 +13,7 @@ import java.nio.file.Path;
 public class InterCFGCommand {
 
     /*
-    * TODO: use a custom data type for metrics (APPROACH_LEVEL,BRANCH_DISTANCE) + enforce field (required)
+    * TODO: use a custom data type for metrics (APPROACH_LEVEL,BRANCH_DISTANCE, DRAW) + enforce field (required)
     *
      */
 

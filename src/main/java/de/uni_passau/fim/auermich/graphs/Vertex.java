@@ -27,7 +27,8 @@ public class Vertex {
         } else if (isExitVertex()) {
             return "exit";
         } else {
-            return String.valueOf(id);
+            return instruction.getInstruction().getOpcode().name;
+            // return String.valueOf(id);
         }
     }
 

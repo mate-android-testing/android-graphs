@@ -4,6 +4,7 @@ import de.uni_passau.fim.auermich.Main;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.spi.LoggerRegistry;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
@@ -23,6 +24,7 @@ import java.util.regex.Pattern;
 public final class Utility {
 
     public static final String EXCLUSION_PATTERN_FILE = "exclude.txt";
+    private static final Logger LOGGER = LogManager.getLogger(Utility.class);
 
     private Utility() {
         throw new UnsupportedOperationException("Utility class!");
@@ -87,13 +89,11 @@ public final class Utility {
 
         // TODO: search for target method based on className + method signature
         String className = methodSignature.split("->")[0];
-        // String methodName = methodSignature.split("->")[1].split("\\(")[0];
 
         Set<? extends ClassDef> classes = dexFile.getClasses();
 
         // search for target method
         for (ClassDef classDef : classes) {
-            System.out.println(classDef.toString());
             if (classDef.toString().equals(className)) {
                 for (Method method : classDef.getMethods()) {
                     if (Utility.deriveMethodSignature(method).equals(methodSignature)) {
@@ -112,13 +112,13 @@ public final class Utility {
      * @throws IOException        If the file containing excluded classes is not available.
      * @throws URISyntaxException If the file is not present.
      */
-    public static Pattern readExcludePatterns() throws IOException, URISyntaxException {
+    public static Pattern readExcludePatterns() throws IOException {
 
         ClassLoader classLoader = ClassLoader.getSystemClassLoader();
         InputStream inputStream = classLoader.getResourceAsStream(EXCLUSION_PATTERN_FILE);
 
         if (inputStream == null) {
-            System.out.println("Couldn't find exlcusion file!");
+            LOGGER.warn("Couldn't find exlcusion file!");
             return null;
         }
 
@@ -135,6 +135,19 @@ public final class Utility {
         }
         reader.close();
         return Pattern.compile(builder.toString());
+    }
+
+    /**
+     * Transforms a class name containing '/' into a class name with '.'
+     * instead, and removes the leading 'L' as well as the ';' at the end.
+     *
+     * @param className The class name which should be transformed.
+     * @return The transformed class name.
+     */
+    public static String dottedClassName(String className) {
+        className = className.substring(className.indexOf('L') + 1, className.indexOf(';'));
+        className = className.replace('/', '.');
+        return className;
     }
 
 }

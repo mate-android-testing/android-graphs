@@ -191,7 +191,21 @@ public final class Main {
         }
     }
 
-    private static BaseCFG computeInterProceduralCFG(DexFile dexFile) {
+    /**
+     * Constructs a dummy CFG only consisting of the virtual entry and exit vertices
+     * and an edge between. This CFG is used to model Android Runtime methods (ART).
+     *
+     * @param targetMethod The ART method.
+     * @return Returns a simplified CFG.
+     */
+    private static BaseCFG dummyIntraProceduralCFG(Method targetMethod) {
+
+        BaseCFG cfg = new IntraProceduralCFG(Utility.deriveMethodSignature(targetMethod));
+        cfg.addEdge(cfg.getEntry(), cfg.getExit());
+        return cfg;
+    }
+
+    private static BaseCFG computeInterProceduralCFG(DexFile dexFile) throws IOException {
 
         BaseCFG interCFG = new InterProceduralCFG();
 
@@ -204,16 +218,19 @@ public final class Main {
         // TODO: may filter out certain methods, e.g. methods of android itself
         dexFile.getClasses().forEach(classDef ->
                 classDef.getMethods().forEach(method -> {
-                    String methodSignature = Utility.deriveMethodSignature(method);
 
-                    if (methodSignature.equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")
-                    || methodSignature.equals("Landroid/support/v4/content/ContextCompat;->checkSelfPermission(Landroid/content/Context;Ljava/lang/String;)I")) {
+                    String methodSignature = Utility.deriveMethodSignature(method);
+                    String className = Utility.dottedClassName(classDef.toString());
+
+                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
+                        // dummy CFG consisting only of entry, exit vertex and edge between
+                        intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
+                    } else {
                         intraCFGs.put(methodSignature, computeIntraProceduralCFG(dexFile, method));
                     }
                 }));
 
         LOGGER.debug(intraCFGs.size());
-        LOGGER.debug(intraCFGs);
 
         // compute inter-procedural cfg
         for (Map.Entry<String, BaseCFG> entry : intraCFGs.entrySet()) {
@@ -276,7 +293,8 @@ public final class Main {
 
         // FIXME: negate condition and return empty cfg in this, or sort them out already before
         if (methodImplementation == null) {
-            return cfg;
+            LOGGER.info("No implementation found for: " + ((IntraProceduralCFG) cfg).getMethodName());
+            return dummyIntraProceduralCFG(targetMethod);
         }
 
         List<Instruction> instructions = Lists.newArrayList(methodImplementation.getInstructions());
@@ -296,11 +314,11 @@ public final class Main {
             vertices.add(vertex);
         }
 
-        LOGGER.info(cfg.toString());
+        LOGGER.debug("#Instructions: " + instructions.size());
 
         for (int index = 0; index < instructions.size(); index++) {
 
-            LOGGER.info("Instruction: " + vertices.get(index));
+            LOGGER.debug("Instruction: " + vertices.get(index));
 
             AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
 
@@ -323,7 +341,7 @@ public final class Main {
                     // not entry vertex
                     Vertex src = vertices.get(predecessor.getInstructionIndex());
                     // Vertex src = new Vertex(predecessor.getInstructionIndex(), predecessor.getInstruction());
-                    LOGGER.info("Predecessor: " + src);
+                    LOGGER.debug("Predecessor: " + src);
                     cfg.addEdge(src, vertex);
                 }
             }
@@ -338,7 +356,7 @@ public final class Main {
                 for (AnalyzedInstruction successor : successors) {
                     Vertex dest = vertices.get(successor.getInstructionIndex());
                     // Vertex dest = new Vertex(successor.getInstructionIndex(), successor.getInstruction());
-                    LOGGER.info("Successor: " + dest);
+                    LOGGER.debug("Successor: " + dest);
                     cfg.addEdge(vertex, dest);
                 }
             }
