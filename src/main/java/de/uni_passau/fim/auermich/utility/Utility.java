@@ -11,15 +11,18 @@ import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
-import java.io.File;
-import java.io.FilenameFilter;
+import java.io.*;
+import java.net.URISyntaxException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 
 public final class Utility {
+
+    public static final String EXCLUSION_PATTERN_FILE = "exclude.txt";
 
     private Utility() {
         throw new UnsupportedOperationException("Utility class!");
@@ -100,6 +103,38 @@ public final class Utility {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Generates patterns of classes which should be excluded from the instrumentation.
+     *
+     * @return The pattern representing classes that should not be instrumented.
+     * @throws IOException        If the file containing excluded classes is not available.
+     * @throws URISyntaxException If the file is not present.
+     */
+    public static Pattern readExcludePatterns() throws IOException, URISyntaxException {
+
+        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+        InputStream inputStream = classLoader.getResourceAsStream(EXCLUSION_PATTERN_FILE);
+
+        if (inputStream == null) {
+            System.out.println("Couldn't find exlcusion file!");
+            return null;
+        }
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+        String line;
+        StringBuilder builder = new StringBuilder();
+        boolean first = true;
+        while ((line = reader.readLine()) != null) {
+            if (first)
+                first = false;
+            else
+                builder.append("|");
+            builder.append(line);
+        }
+        reader.close();
+        return Pattern.compile(builder.toString());
     }
 
 }

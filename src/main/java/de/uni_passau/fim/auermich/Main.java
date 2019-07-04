@@ -137,10 +137,11 @@ public final class Main {
         LOGGER.info(mainCmd.getAPKFile().getAbsolutePath());
 
         if (!mainCmd.getAPKFile().exists()) {
-            LOGGER.warn("Path to classes.dex file not valid!");
+            LOGGER.warn("No valid APK path!");
             return;
         }
 
+        // intra, inter, sgd coincides with defined Graph type enum
         String selectedCommand = commander.getParsedCommand();
         Optional<GraphType> graphType = GraphType.fromString(selectedCommand);
 
