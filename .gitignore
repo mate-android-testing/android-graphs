@@ -9,3 +9,7 @@ out/
 # ignore idea files
 **/.idea
 .idea/
+
+**/build
+/build/
+build/
