@@ -8,10 +8,12 @@ import com.mxgraph.util.mxConstants;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jgrapht.Graph;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.AbstractGraph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DirectedMultigraph;
+import org.jgrapht.graph.builder.GraphTypeBuilder;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -25,6 +27,11 @@ import java.util.Set;
 public abstract class BaseCFG {
 
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
+
+    Graph<Vertex,
+                DefaultEdge> g = GraphTypeBuilder
+            .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+            .edgeClass(DefaultEdge.class).buildGraph();
 
     protected AbstractGraph graph = new DirectedMultigraph(DefaultEdge.class);
     private Vertex entry = new Vertex(-1, null);
