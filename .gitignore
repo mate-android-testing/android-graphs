@@ -1,8 +1,11 @@
 # ignore out folder
+**/out
 out/
 
 # ignore gradle stuff
+**/.gradle
 .gradle/
 
 # ignore idea files
+**/.idea
 .idea/
