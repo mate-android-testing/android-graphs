@@ -28,12 +28,11 @@ public abstract class BaseCFG {
 
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
-    Graph<Vertex,
-                DefaultEdge> g = GraphTypeBuilder
+    protected Graph<Vertex, DefaultEdge> graph = GraphTypeBuilder
             .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
             .edgeClass(DefaultEdge.class).buildGraph();
 
-    protected AbstractGraph graph = new DirectedMultigraph(DefaultEdge.class);
+    // protected AbstractGraph graph = new DirectedMultigraph(DefaultEdge.class);
     private Vertex entry = new Vertex(-1, null);
     private Vertex exit = new Vertex(-2, null);
 

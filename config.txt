@@ -1,0 +1,17 @@
+
+# Config for intra-procedural CFG on Linux
+
+-f
+/home/auermich/smali/ws.xsoh.etar_15.apk
+-d
+intra
+-t
+Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V
+
+
+# Config for inter-procedural CFG on Linux
+
+-f
+/home/auermich/smali/ws.xsoh.etar_15.apk
+-d
+inter
