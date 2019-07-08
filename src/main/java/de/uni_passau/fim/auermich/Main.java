@@ -33,6 +33,7 @@ import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
 public final class Main {
@@ -200,6 +201,8 @@ public final class Main {
      */
     private static BaseCFG dummyIntraProceduralCFG(Method targetMethod) {
 
+        LOGGER.info("Method Signature: " + Utility.deriveMethodSignature(targetMethod));
+
         BaseCFG cfg = new IntraProceduralCFG(Utility.deriveMethodSignature(targetMethod));
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
         return cfg;
@@ -215,6 +218,9 @@ public final class Main {
         // only use dummy CFGs for ART classes
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
+        // track for how many classes we computed the complete CFG (no dummy CFG)
+        AtomicInteger realClasses = new AtomicInteger(0);
+
         // TODO: may filter out certain methods, e.g. methods of android itself
         dexFile.getClasses().forEach(classDef ->
                 classDef.getMethods().forEach(method -> {
@@ -227,24 +233,22 @@ public final class Main {
                         intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
                     } else {
                         intraCFGs.put(methodSignature, computeIntraProceduralCFG(dexFile, method));
+                        realClasses.incrementAndGet();
                     }
                 }));
 
-        LOGGER.debug(intraCFGs.size());
+        LOGGER.debug("Number of completely constructed CFGs: " + realClasses.get());
 
         // compute inter-procedural cfg
         for (Map.Entry<String, BaseCFG> entry : intraCFGs.entrySet()) {
             BaseCFG cfg = entry.getValue();
 
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
-
-            if (!intraCFG.getMethodName().equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")) {
-                continue;
-            }
+            LOGGER.debug(intraCFG.getMethodName());
 
             LOGGER.debug("Searching for invoke instructions!");
 
-            // TODO: may track separately all call instructions when computing intraCFG
+            // TODO: may track previously all call instructions when computing intraCFG
             for (Vertex vertex : cfg.getVertices()) {
 
                 if (vertex.isEntryVertex() || vertex.isExitVertex()) {
@@ -254,18 +258,23 @@ public final class Main {
 
                 Instruction instruction = vertex.getInstruction().getInstruction();
 
-                // TODO: may use instruction.getOriginalInstruction()
                 if (instruction instanceof Instruction35c) {
                     // some invoke instruction
 
                     Instruction35c invokeInstruction = (Instruction35c) instruction;
 
                     // search for target CFG (CFG containing the instruction target (method))
-                    LOGGER.info("Invoke: " + invokeInstruction.getReference().toString());
+                    LOGGER.debug("Invoke: " + invokeInstruction.getReference().toString());
 
                     String methodSignature = invokeInstruction.getReference().toString();
-                    BaseCFG targetCFG = intraCFGs.get(methodSignature);
-                    LOGGER.debug("Target CFG: " + ((IntraProceduralCFG)targetCFG).getMethodName());
+
+                    if (intraCFGs.containsKey(methodSignature)) {
+                        BaseCFG targetCFG = intraCFGs.get(methodSignature);
+                        LOGGER.debug("Target CFG: " + ((IntraProceduralCFG) targetCFG).getMethodName());
+                    } else {
+                        // TODO: create dummy CFG and add to set of intraCFGs
+                        LOGGER.warn("Target CFG for method: " + methodSignature + " not found!");
+                    }
 
                     // add edge to entry node of this target CFG
                     // insert dummy return vertex
