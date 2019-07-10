@@ -6,8 +6,8 @@ public class InterProceduralCFG extends BaseCFG {
 
     private static final GraphType GRAPH_TYPE = GraphType.INTERCFG;
 
-    public InterProceduralCFG() {
-        super();
+    public InterProceduralCFG(String methodName) {
+        super(methodName);
     }
 
 }

@@ -5,6 +5,7 @@ import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import com.mxgraph.layout.orthogonal.mxOrthogonalLayout;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxConstants;
+import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,18 +29,31 @@ public abstract class BaseCFG {
 
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
-    protected Graph<Vertex, DefaultEdge> graph = GraphTypeBuilder
+    protected Graph<Vertex, Edge> graph = GraphTypeBuilder
             .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
-            .edgeClass(DefaultEdge.class).buildGraph();
+            .edgeClass(Edge.class).buildGraph();
 
     // protected AbstractGraph graph = new DirectedMultigraph(DefaultEdge.class);
-    private Vertex entry = new Vertex(-1, null);
-    private Vertex exit = new Vertex(-2, null);
+    private final Vertex entry; // = new Vertex(-1, null, null);
+    private final Vertex exit; // = new Vertex(-2, null, null);
+
+    /*
+     * Contains the full-qualified name of the method,
+     * e.g. className->methodName(p0...pN)ReturnType.
+     * For the inter-procedural CFG, we can use some
+     * arbitrary name. It's solely purpose is to
+     * distinguish vertices among different intra CFGs.
+     */
+    private final String methodName;
+
 
     /**
      * Used to initialize an inter-procedural CFG.
      */
-    public BaseCFG() {
+    public BaseCFG(String methodName) {
+        this.methodName = methodName;
+        entry = new Vertex(-1, null, methodName);
+        exit = new Vertex(-2, null, methodName);
         graph.addVertex(entry);
         graph.addVertex(exit);
     }
@@ -60,8 +74,35 @@ public abstract class BaseCFG {
         return exit;
     }
 
+    public Set<Edge> getEdges() { return graph.edgeSet(); }
+
     public Set<Vertex> getVertices() {
         return graph.vertexSet();
+    }
+
+    public boolean containsVertex(Vertex vertex) {
+        return graph.containsVertex(vertex);
+    }
+
+    public boolean containsEdge(Edge edge) {
+        return graph.containsEdge(edge);
+    }
+
+    public String getMethodName() {
+        return methodName;
+    }
+
+    public void addSubGraph(BaseCFG subGraph) {
+
+        // add all vertices
+        for (Vertex vertex: subGraph.getVertices()) {
+            addVertex(vertex);
+        }
+
+        // add all edges
+        for (Edge edge : subGraph.getEdges()) {
+            addEdge(edge.getSource(), edge.getTarget());
+        }
     }
 
     @Override
@@ -71,7 +112,7 @@ public abstract class BaseCFG {
 
     public void drawGraph() {
 
-        JGraphXAdapter<Vertex, DefaultEdge> graphXAdapter
+        JGraphXAdapter<Vertex, Edge> graphXAdapter
                 = new JGraphXAdapter<>(graph);
         graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
 

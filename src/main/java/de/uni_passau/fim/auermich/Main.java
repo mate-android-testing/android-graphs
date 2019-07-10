@@ -29,6 +29,7 @@ import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
+import org.jgrapht.graph.DefaultEdge;
 
 import java.io.File;
 import java.io.IOException;
@@ -42,6 +43,9 @@ public final class Main {
 
     // the dalvik bytecode level (Android API version)
     public static final Opcodes API_OPCODE = Opcodes.forApi(28);
+
+    // debug mode
+    private static boolean DEBUG_MODE = false;
 
     // the set of possible commands
     private static final MainCommand mainCmd = new MainCommand();
@@ -82,6 +86,7 @@ public final class Main {
         // determine which logging level should be used
         if (mainCmd.isDebug()) {
             LOGGER.debug("Debug mode is enabled!");
+            DEBUG_MODE = true;
             Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
         } else {
             Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.INFO);
@@ -208,20 +213,40 @@ public final class Main {
         return cfg;
     }
 
-    private static BaseCFG computeInterProceduralCFG(DexFile dexFile) throws IOException {
+    /**
+     * Constructs a dummy CFG only consisting of the virtual entry and exit vertices
+     * and an edge between. This CFG is used to model Android Runtime methods (ART).
+     *
+     * @param targetMethod The ART method.
+     * @return Returns a simplified CFG.
+     */
+    private static BaseCFG dummyIntraProceduralCFG(String targetMethod) {
 
-        BaseCFG interCFG = new InterProceduralCFG();
+        BaseCFG cfg = new IntraProceduralCFG(targetMethod);
+        cfg.addEdge(cfg.getEntry(), cfg.getExit());
+        return cfg;
+    }
 
-        // construct for each method firs the intra-procedural CFG (key: method signature)
-        Map<String, BaseCFG> intraCFGs = new HashMap<>();
+    /**
+     * Constructs the intra procedural CFG for every method inlcuded in the {@param dexFile}. Since
+     * a regular {@param dexFile} includes > 30 000 methods, the graph would explode. To reduce the
+     * size of the graph, we only model for all the ART classes, more precisely for all classes matched
+     * by a certain pattern, a simplistic CFG consisting only of the virtual start and end vertex plus
+     * an edge in between those vertices.
+     *
+     * @param dexFile The classes.dex file containing all the classes.
+     * @param intraCFGs A map containing for each method (key: method signature) its CFG.
+     * @throws IOException Should never happen.
+     */
+    private static void constructIntraCFGs(DexFile dexFile, Map<String, BaseCFG> intraCFGs) throws IOException {
 
         // only use dummy CFGs for ART classes
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
-        // track for how many classes we computed the complete CFG (no dummy CFG)
-        AtomicInteger realClasses = new AtomicInteger(0);
+        // track for how many methods we computed the complete CFG (no dummy CFGs)
+        AtomicInteger realMethods = new AtomicInteger(0);
 
-        // TODO: may filter out certain methods, e.g. methods of android itself
+        // construct for ART classes only a dummy CFG consisting of virtual start and end vertex
         dexFile.getClasses().forEach(classDef ->
                 classDef.getMethods().forEach(method -> {
 
@@ -233,18 +258,39 @@ public final class Main {
                         intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
                     } else {
                         intraCFGs.put(methodSignature, computeIntraProceduralCFG(dexFile, method));
-                        realClasses.incrementAndGet();
+                        realMethods.incrementAndGet();
                     }
                 }));
 
-        LOGGER.debug("Number of completely constructed CFGs: " + realClasses.get());
+        LOGGER.debug("Number of completely constructed CFGs: " + realMethods.get());
+    }
 
-        // compute inter-procedural cfg
-        for (Map.Entry<String, BaseCFG> entry : intraCFGs.entrySet()) {
+
+    private static BaseCFG computeInterProceduralCFG(DexFile dexFile) throws IOException {
+
+        // the final inter-procedural CFG
+        BaseCFG interCFG = new InterProceduralCFG("globalEntryPoint");
+
+        // construct for each method firs the intra-procedural CFG (key: method signature)
+        Map<String, BaseCFG> intraCFGs = new HashMap<>();
+        constructIntraCFGs(dexFile, intraCFGs);
+
+        // avoid concurrent modification exception
+        Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
+
+        // compute inter-procedural CFG by connecting intra CFGs
+        for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
+
             BaseCFG cfg = entry.getValue();
-
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug(intraCFG.getMethodName());
+
+            Set<BaseCFG> coveredGraphs = new HashSet<>();
+
+            if (intraCFG.getMethodName().equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")) {
+                // add first source graph
+                interCFG.addSubGraph(intraCFG);
+            }
 
             LOGGER.debug("Searching for invoke instructions!");
 
@@ -263,20 +309,45 @@ public final class Main {
 
                     Instruction35c invokeInstruction = (Instruction35c) instruction;
 
-                    // search for target CFG (CFG containing the instruction target (method))
+                    // search for target CFG by reference of invoke instruction (target method)
                     LOGGER.debug("Invoke: " + invokeInstruction.getReference().toString());
 
                     String methodSignature = invokeInstruction.getReference().toString();
 
+                    BaseCFG targetCFG;
+
                     if (intraCFGs.containsKey(methodSignature)) {
-                        BaseCFG targetCFG = intraCFGs.get(methodSignature);
+                        targetCFG = intraCFGs.get(methodSignature);
                         LOGGER.debug("Target CFG: " + ((IntraProceduralCFG) targetCFG).getMethodName());
                     } else {
-                        // TODO: create dummy CFG and add to set of intraCFGs
+
+                        /*
+                        * There are some Android specific classes, e.g. android/view/View, which are
+                        * not included in the classes.dex file for yet unknown reasons. Basically,
+                        * these classes should be just treated like other classes from the ART.
+                         */
                         LOGGER.warn("Target CFG for method: " + methodSignature + " not found!");
+                        targetCFG = dummyIntraProceduralCFG(methodSignature);
+                        intraCFGs.put(methodSignature, targetCFG);
                     }
 
-                    // add edge to entry node of this target CFG
+                    // add edge from invoke instruction/vertex to entry node of this target CFG
+                    if (intraCFG.getMethodName().equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")) {
+
+                        if (!coveredGraphs.contains(targetCFG)) {
+                            // add then target graph
+                            interCFG.addSubGraph(targetCFG);
+                            coveredGraphs.add(targetCFG);
+                        }
+
+                        if (interCFG.containsVertex(vertex) && interCFG.containsVertex(targetCFG.getEntry())) {
+                            // add edge
+                            LOGGER.debug("Source: " + vertex);
+                            LOGGER.debug("Target: " + targetCFG.getEntry());
+                            interCFG.addEdge(vertex, targetCFG.getEntry());
+                        }
+                    }
+
                     // insert dummy return vertex
                     // remove edge from invoke to its successor instruction(s)
                     // add edge from exit of target CFG to dummy return vertex
@@ -289,20 +360,29 @@ public final class Main {
                 }
             }
         }
+
+        if (DEBUG_MODE) {
+            // intraCFGs.get("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V").drawGraph();
+            LOGGER.debug(interCFG);
+            interCFG.drawGraph();
+        }
+
         return interCFG;
     }
 
     private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, Method targetMethod) {
 
-        LOGGER.info("Method Signature: " + Utility.deriveMethodSignature(targetMethod));
+        String methodName = Utility.deriveMethodSignature(targetMethod);
 
-        BaseCFG cfg = new IntraProceduralCFG(Utility.deriveMethodSignature(targetMethod));
+        LOGGER.info("Method Signature: " + methodName);
+
+        BaseCFG cfg = new IntraProceduralCFG(methodName);
 
         MethodImplementation methodImplementation = targetMethod.getImplementation();
 
         // FIXME: negate condition and return empty cfg in this, or sort them out already before
         if (methodImplementation == null) {
-            LOGGER.info("No implementation found for: " + ((IntraProceduralCFG) cfg).getMethodName());
+            LOGGER.info("No implementation found for: " + methodName);
             return dummyIntraProceduralCFG(targetMethod);
         }
 
@@ -318,7 +398,7 @@ public final class Main {
 
         // pre-create vertices for each single instruction
         for (int index = 0; index < instructions.size(); index++) {
-            Vertex vertex = new Vertex(index, analyzedInstructions.get(index));
+            Vertex vertex = new Vertex(index, analyzedInstructions.get(index), methodName);
             cfg.addVertex(vertex);
             vertices.add(vertex);
         }

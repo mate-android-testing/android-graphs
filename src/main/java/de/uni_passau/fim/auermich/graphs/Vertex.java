@@ -10,25 +10,29 @@ public class Vertex {
 
     // TODO: may use inheritance for virtual vertices (entry,exit)
 
+    // the instruction ID within the defined method
     private final int id;
+
+    // the corresponding instruction
     private final AnalyzedInstruction instruction;
 
-    public Vertex(int id, AnalyzedInstruction instruction) {
+    // uniquely identifies each vertex by its method signature
+    private final String method;
+
+    public Vertex(int id, AnalyzedInstruction instruction, String method) {
         this.id = id;
         this.instruction = instruction;
+        this.method = method;
     }
 
     public String toString() {
 
-        // TODO: may use instruction opcode as representation
-
         if (isEntryVertex()) {
-            return "entry";
+            return "entry " + " (" + method + ")";
         } else if (isExitVertex()) {
-            return "exit";
+            return "exit " + " (" + method + ")";
         } else {
-            return instruction.getInstruction().getOpcode().name;
-            // return String.valueOf(id);
+            return id + ": " + instruction.getInstruction().getOpcode().name + " (" + method + ")";
         }
     }
 
@@ -42,6 +46,7 @@ public class Vertex {
         return instruction;
     }
 
+
     @Override
     public boolean equals(Object o) {
 
@@ -54,15 +59,13 @@ public class Vertex {
 
         Vertex other = (Vertex) o;
 
-        // Instruction data type doesn't define equals/hashcode
-        // currently only guarantees equality within same method
-        // may try out Objects.equals(this.instruction, other.instruction);
-        return this.id == other.id;
+        // unique method signature + instruction id
+        return this.method.equals(other.method) && this.id == other.id;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(method, id);
     }
 
 }
