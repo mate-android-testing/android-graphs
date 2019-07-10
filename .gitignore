@@ -13,3 +13,6 @@ out/
 **/build
 /build/
 build/
+
+# ignore graph
+graph.png
