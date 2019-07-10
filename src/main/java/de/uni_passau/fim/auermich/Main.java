@@ -2,6 +2,7 @@ package de.uni_passau.fim.auermich;
 
 import com.beust.jcommander.JCommander;
 import com.google.common.collect.Lists;
+import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
@@ -331,28 +332,43 @@ public final class Main {
                         intraCFGs.put(methodSignature, targetCFG);
                     }
 
-                    // add edge from invoke instruction/vertex to entry node of this target CFG
                     if (intraCFG.getMethodName().equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")) {
 
+                        /*
+                        * Store the original outgoing edges first, since we add further
+                        * edges later.
+                        *
+                         */
+                        Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
+
                         if (!coveredGraphs.contains(targetCFG)) {
-                            // add then target graph
+                            // add target graph to inter CFG
                             interCFG.addSubGraph(targetCFG);
                             coveredGraphs.add(targetCFG);
                         }
 
                         if (interCFG.containsVertex(vertex) && interCFG.containsVertex(targetCFG.getEntry())) {
-                            // add edge
+                            // add edge from invoke instruction to entry vertex of target CFG
                             LOGGER.debug("Source: " + vertex);
                             LOGGER.debug("Target: " + targetCFG.getEntry());
                             interCFG.addEdge(vertex, targetCFG.getEntry());
                         }
+
+                        // insert dummy return vertex
+                        Vertex returnVertex = new Vertex(-3, null, "return");
+                        interCFG.addVertex(returnVertex);
+
+                        // remove edge from invoke to its successor instruction(s)
+                        interCFG.removeEdges(outgoingEdges);
+
+                        // add edge from exit of target CFG to dummy return vertex
+                        interCFG.addEdge(targetCFG.getExit(), returnVertex);
+
+                        // add edge from dummy return vertex to the original successor(s) of the invoke instruction
+                        for (Edge edge: outgoingEdges) {
+                            interCFG.addEdge(returnVertex, edge.getTarget());
+                        }
                     }
-
-                    // insert dummy return vertex
-                    // remove edge from invoke to its successor instruction(s)
-                    // add edge from exit of target CFG to dummy return vertex
-                    // add edge from dummy return vertex to the original successor of the invoke instruction
-
                 } else if (instruction instanceof Instruction3rc) {
                     // some invoke-range instruction
                     Instruction3rc invokeRangeInstruction = (Instruction3rc) instruction;

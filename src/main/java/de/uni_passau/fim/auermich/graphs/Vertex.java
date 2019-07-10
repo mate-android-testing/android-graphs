@@ -31,6 +31,8 @@ public class Vertex {
             return "entry " + " (" + method + ")";
         } else if (isExitVertex()) {
             return "exit " + " (" + method + ")";
+        } else if (isReturnVertex()) {
+            return "return";
         } else {
             return id + ": " + instruction.getInstruction().getOpcode().name + " (" + method + ")";
         }
@@ -41,6 +43,8 @@ public class Vertex {
     }
 
     public boolean isExitVertex() { return id == -2; }
+
+    public boolean isReturnVertex() { return id == -3; }
 
     public AnalyzedInstruction getInstruction() {
         return instruction;

@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.Set;
 
 public abstract class BaseCFG {
@@ -62,8 +63,20 @@ public abstract class BaseCFG {
         graph.addEdge(src, dest);
     }
 
+    public Set<Edge> getOutgoingEdges(Vertex vertex) {
+        return graph.outgoingEdgesOf(vertex);
+    }
+
     public void addVertex(Vertex vertex) {
         graph.addVertex(vertex);
+    }
+
+    public void removeEdge(Edge edge) {
+        graph.removeEdge(edge);
+    }
+
+    public void removeEdges(Collection<Edge> edges) {
+        graph.removeAllEdges(edges);
     }
 
     public Vertex getEntry() {
