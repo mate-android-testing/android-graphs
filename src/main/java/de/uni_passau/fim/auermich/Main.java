@@ -355,7 +355,7 @@ public final class Main {
                         }
 
                         // insert dummy return vertex
-                        Vertex returnVertex = new Vertex(-3, null, "return");
+                        Vertex returnVertex = new Vertex(-3, null, targetCFG.getMethodName());
                         interCFG.addVertex(returnVertex);
 
                         // remove edge from invoke to its successor instruction(s)
