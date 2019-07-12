@@ -340,6 +340,7 @@ public final class Main {
                         *
                          */
                         Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
+                        LOGGER.debug("Outgoing edges of vertex " + vertex + ": " + outgoingEdges);
 
                         if (!coveredGraphs.contains(targetCFG)) {
                             // add target graph to inter CFG
@@ -354,8 +355,10 @@ public final class Main {
                             interCFG.addEdge(vertex, targetCFG.getEntry());
                         }
 
+                        // TODO: need unique return vertices (multiple call within method to same target method)
                         // insert dummy return vertex
-                        Vertex returnVertex = new Vertex(-3, null, targetCFG.getMethodName());
+                        Vertex returnVertex = new Vertex(-3, null, vertex
+                                + " [ " + targetCFG.getMethodName() + "]");
                         interCFG.addVertex(returnVertex);
 
                         // remove edge from invoke to its successor instruction(s)

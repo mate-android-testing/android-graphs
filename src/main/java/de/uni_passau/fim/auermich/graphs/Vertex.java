@@ -31,7 +31,7 @@ public class Vertex {
     public String toString() {
 
         if (isEntryVertex() || isExitVertex() || isReturnVertex()) {
-            return type + " (" + method + ")";
+            return type + " " + method;
         } else {
             return String.valueOf(id) + ": " + instruction.getInstruction().getOpcode().name;
         }
@@ -79,6 +79,8 @@ public class Vertex {
      */
     private enum VERTEX_TYPE {
 
+        // TODO: may add INVOKE_VERTEX
+
         ENTRY_VERTEX,
         EXIT_VERTEX,
         RETURN_VERTEX,
@@ -111,7 +113,5 @@ public class Vertex {
             }
             throw new UnsupportedOperationException();
         }
-
     }
-
 }
