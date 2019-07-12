@@ -2,6 +2,8 @@ package de.uni_passau.fim.auermich.graphs;
 
 import org.jgrapht.graph.DefaultEdge;
 
+import java.util.Objects;
+
 public class Edge extends DefaultEdge {
 
     public Edge() {
@@ -21,5 +23,27 @@ public class Edge extends DefaultEdge {
     @Override
     public String toString() {
         return "(" + this.getSource() + "->" + this.getTarget() + ")";
+    }
+
+    @Override
+    public boolean equals(Object o) {
+
+        if (o == this)
+            return true;
+
+        if (!(o instanceof Edge)) {
+            return false;
+        }
+
+        Edge other = (Edge) o;
+
+        // compare edge based on source and target vertex of edge
+        return this.getSource().equals(other.getSource())
+                && this.getTarget().equals(other.getTarget());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getSource(), getTarget());
     }
 }

@@ -134,6 +134,7 @@ public abstract class BaseCFG {
 
         mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
         ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
+
         layout.execute(graphXAdapter.getDefaultParent());
 
         BufferedImage image =

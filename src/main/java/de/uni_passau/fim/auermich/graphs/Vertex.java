@@ -33,7 +33,7 @@ public class Vertex {
         if (isEntryVertex() || isExitVertex() || isReturnVertex()) {
             return type + " (" + method + ")";
         } else {
-            return String.valueOf(id); // + ": " + instruction.getInstruction().getOpcode().name;
+            return String.valueOf(id) + ": " + instruction.getInstruction().getOpcode().name;
         }
     }
 
