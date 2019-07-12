@@ -8,7 +8,7 @@ import java.util.Objects;
 
 public class Vertex {
 
-    // TODO: may use inheritance for virtual vertices (entry,exit)
+    // TODO: may use basic blocks (list of ids,instructions,...)
 
     // the instruction ID within the defined method
     private final int id;

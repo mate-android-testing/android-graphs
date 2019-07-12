@@ -28,6 +28,7 @@ import org.jf.dexlib2.builder.instruction.BuilderInstruction3rc;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
 import org.jgrapht.graph.DefaultEdge;
@@ -235,7 +236,7 @@ public final class Main {
      * by a certain pattern, a simplistic CFG consisting only of the virtual start and end vertex plus
      * an edge in between those vertices.
      *
-     * @param dexFile The classes.dex file containing all the classes.
+     * @param dexFile   The classes.dex file containing all the classes.
      * @param intraCFGs A map containing for each method (key: method signature) its CFG.
      * @throws IOException Should never happen.
      */
@@ -279,6 +280,9 @@ public final class Main {
         // avoid concurrent modification exception
         Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
 
+        // store graphs already inserted into inter-procedural CFG
+        Set<BaseCFG> coveredGraphs = new HashSet<>();
+
         // compute inter-procedural CFG by connecting intra CFGs
         for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
 
@@ -286,11 +290,12 @@ public final class Main {
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug(intraCFG.getMethodName());
 
-            Set<BaseCFG> coveredGraphs = new HashSet<>();
-
-            if (intraCFG.getMethodName().equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")) {
-                // add first source graph
-                interCFG.addSubGraph(intraCFG);
+            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
+                if (!coveredGraphs.contains(cfg)) {
+                    // add first source graph
+                    interCFG.addSubGraph(intraCFG);
+                    coveredGraphs.add(cfg);
+                }
             }
 
             LOGGER.debug("Searching for invoke instructions!");
@@ -305,15 +310,15 @@ public final class Main {
 
                 Instruction instruction = vertex.getInstruction().getInstruction();
 
-                if (instruction instanceof Instruction35c) {
-                    // some invoke instruction
-
-                    Instruction35c invokeInstruction = (Instruction35c) instruction;
+                // check for invoke/invoke-range instruction
+                if (instruction instanceof ReferenceInstruction
+                        && (instruction instanceof Instruction3rc
+                        || instruction instanceof Instruction35c)) {
 
                     // search for target CFG by reference of invoke instruction (target method)
-                    LOGGER.debug("Invoke: " + invokeInstruction.getReference().toString());
+                    String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
 
-                    String methodSignature = invokeInstruction.getReference().toString();
+                    LOGGER.debug("Invoke: " + methodSignature);
 
                     BaseCFG targetCFG;
 
@@ -323,21 +328,21 @@ public final class Main {
                     } else {
 
                         /*
-                        * There are some Android specific classes, e.g. android/view/View, which are
-                        * not included in the classes.dex file for yet unknown reasons. Basically,
-                        * these classes should be just treated like other classes from the ART.
+                         * There are some Android specific classes, e.g. android/view/View, which are
+                         * not included in the classes.dex file for yet unknown reasons. Basically,
+                         * these classes should be just treated like other classes from the ART.
                          */
                         LOGGER.warn("Target CFG for method: " + methodSignature + " not found!");
                         targetCFG = dummyIntraProceduralCFG(methodSignature);
                         intraCFGs.put(methodSignature, targetCFG);
                     }
 
-                    if (intraCFG.getMethodName().equals("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")) {
+                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
 
                         /*
-                        * Store the original outgoing edges first, since we add further
-                        * edges later.
-                        *
+                         * Store the original outgoing edges first, since we add further
+                         * edges later.
+                         *
                          */
                         Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
                         LOGGER.debug("Outgoing edges of vertex " + vertex + ": " + outgoingEdges);
@@ -368,14 +373,10 @@ public final class Main {
                         interCFG.addEdge(targetCFG.getExit(), returnVertex);
 
                         // add edge from dummy return vertex to the original successor(s) of the invoke instruction
-                        for (Edge edge: outgoingEdges) {
+                        for (Edge edge : outgoingEdges) {
                             interCFG.addEdge(returnVertex, edge.getTarget());
                         }
                     }
-                } else if (instruction instanceof Instruction3rc) {
-                    // some invoke-range instruction
-                    Instruction3rc invokeRangeInstruction = (Instruction3rc) instruction;
-                    LOGGER.info(invokeRangeInstruction.getReference().toString());
                 }
             }
         }

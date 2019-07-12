@@ -132,8 +132,8 @@ public abstract class BaseCFG {
         // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
         mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
 
-        //mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
-        //((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
+        // mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
+        // ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
 
         layout.execute(graphXAdapter.getDefaultParent());
 

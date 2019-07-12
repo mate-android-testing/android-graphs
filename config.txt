@@ -9,9 +9,30 @@ intra
 Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V
 
 
+# Config for intra-procedural CFG on Windows
+
+-f
+C:\Users\Michael\Documents\Work\Android\apks\ws.xsoh.etar_15.apk
+-d
+intra
+-t
+Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V
+
+---------------------------------------------------------------------
+
 # Config for inter-procedural CFG on Linux
 
 -f
 /home/auermich/smali/ws.xsoh.etar_15.apk
 -d
 inter
+
+
+# Config for inter-procedural CFG on Windows
+
+-f
+C:\Users\Michael\Documents\Work\Android\apks\ws.xsoh.etar_15.apk
+-d
+inter
+
+----------------------------------------------------------------------
