@@ -23,6 +23,8 @@ import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.builder.BuilderInstruction;
+import org.jf.dexlib2.builder.BuilderOffsetInstruction;
+import org.jf.dexlib2.builder.MutableMethodImplementation;
 import org.jf.dexlib2.builder.instruction.BuilderInstruction35c;
 import org.jf.dexlib2.builder.instruction.BuilderInstruction3rc;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
@@ -185,6 +187,7 @@ public final class Main {
                     Optional<Method> targetMethod = Utility.searchForTargetMethod(dexFile, intraCFGCmd.getTarget());
 
                     if (checkArguments(intraCFGCmd) && targetMethod.isPresent()) {
+                        BaseCFG cfg = computeIntraProceduralCFGWithBasicBlocks(dexFile, targetMethod.get());
                         BaseCFG intraCFG = computeIntraProceduralCFG(dexFile, targetMethod.get());
                         // TODO: perform some computation on the graph (check for != null)
                     }
@@ -390,6 +393,32 @@ public final class Main {
         return interCFG;
     }
 
+    private static BaseCFG computeIntraProceduralCFGWithBasicBlocks(DexFile dexFile,
+                                                                    Method targetMethod) {
+
+        String methodName = Utility.deriveMethodSignature(targetMethod);
+        LOGGER.info("Method Signature: " + methodName);
+        BaseCFG cfg = new IntraProceduralCFG(methodName);
+
+        MethodImplementation methodImplementation = targetMethod.getImplementation();
+        MutableMethodImplementation mutableMethodImplementation = new MutableMethodImplementation(methodImplementation);
+        List<BuilderInstruction> instructions = mutableMethodImplementation.getInstructions();
+
+        // identify leaders
+        List<BuilderInstruction> leaders = new ArrayList<>();
+
+        for (BuilderInstruction instruction : instructions) {
+            // search for branching instructions (if,goto)
+            if (instruction instanceof BuilderOffsetInstruction) {
+                LOGGER.debug("Source Instruction: " + instruction.getOpcode());
+                LOGGER.debug("Target Instruction: " + ((BuilderOffsetInstruction) instruction).getTarget().getLocation().getInstruction().getOpcode());
+                LOGGER.debug("Target Index: " + ((BuilderOffsetInstruction) instruction).getTarget().getLocation().getIndex());
+            }
+        }
+
+        return cfg;
+    }
+
     private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, Method targetMethod) {
 
         String methodName = Utility.deriveMethodSignature(targetMethod);
@@ -472,7 +501,7 @@ public final class Main {
         }
 
         LOGGER.info(cfg.toString());
-        // cfg.drawGraph();
+        cfg.drawGraph();
         return cfg;
     }
 }
