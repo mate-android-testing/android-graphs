@@ -25,6 +25,8 @@ import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.builder.BuilderInstruction;
 import org.jf.dexlib2.builder.BuilderOffsetInstruction;
 import org.jf.dexlib2.builder.MutableMethodImplementation;
+import org.jf.dexlib2.builder.instruction.BuilderInstruction21t;
+import org.jf.dexlib2.builder.instruction.BuilderInstruction22t;
 import org.jf.dexlib2.builder.instruction.BuilderInstruction35c;
 import org.jf.dexlib2.builder.instruction.BuilderInstruction3rc;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
@@ -40,6 +42,8 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
+
+import static java.util.Comparator.comparingInt;
 
 public final class Main {
 
@@ -404,17 +408,42 @@ public final class Main {
         MutableMethodImplementation mutableMethodImplementation = new MutableMethodImplementation(methodImplementation);
         List<BuilderInstruction> instructions = mutableMethodImplementation.getInstructions();
 
-        // identify leaders
-        List<BuilderInstruction> leaders = new ArrayList<>();
+        // identify leaders (eliminate duplicates)
+        Set<BuilderInstruction> leaders = new HashSet<>();
+
+        // the first instruction is a leader instruction
+        leaders.add(instructions.get(0));
 
         for (BuilderInstruction instruction : instructions) {
+
             // search for branching instructions (if,goto)
             if (instruction instanceof BuilderOffsetInstruction) {
-                LOGGER.debug("Source Instruction: " + instruction.getOpcode());
-                LOGGER.debug("Target Instruction: " + ((BuilderOffsetInstruction) instruction).getTarget().getLocation().getInstruction().getOpcode());
-                LOGGER.debug("Target Index: " + ((BuilderOffsetInstruction) instruction).getTarget().getLocation().getIndex());
+
+                if (instruction instanceof BuilderInstruction21t
+                        ||  instruction instanceof BuilderInstruction22t) {
+                    // if instruction
+
+                    // we need to add both the next instruction as well as the branch target as leader
+                    leaders.add(instructions.get(((BuilderOffsetInstruction) instruction)
+                            .getTarget().getLocation().getIndex()));
+                    leaders.add(instructions.get(instruction.getLocation().getIndex()+1));
+                } else {
+                    // goto instruction
+
+                    // we need to add the jump target as leader
+                    leaders.add(instructions.get(((BuilderOffsetInstruction) instruction)
+                            .getTarget().getLocation().getIndex()));
+                }
             }
         }
+
+        // sort leaders based on instruction index
+        List<BuilderInstruction> leaderInstructions = new ArrayList<>(leaders);
+        leaderInstructions.sort((i1,i2) -> Integer.compare(i1.getLocation().getIndex(),i2.getLocation().getIndex()));
+        leaderInstructions.forEach(instruction -> LOGGER.debug(instruction.getLocation().getIndex()));
+
+        // construct basic blocks and build graph
+
 
         return cfg;
     }

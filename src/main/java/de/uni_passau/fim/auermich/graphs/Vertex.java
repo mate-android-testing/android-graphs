@@ -4,6 +4,7 @@ package de.uni_passau.fim.auermich.graphs;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
+import java.util.List;
 import java.util.Objects;
 
 public class Vertex {
@@ -19,7 +20,17 @@ public class Vertex {
     // uniquely identifies each vertex by its method signature
     private final String method;
 
+    // a sequence of instructions
+    private List<Context> context;
+
     private final VERTEX_TYPE type;
+
+    public Vertex(Context context) {
+        this.id = context.getId();
+        this.instruction = context.getInstruction();
+        this.method = context.getMethod();
+        type = VERTEX_TYPE.mapType(context.getId());
+    }
 
     public Vertex(int id, AnalyzedInstruction instruction, String method) {
         this.id = id;
