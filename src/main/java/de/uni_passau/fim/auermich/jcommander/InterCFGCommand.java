@@ -12,6 +12,8 @@ import java.nio.file.Path;
 @Parameters(commandDescription = "Produces an inter-procedural CFG.")
 public class InterCFGCommand {
 
+    private GraphType graphType = GraphType.INTERCFG;
+
     /*
     * TODO: use a custom data type for metrics (APPROACH_LEVEL,BRANCH_DISTANCE, DRAW) + enforce field (required)
     *
@@ -20,7 +22,12 @@ public class InterCFGCommand {
     @Parameter(names = { "-m", "-metric" }, description = "Metric.")
     private String metric;
 
-    private GraphType graphType = GraphType.INTERCFG;
+    @Parameter(names = { "-b", "-basic-blocks" }, description = "Whether to use basic blocks or not.")
+    private boolean useBasicBlocks = false;
+
+    public boolean isUseBasicBlocks() {
+        return useBasicBlocks;
+    }
 
     public String getMetric() {
         return metric;

@@ -1,6 +1,7 @@
 package de.uni_passau.fim.auermich.graphs;
 
 
+import de.uni_passau.fim.auermich.statement.Statement;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
@@ -9,57 +10,46 @@ import java.util.Objects;
 
 public class Vertex {
 
-    // TODO: may use basic blocks (list of ids,instructions,...)
+    // the type of vertex
+    private final VertexType type;
 
-    // the instruction ID within the defined method
-    private final int id;
+    private final Statement statement;
 
-    // the corresponding instruction
-    private final AnalyzedInstruction instruction;
-
-    // uniquely identifies each vertex by its method signature
-    private final String method;
-
-    // a sequence of instructions
-    private List<Context> context;
-
-    private final VERTEX_TYPE type;
-
-    public Vertex(Context context) {
-        this.id = context.getId();
-        this.instruction = context.getInstruction();
-        this.method = context.getMethod();
-        type = VERTEX_TYPE.mapType(context.getId());
-    }
-
-    public Vertex(int id, AnalyzedInstruction instruction, String method) {
-        this.id = id;
-        this.instruction = instruction;
-        this.method = method;
-        type = VERTEX_TYPE.mapType(id);
+    public Vertex(Statement statement) {
+        this.statement = statement;
+        type = VertexType.mapType(statement);
     }
 
     public String toString() {
 
         if (isEntryVertex() || isExitVertex() || isReturnVertex()) {
-            return type + " " + method;
+            return type + " " + statement.getMethod();
         } else {
-            return String.valueOf(id) + ": " + instruction.getInstruction().getOpcode().name;
+            return statement.toString();
         }
     }
 
+    /**
+     * Returns the method name of the vertex's statement.
+     *
+     * @return Returns the method name belonging to the
+     *          vertex statement.
+     */
+    public String getMethod() {
+        return statement.getMethod();
+    }
+
+    public Statement getStatement() {
+        return statement;
+    }
+
     public boolean isEntryVertex() {
-        return type == VERTEX_TYPE.ENTRY_VERTEX;
+        return type == VertexType.ENTRY_VERTEX;
     }
 
-    public boolean isExitVertex() { return type == VERTEX_TYPE.EXIT_VERTEX; }
+    public boolean isExitVertex() { return type == VertexType.EXIT_VERTEX; }
 
-    public boolean isReturnVertex() { return type == VERTEX_TYPE.RETURN_VERTEX; }
-
-    public AnalyzedInstruction getInstruction() {
-        return instruction;
-    }
-
+    public boolean isReturnVertex() { return type == VertexType.RETURN_VERTEX; }
 
     @Override
     public boolean equals(Object o) {
@@ -74,12 +64,12 @@ public class Vertex {
         Vertex other = (Vertex) o;
 
         // unique method signature + instruction id
-        return this.method.equals(other.method) && this.id == other.id;
+        return this.statement.equals(other.statement);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, id);
+        return Objects.hash(statement);
     }
 
 
@@ -88,29 +78,36 @@ public class Vertex {
      * an entry vertex, an exit vertex, a return vertex or
      * simply a normal vertex.
      */
-    private enum VERTEX_TYPE {
+    private enum VertexType {
 
         // TODO: may add INVOKE_VERTEX
 
         ENTRY_VERTEX,
         EXIT_VERTEX,
         RETURN_VERTEX,
-        NORMAL_VERTEX;
+        BASIC_VERTEX,
+        BLOCK_VERTEX;
 
         /**
-         * Maps a given number to its vertex type.
-         * @param num The number representing a vertex type.
+         * Maps a given statement to its vertex type.
+         *
+         * @param statement The statement belonging to the vertex.
          * @return Returns the vertex type corresponding to the given number.
          */
-        private static VERTEX_TYPE mapType(int num) {
-            if (num == -1 ) {
-                return ENTRY_VERTEX;
-            } else if (num == -2 ) {
-                return EXIT_VERTEX;
-            } else if (num == -3 ) {
-                return RETURN_VERTEX;
-            } else {
-                return NORMAL_VERTEX;
+        private static VertexType mapType(Statement statement) {
+            switch (statement.getType()) {
+                case ENTRY_STATEMENT:
+                    return VertexType.ENTRY_VERTEX;
+                case EXIT_STATEMENT:
+                    return VertexType.EXIT_VERTEX;
+                case RETURN_STATEMENT:
+                    return VertexType.RETURN_VERTEX;
+                case BASIC_STATEMENT:
+                    return VertexType.BASIC_VERTEX;
+                case BLOCK_STATEMENT:
+                    return VertexType.BLOCK_VERTEX;
+                    default:
+                        throw new UnsupportedOperationException("Statement type not supported yet!");
             }
         }
 
@@ -120,9 +117,10 @@ public class Vertex {
                 case EXIT_VERTEX: return "exit";
                 case ENTRY_VERTEX: return "entry";
                 case RETURN_VERTEX: return "return";
-                case NORMAL_VERTEX: return "";
+                case BASIC_VERTEX: return "basic";
+                case BLOCK_VERTEX: return "block";
             }
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("Vertex type not supported yet!");
         }
     }
 }

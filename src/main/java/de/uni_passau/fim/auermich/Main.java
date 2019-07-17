@@ -11,6 +11,9 @@ import de.uni_passau.fim.auermich.graphs.cfg.IntraProceduralCFG;
 import de.uni_passau.fim.auermich.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.IntraCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.MainCommand;
+import de.uni_passau.fim.auermich.statement.BasicStatement;
+import de.uni_passau.fim.auermich.statement.ReturnStatement;
+import de.uni_passau.fim.auermich.statement.Statement;
 import de.uni_passau.fim.auermich.utility.Utility;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -191,14 +194,15 @@ public final class Main {
                     Optional<Method> targetMethod = Utility.searchForTargetMethod(dexFile, intraCFGCmd.getTarget());
 
                     if (checkArguments(intraCFGCmd) && targetMethod.isPresent()) {
-                        BaseCFG cfg = computeIntraProceduralCFGWithBasicBlocks(dexFile, targetMethod.get());
-                        BaseCFG intraCFG = computeIntraProceduralCFG(dexFile, targetMethod.get());
+                        // BaseCFG cfg = computeIntraCFGWithBasicBlocks(dexFile, targetMethod.get());
+                        BaseCFG intraCFG = computeIntraProceduralCFG(dexFile, targetMethod.get(),
+                                intraCFGCmd.isUseBasicBlocks());
                         // TODO: perform some computation on the graph (check for != null)
                     }
                     break;
                 case INTERCFG:
                     if (checkArguments(interCFGCmd)) {
-                        BaseCFG interCFG = computeInterProceduralCFG(dexFile);
+                        BaseCFG interCFG = computeInterProceduralCFG(dexFile, interCFGCmd.isUseBasicBlocks());
                         // TODO: perform some computation on the graph
                     }
                     break;
@@ -247,7 +251,8 @@ public final class Main {
      * @param intraCFGs A map containing for each method (key: method signature) its CFG.
      * @throws IOException Should never happen.
      */
-    private static void constructIntraCFGs(DexFile dexFile, Map<String, BaseCFG> intraCFGs) throws IOException {
+    private static void constructIntraCFGs(DexFile dexFile, Map<String, BaseCFG> intraCFGs,
+                                           boolean useBasicBlocks) throws IOException {
 
         // only use dummy CFGs for ART classes
         Pattern exclusionPattern = Utility.readExcludePatterns();
@@ -266,7 +271,7 @@ public final class Main {
                         // dummy CFG consisting only of entry, exit vertex and edge between
                         intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
                     } else {
-                        intraCFGs.put(methodSignature, computeIntraProceduralCFG(dexFile, method));
+                        intraCFGs.put(methodSignature, computeIntraProceduralCFG(dexFile, method, useBasicBlocks));
                         realMethods.incrementAndGet();
                     }
                 }));
@@ -274,15 +279,21 @@ public final class Main {
         LOGGER.debug("Number of completely constructed CFGs: " + realMethods.get());
     }
 
-
-    private static BaseCFG computeInterProceduralCFG(DexFile dexFile) throws IOException {
+    /**
+     * Computes the inter-procedural CFG without using basic blocks.
+     *
+     * @param dexFile The classes.dex file ocntaining all the classes and its methods.
+     * @return Returns the inter-procedural CFG.
+     * @throws IOException Should never happen.
+     */
+    private static BaseCFG computeInterCFG(DexFile dexFile) throws IOException {
 
         // the final inter-procedural CFG
         BaseCFG interCFG = new InterProceduralCFG("globalEntryPoint");
 
         // construct for each method firs the intra-procedural CFG (key: method signature)
         Map<String, BaseCFG> intraCFGs = new HashMap<>();
-        constructIntraCFGs(dexFile, intraCFGs);
+        constructIntraCFGs(dexFile, intraCFGs, false);
 
         // avoid concurrent modification exception
         Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
@@ -315,7 +326,9 @@ public final class Main {
                     continue;
                 }
 
-                Instruction instruction = vertex.getInstruction().getInstruction();
+                // all vertices apart entry, exit contain basic statements
+                BasicStatement statement = (BasicStatement) vertex.getStatement();
+                Instruction instruction = statement.getInstruction().getInstruction();
 
                 // check for invoke/invoke-range instruction
                 if (instruction instanceof ReferenceInstruction
@@ -369,8 +382,8 @@ public final class Main {
 
                         // TODO: need unique return vertices (multiple call within method to same target method)
                         // insert dummy return vertex
-                        Vertex returnVertex = new Vertex(-3, null, vertex
-                                + " [ " + targetCFG.getMethodName() + "]");
+                        Statement returnStmt = new ReturnStatement(vertex.getMethod(), targetCFG.getMethodName());
+                        Vertex returnVertex = new Vertex(returnStmt);
                         interCFG.addVertex(returnVertex);
 
                         // remove edge from invoke to its successor instruction(s)
@@ -397,8 +410,30 @@ public final class Main {
         return interCFG;
     }
 
-    private static BaseCFG computeIntraProceduralCFGWithBasicBlocks(DexFile dexFile,
-                                                                    Method targetMethod) {
+    private static BaseCFG computeInterCFGWithBasicBlocks(DexFile dexFile) throws IOException {
+        return new InterProceduralCFG("dummy");
+    }
+
+
+    private static BaseCFG computeInterProceduralCFG(DexFile dexFile, boolean useBasicBlocks) throws IOException {
+
+        if (useBasicBlocks) {
+            return computeInterCFGWithBasicBlocks(dexFile);
+        } else {
+            return computeInterCFG(dexFile);
+        }
+    }
+
+    /**
+     * Computes the intra-procedural CFG for a given method. Uses basic blocks to reduce
+     * the number of vertices. The underlying algorithm computes first the leader statements
+     * and then groups statements between two leaders within a basic block.
+     *
+     * @param dexFile The classes.dex containing all classes and its methods.
+     * @param targetMethod The method for which we want to generate the CFG.
+     * @return Returns the intra-procedural CFG using basic blocks for the given method.
+     */
+    private static BaseCFG computeIntraCFGWithBasicBlocks(DexFile dexFile, Method targetMethod) {
 
         String methodName = Utility.deriveMethodSignature(targetMethod);
         LOGGER.info("Method Signature: " + methodName);
@@ -448,7 +483,14 @@ public final class Main {
         return cfg;
     }
 
-    private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, Method targetMethod) {
+    /**
+     * Computes the intra-procedural CFG for a given method. Doesn't use basic blocks.
+     *
+     * @param dexFile The classes.dex containing all classes and its methods.
+     * @param targetMethod The method for which we want to generate the CFG.
+     * @return Returns the intra-procedural CFG for the given method.
+     */
+    private static BaseCFG computeIntraCFG(DexFile dexFile, Method targetMethod) {
 
         String methodName = Utility.deriveMethodSignature(targetMethod);
 
@@ -476,7 +518,8 @@ public final class Main {
 
         // pre-create vertices for each single instruction
         for (int index = 0; index < instructions.size(); index++) {
-            Vertex vertex = new Vertex(index, analyzedInstructions.get(index), methodName);
+            Statement stmt = new BasicStatement(methodName, analyzedInstructions.get(index));
+            Vertex vertex = new Vertex(stmt);
             cfg.addVertex(vertex);
             vertices.add(vertex);
         }
@@ -533,4 +576,22 @@ public final class Main {
         cfg.drawGraph();
         return cfg;
     }
+
+    /**
+     * Computes the intra-procedural CFG for a given method.
+     *
+     * @param dexFile The classes.dex file containing all classes and its methods.
+     * @param targetMethod The method for which we want to generate the CFG.
+     * @param useBasicBlocks Whether to use basic blocks in the construction of the CFG or not.
+     * @return Returns the intra-procedural CFG for a given method.
+     */
+    private static BaseCFG computeIntraProceduralCFG(DexFile dexFile, Method targetMethod, boolean useBasicBlocks) {
+
+        if (useBasicBlocks) {
+            return computeIntraCFGWithBasicBlocks(dexFile, targetMethod);
+        } else {
+            return computeIntraCFG(dexFile, targetMethod);
+        }
+    }
+
 }

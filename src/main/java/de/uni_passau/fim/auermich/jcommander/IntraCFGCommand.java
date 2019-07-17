@@ -12,6 +12,8 @@ import java.nio.file.Path;
 @Parameters(commandDescription = "Produces an intra-procedural CFG for a given method.")
 public class IntraCFGCommand {
 
+    private GraphType graphType = GraphType.INTRACFG;
+
     @Parameter(names = { "-m", "-metric" }, description = "Metric.")
     private String metric;
 
@@ -24,11 +26,16 @@ public class IntraCFGCommand {
     @Parameter(names = { "-t", "-target" }, description = "The full-qualified name of the target method.", required = true)
     private String target;
 
+    @Parameter(names = { "-b", "-basic-blocks" }, description = "Whether to use basic blocks or not.")
+    private boolean useBasicBlocks = false;
+
+    public boolean isUseBasicBlocks() {
+        return useBasicBlocks;
+    }
+
     /**
      * TODO: use -d, -draw parameter in combination with path for output of cfg.drawGraph() (windows/linux issue)
      */
-
-    private GraphType graphType = GraphType.INTRACFG;
 
     public String getMetric() {
         return metric;

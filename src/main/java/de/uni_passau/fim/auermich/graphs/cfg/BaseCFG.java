@@ -7,6 +7,8 @@ import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxConstants;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.Vertex;
+import de.uni_passau.fim.auermich.statement.EntryStatement;
+import de.uni_passau.fim.auermich.statement.ExitStatement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
@@ -53,8 +55,8 @@ public abstract class BaseCFG {
      */
     public BaseCFG(String methodName) {
         this.methodName = methodName;
-        entry = new Vertex(-1, null, methodName);
-        exit = new Vertex(-2, null, methodName);
+        entry = new Vertex(new EntryStatement(methodName));
+        exit = new Vertex(new ExitStatement(methodName));
         graph.addVertex(entry);
         graph.addVertex(exit);
     }
