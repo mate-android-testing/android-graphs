@@ -20,6 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.jf.dexlib2.DexFileFactory;
+import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
@@ -451,8 +452,20 @@ public final class Main {
 
         for (BuilderInstruction instruction : instructions) {
 
-            // search for branching instructions (if,goto)
-            if (instruction instanceof BuilderOffsetInstruction) {
+            if (instruction instanceof BuilderInstruction35c
+                        || instruction instanceof BuilderInstruction3rc) {
+                // we consider invoke instructions as leaders
+                leaders.add(instruction);
+            } else if (instruction.getOpcode() == Opcode.RETURN
+                        || instruction.getOpcode() == Opcode.RETURN_OBJECT
+                        || instruction.getOpcode() == Opcode.RETURN_VOID
+                        || instruction.getOpcode() == Opcode.RETURN_VOID_BARRIER
+                        || instruction.getOpcode() == Opcode.RETURN_VOID_NO_BARRIER
+                        || instruction.getOpcode() == Opcode.RETURN_WIDE) {
+                // we also treat return instructions as leaders
+                leaders.add(instruction);
+            } else if (instruction instanceof BuilderOffsetInstruction) {
+                // search for branching instructions (if,goto)
 
                 if (instruction instanceof BuilderInstruction21t
                         ||  instruction instanceof BuilderInstruction22t) {
@@ -477,8 +490,55 @@ public final class Main {
         leaderInstructions.sort((i1,i2) -> Integer.compare(i1.getLocation().getIndex(),i2.getLocation().getIndex()));
         leaderInstructions.forEach(instruction -> LOGGER.debug(instruction.getLocation().getIndex()));
 
-        // construct basic blocks and build graph
+        // stores all the basic blocks
+        Set<List<BuilderInstruction>> basicBlocks = new HashSet<>();
 
+        int leaderIndex = 0;
+
+        // the first leader
+        BuilderInstruction firstLeader = leaderInstructions.get(leaderIndex);
+
+        leaderIndex++;
+
+        // the next leader
+        BuilderInstruction nextLeader = leaderInstructions.get(leaderIndex);
+
+        List<BuilderInstruction> basicBlock = new ArrayList<>();
+
+        // construct basic blocks and build graph
+        for (BuilderInstruction instruction : instructions) {
+            // while we haven't found the next leader
+            if (instruction.getLocation().getIndex() != nextLeader.getLocation().getIndex()) {
+                basicBlock.add(instruction);
+            } else {
+                // we reached the next leader
+
+                // the leader also belongs to the current basic block
+                basicBlock.add(instruction);
+
+                // update basic blocks
+                List<BuilderInstruction> instructionsOfBasicBlock = new ArrayList<>(basicBlock);
+                basicBlocks.add(instructionsOfBasicBlock);
+
+                // reset basic block
+                basicBlock.clear();
+
+                // update the next leader
+                leaderIndex++;
+                if (leaderIndex >= leaderInstructions.size()) {
+                    break;
+                } else {
+                    nextLeader = leaderInstructions.get(leaderIndex);
+                }
+            }
+        }
+
+        LOGGER.debug("Number of BasicBlocks: " + basicBlocks.size());
+        basicBlocks.forEach(bb -> {
+                bb.forEach(i -> {
+                        // LOGGER.debug(i);
+                        LOGGER.debug(i.getLocation().getIndex());
+                }); LOGGER.debug(System.lineSeparator());});
 
         return cfg;
     }
