@@ -12,6 +12,7 @@ import de.uni_passau.fim.auermich.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.IntraCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.MainCommand;
 import de.uni_passau.fim.auermich.statement.BasicStatement;
+import de.uni_passau.fim.auermich.statement.BlockStatement;
 import de.uni_passau.fim.auermich.statement.ReturnStatement;
 import de.uni_passau.fim.auermich.statement.Statement;
 import de.uni_passau.fim.auermich.utility.Utility;
@@ -538,6 +539,81 @@ public final class Main {
                         LOGGER.debug(i.getLocation().getIndex());
                 }); LOGGER.debug(System.lineSeparator());});
 
+        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                true, ClassPath.NOT_ART), targetMethod,
+                null, false);
+
+        List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
+
+        // stores for each block stmt the instruction id of its first stmt and maps it to the corresponding vertex
+        Map<Integer, Vertex> leaderMap = new TreeMap<>();
+
+        // create for each basic block a block statement vertex
+        for (List<BuilderInstruction> basicBlockStmts: basicBlocks) {
+
+            List<Statement> blockStmts = new ArrayList<>();
+
+            for (BuilderInstruction instruction : basicBlockStmts) {
+
+                // create a basic stmt for each instruction
+                Statement basicStmt = new BasicStatement(methodName,
+                        // get the corresponding analyzed instruction based on the instruction index
+                        analyzedInstructions.get(instruction.getLocation().getIndex()));
+
+                // add to list of block stmts
+                blockStmts.add(basicStmt);
+            }
+
+            // create the block stmt out of the individual basic statements
+            Statement blockStmt = new BlockStatement(methodName,blockStmts);
+
+            // construct a vertex for each block statement
+            Vertex basicBlockVertex = new Vertex(blockStmt);
+
+            // add to leader map -> defines the edges between vertices
+            Statement firstStatement = ((BlockStatement) blockStmt).getFirstStatement();
+            int index = ((BasicStatement)firstStatement).getInstruction().getInstructionIndex();
+            leaderMap.put(index, basicBlockVertex);
+
+            // add vertex to graph
+            cfg.addVertex(basicBlockVertex);
+
+        }
+
+        // LOGGER.debug(leaderMap);
+        // we need to add edges between the basic blocks
+
+        // TODO: add missing edges from if blocks (two targets)
+        // may use  com.google.common.collect.TreeMultimap from Guava
+
+        // TODO: directly iterate over leaderMap
+        // sorted leader instructions
+        for (int i=0; i < leaderInstructions.size(); i++) {
+
+            if (i == 0) {
+                // the first leader has an incoming edge from the entry vertex
+                cfg.addEdge(cfg.getEntry(), leaderMap.get(0));
+            }
+
+            if (i != leaderInstructions.size() - 1) {
+
+                BuilderInstruction source = leaderInstructions.get(i);
+                BuilderInstruction target = leaderInstructions.get(i+1);
+
+                Vertex src = leaderMap.get(source.getLocation().getIndex());
+                Vertex dest = leaderMap.get(target.getLocation().getIndex());
+
+                cfg.addEdge(src, dest);
+
+            } else {
+                // the last leader has an edge to the exit vertex
+                BuilderInstruction source = leaderInstructions.get(i);
+                Vertex src = leaderMap.get(source.getLocation().getIndex());
+                cfg.addEdge(src,cfg.getExit());
+            }
+        }
+
+        cfg.drawGraph();
         return cfg;
     }
 

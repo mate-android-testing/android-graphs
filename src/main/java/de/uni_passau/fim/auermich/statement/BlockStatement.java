@@ -13,9 +13,31 @@ public class BlockStatement extends Statement {
         type = StatementType.BLOCK_STATEMENT;
     }
 
+    public Statement getFirstStatement() {
+        return statements.get(0);
+    }
+
+    public Statement getLastStatement() {
+        return statements.get(statements.size()-1);
+    }
+
     @Override
     public String toString() {
-        return String.join(System.lineSeparator(), statements.toString());
+
+        StringBuilder builder = new StringBuilder();
+
+        for (Statement statement : statements) {
+            builder.append(statement);
+            builder.append(System.lineSeparator());
+        }
+
+        // remove last new line
+        builder.setLength(builder.length() -1);
+        // builder.deleteCharAt(builder.length() - 1);
+        return builder.toString();
+
+        // doesn't seem to work as expected unfortunately
+        // return String.join(System.lineSeparator(), statements.toString());
     }
 
     @Override
