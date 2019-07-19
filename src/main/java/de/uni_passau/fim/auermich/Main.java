@@ -493,12 +493,8 @@ public final class Main {
         // stores all the basic blocks
         Set<List<BuilderInstruction>> basicBlocks = new HashSet<>();
 
-        int leaderIndex = 0;
-
-        // the first leader
-        BuilderInstruction firstLeader = leaderInstructions.get(leaderIndex);
-
-        leaderIndex++;
+        // the next leader index, not the leader at the first instruction!
+        int leaderIndex = 1;
 
         // the next leader
         BuilderInstruction nextLeader = leaderInstructions.get(leaderIndex);
@@ -513,9 +509,6 @@ public final class Main {
             } else {
                 // we reached the next leader
 
-                // the leader also belongs to the current basic block
-                basicBlock.add(instruction);
-
                 // update basic blocks
                 List<BuilderInstruction> instructionsOfBasicBlock = new ArrayList<>(basicBlock);
                 basicBlocks.add(instructionsOfBasicBlock);
@@ -523,9 +516,14 @@ public final class Main {
                 // reset basic block
                 basicBlock.clear();
 
+                // the leader we reached belongs to the next basic block
+                basicBlock.add(nextLeader);
+
                 // update the next leader
                 leaderIndex++;
                 if (leaderIndex >= leaderInstructions.size()) {
+                    // add the last leader as basic block
+                    basicBlocks.add(basicBlock);
                     break;
                 } else {
                     nextLeader = leaderInstructions.get(leaderIndex);
