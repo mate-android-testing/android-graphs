@@ -25,6 +25,18 @@ public class BlockStatement extends Statement {
         statements.add(statement);
     }
 
+    public void removeStatement(Statement statement) {
+        statements.remove(statement);
+    }
+
+    public void addStatement(int index, Statement statement) {
+        statements.add(index, statement);
+    }
+
+    public void removeStatement(int index) {
+        statements.remove(index);
+    }
+
     @Override
     public String toString() {
 

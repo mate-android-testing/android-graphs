@@ -69,6 +69,10 @@ public abstract class BaseCFG {
         return graph.outgoingEdgesOf(vertex);
     }
 
+    public Set<Edge> getIncomingEdges(Vertex vertex) {
+        return graph.incomingEdgesOf(vertex);
+    }
+
     public void addVertex(Vertex vertex) {
         graph.addVertex(vertex);
     }

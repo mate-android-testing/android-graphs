@@ -419,7 +419,148 @@ public final class Main {
     }
 
     private static BaseCFG computeInterCFGWithBasicBlocks(DexFile dexFile) throws IOException {
-        return new InterProceduralCFG("dummy");
+
+        // the final inter-procedural CFG
+        BaseCFG interCFG = new InterProceduralCFG("globalEntryPoint");
+
+        // construct for each method firs the intra-procedural CFG (key: method signature)
+        Map<String, BaseCFG> intraCFGs = new HashMap<>();
+        constructIntraCFGs(dexFile, intraCFGs, true);
+
+        // avoid concurrent modification exception
+        Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
+
+        // store graphs already inserted into inter-procedural CFG
+        Set<BaseCFG> coveredGraphs = new HashSet<>();
+
+        // compute inter-procedural CFG by connecting intra CFGs
+        for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
+
+            BaseCFG cfg = entry.getValue();
+            IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
+            LOGGER.debug(intraCFG.getMethodName());
+
+            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
+                if (!coveredGraphs.contains(cfg)) {
+                    // add first source graph
+                    interCFG.addSubGraph(intraCFG);
+                    coveredGraphs.add(cfg);
+                }
+            }
+
+            LOGGER.debug("Searching for invoke instructions!");
+
+            // TODO: may track previously all call instructions when computing intraCFG
+            for (Vertex vertex : cfg.getVertices()) {
+
+                if (vertex.isEntryVertex() || vertex.isExitVertex()) {
+                    // entry and exit vertices do not have instructions attached, skip
+                    continue;
+                }
+
+                // all vertices are represented by block statements
+                BlockStatement blockStatement = (BlockStatement) vertex.getStatement();
+
+                // invoke instructions can only be the first instruction of a block statement
+                BasicStatement statement = ((BasicStatement)blockStatement.getFirstStatement());
+                Instruction instruction = statement.getInstruction().getInstruction();
+
+                // TODO: we have to split the basic block after the invoke instruction (if there are further statements included)
+                // TODO: the simplest solution would be to replace the invoke instruction (first statement) with the virtual return statement
+                // TODO: create a new block statement solely consisting of the invoke instruction and insert this as predecessor of
+                // TODo: the modified block statement (the one containing now the virtual return statement)
+
+                // check for invoke/invoke-range instruction
+                if (instruction instanceof ReferenceInstruction
+                        && (instruction instanceof Instruction3rc
+                        || instruction instanceof Instruction35c)) {
+
+                    // search for target CFG by reference of invoke instruction (target method)
+                    String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+
+                    LOGGER.debug("Invoke: " + methodSignature);
+
+                    BaseCFG targetCFG;
+
+                    if (intraCFGs.containsKey(methodSignature)) {
+                        targetCFG = intraCFGs.get(methodSignature);
+                        LOGGER.debug("Target CFG: " + ((IntraProceduralCFG) targetCFG).getMethodName());
+                    } else {
+
+                        /*
+                         * There are some Android specific classes, e.g. android/view/View, which are
+                         * not included in the classes.dex file for yet unknown reasons. Basically,
+                         * these classes should be just treated like other classes from the ART.
+                         */
+                        LOGGER.warn("Target CFG for method: " + methodSignature + " not found!");
+                        targetCFG = dummyIntraProceduralCFG(methodSignature);
+                        intraCFGs.put(methodSignature, targetCFG);
+                    }
+
+                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
+
+                        Set<Edge> incomingEdges = intraCFG.getIncomingEdges(vertex);
+                        LOGGER.debug("Incoming edges of vertex " + vertex + ": " + incomingEdges);
+
+                        // the invoke statement is splitted of the basic block and represented as an own vertex
+                        List<Statement> invokeStmt = new ArrayList<>();
+                        invokeStmt.add(statement);
+                        Vertex invokeVertex = new Vertex(new BlockStatement(methodSignature, invokeStmt));
+                        interCFG.addVertex(invokeVertex);
+
+                        // remove invoke from basic block
+                        blockStatement.removeStatement(statement);
+
+                        // add virtual return at front of basic block
+                        Statement returnStmt = new ReturnStatement(vertex.getMethod(), targetCFG.getMethodName());
+                        blockStatement.addStatement(0, returnStmt);
+
+                        LOGGER.debug(blockStatement);
+
+                        // remove edge from predecessors of invoke to basic block
+                        interCFG.removeEdges(incomingEdges);
+
+                        // add from each predecessor an edge to the invoke statement
+                        for (Edge edge : incomingEdges) {
+                            interCFG.addEdge(edge.getSource(),invokeVertex);
+                        }
+
+                        /*
+                         * Store the original outgoing edges first, since we add further
+                         * edges later.
+                         *
+                         */
+                        Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
+                        LOGGER.debug("Outgoing edges of vertex " + vertex + ": " + outgoingEdges);
+
+                        if (!coveredGraphs.contains(targetCFG)) {
+                            // add target graph to inter CFG
+                            interCFG.addSubGraph(targetCFG);
+                            coveredGraphs.add(targetCFG);
+                        }
+
+                        if (interCFG.containsVertex(invokeVertex) && interCFG.containsVertex(targetCFG.getEntry())) {
+                            // add edge from invoke instruction to entry vertex of target CFG
+                            LOGGER.debug("Source: " + invokeVertex);
+                            LOGGER.debug("Target: " + targetCFG.getEntry());
+                            interCFG.addEdge(invokeVertex, targetCFG.getEntry());
+                        }
+
+                        // TODO: need unique return vertices (multiple call within method to same target method)
+                        // add edge from exit of target CFG to dummy return vertex
+                        interCFG.addEdge(targetCFG.getExit(), vertex);
+                    }
+                }
+            }
+        }
+
+        if (DEBUG_MODE) {
+            // intraCFGs.get("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V").drawGraph();
+            LOGGER.debug(interCFG);
+            interCFG.drawGraph();
+        }
+
+        return interCFG;
     }
 
 
