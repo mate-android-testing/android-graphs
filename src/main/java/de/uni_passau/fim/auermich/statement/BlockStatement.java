@@ -21,6 +21,10 @@ public class BlockStatement extends Statement {
         return statements.get(statements.size()-1);
     }
 
+    public void addStatement(Statement statement) {
+        statements.add(statement);
+    }
+
     @Override
     public String toString() {
 
