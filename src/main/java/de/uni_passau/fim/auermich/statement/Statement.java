@@ -1,6 +1,12 @@
 package de.uni_passau.fim.auermich.statement;
 
-public abstract class Statement {
+import de.uni_passau.fim.auermich.Main;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+public abstract class Statement implements Cloneable {
+
+    private static final Logger LOGGER = LogManager.getLogger(Statement.class);
 
     // the method the statement is belonging to
     protected final String method;
@@ -34,6 +40,16 @@ public abstract class Statement {
         // INVOKE_STATEMENT,
         // LEADER_STATEMENT, // entry, exit, return, (return_stmt), if, branch_target(s), invoke-stmts!!!
         BASIC_STATEMENT;
+    }
+
+    public Statement clone() {
+        try {
+            Statement cloneStmt = (Statement) super.clone();
+            return cloneStmt;
+        } catch (CloneNotSupportedException e) {
+            LOGGER.warn("Cloning of Statement failed" + e.getMessage());
+            return null;
+        }
     }
 
 }

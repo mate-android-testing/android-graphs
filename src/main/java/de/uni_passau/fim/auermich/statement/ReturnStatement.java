@@ -23,7 +23,7 @@ public class ReturnStatement extends Statement {
 
     @Override
     public String toString() {
-        return targetMethod;
+        return "Return from: " + targetMethod;
     }
 
 

@@ -9,6 +9,7 @@ import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import de.uni_passau.fim.auermich.statement.EntryStatement;
 import de.uni_passau.fim.auermich.statement.ExitStatement;
+import de.uni_passau.fim.auermich.statement.Statement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
@@ -28,7 +29,7 @@ import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Set;
 
-public abstract class BaseCFG {
+public abstract class BaseCFG implements Cloneable {
 
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
@@ -62,7 +63,7 @@ public abstract class BaseCFG {
     }
 
     public void addEdge(Vertex src, Vertex dest) {
-        graph.addEdge(src, dest);
+        LOGGER.debug("Add Edge: " + graph.addEdge(src, dest));
     }
 
     public Set<Edge> getOutgoingEdges(Vertex vertex) {
@@ -74,7 +75,7 @@ public abstract class BaseCFG {
     }
 
     public void addVertex(Vertex vertex) {
-        graph.addVertex(vertex);
+        LOGGER.debug("Adding Vertex: " + graph.addVertex(vertex));
     }
 
     public void removeEdge(Edge edge) {
@@ -82,7 +83,7 @@ public abstract class BaseCFG {
     }
 
     public void removeEdges(Collection<Edge> edges) {
-        graph.removeAllEdges(edges);
+        LOGGER.debug("Removing Edges: " + graph.removeAllEdges(edges));
     }
 
     public Vertex getEntry() {
@@ -109,6 +110,10 @@ public abstract class BaseCFG {
 
     public String getMethodName() {
         return methodName;
+    }
+
+    public void removeVertex(Vertex vertex) {
+        graph.removeVertex(vertex);
     }
 
     public void addSubGraph(BaseCFG subGraph) {
@@ -155,6 +160,16 @@ public abstract class BaseCFG {
             ImageIO.write(image, "PNG", file);
         } catch (IOException e) {
             LOGGER.warn(e.getMessage());
+        }
+    }
+
+    public BaseCFG clone() {
+        try {
+            BaseCFG cloneCFG = (BaseCFG) super.clone();
+            return cloneCFG;
+        } catch (CloneNotSupportedException e) {
+            LOGGER.warn("Cloning of CFG failed" + e.getMessage());
+            return null;
         }
     }
 }

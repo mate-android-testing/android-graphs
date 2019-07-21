@@ -1,14 +1,19 @@
 package de.uni_passau.fim.auermich.graphs;
 
 
+import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.statement.Statement;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
 import java.util.List;
 import java.util.Objects;
 
-public class Vertex {
+public class Vertex implements Cloneable {
+
+    private static final Logger LOGGER = LogManager.getLogger(Vertex.class);
 
     // the type of vertex
     private final VertexType type;
@@ -70,6 +75,18 @@ public class Vertex {
     @Override
     public int hashCode() {
         return Objects.hash(statement);
+    }
+
+    public Vertex clone() {
+
+        try {
+            Vertex vertexClone = (Vertex) super.clone();
+            // vertexClone.statement = this.statement.clone();
+            return vertexClone;
+        } catch (CloneNotSupportedException e) {
+            LOGGER.warn("Cloning of Vertex failed");
+            return null;
+        }
     }
 
 
