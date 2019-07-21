@@ -433,36 +433,20 @@ public final class Main {
     }
 
     /**
-     * Computes the intra-procedural CFG for a given method. Uses basic blocks to reduce
-     * the number of vertices. The underlying algorithm computes first the leader statements
-     * and then groups statements between two leaders within a basic block.
+     * Computes the leader instructions. We consider branch targets, return statements, jump targets and invoke
+     * instructions as leaders. As a side product, the indices of return instructions are tracked as well as
+     * the edges between basic blocks are computed.
      *
-     * @param dexFile The classes.dex containing all classes and its methods.
-     * @param targetMethod The method for which we want to generate the CFG.
-     * @return Returns the intra-procedural CFG using basic blocks for the given method.
+     * @param analyzedInstructions The set of instructions for a given method.
+     * @param basicBlockEdges Contains the edges between basic blocks. Initially empty.
+     * @param returnStmtIndices Contains the instruction indices of return statements. Initially empty.
+     * @return Returns a sorted list of leader instructions.
      */
-    private static BaseCFG computeIntraCFGWithBasicBlocks(DexFile dexFile, Method targetMethod) {
-
-        String methodName = Utility.deriveMethodSignature(targetMethod);
-        LOGGER.info("Method Signature: " + methodName);
-        BaseCFG cfg = new IntraProceduralCFG(methodName);
-
-        MethodImplementation methodImplementation = targetMethod.getImplementation();
-        MutableMethodImplementation mutableMethodImplementation = new MutableMethodImplementation(methodImplementation);
-        List<BuilderInstruction> instructions = mutableMethodImplementation.getInstructions();
-
-        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
-                true, ClassPath.NOT_ART), targetMethod,
-                null, false);
-
-        List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
-
-        // stores the edge mapping between basic blocks based on the instruction id
-        Multimap<Integer, Integer> basicBlockEdges = TreeMultimap.create();
+    private static List<AnalyzedInstruction> computeLeaders(List<AnalyzedInstruction> analyzedInstructions,
+                                                            Multimap<Integer, Integer> basicBlockEdges,
+                                                            List<Integer> returnStmtIndices) {
 
         Set<AnalyzedInstruction> leaderInstructions = new HashSet<>();
-
-        List<Integer> returnStmtIndices = new ArrayList<>();
 
         // the first instruction is also a leader
         leaderInstructions.add(analyzedInstructions.get(0));
@@ -528,8 +512,13 @@ public final class Main {
 
         List<AnalyzedInstruction> leaders = leaderInstructions.stream()
                 .sorted((i1,i2) -> Integer.compare(i1.getInstructionIndex(),i2.getInstructionIndex())).collect(Collectors.toList());
-        leaders.forEach(instruction ->LOGGER.debug(instruction.getInstructionIndex()));
-        LOGGER.debug(basicBlockEdges);
+
+        return leaders;
+    }
+
+    private static Set<List<AnalyzedInstruction>> constructBasicBlocks(BaseCFG cfg, List<AnalyzedInstruction> analyzedInstructions,
+                                             List<AnalyzedInstruction> leaders,Map<Integer, Vertex> vertexMap,
+                                             String methodName) {
 
         // stores all the basic blocks
         Set<List<AnalyzedInstruction>> basicBlocks = new HashSet<>();
@@ -542,9 +531,6 @@ public final class Main {
 
         // a single basic block
         List<AnalyzedInstruction> basicBlock = new ArrayList<>();
-
-        // maps to each vertex the instruction id of the last statement
-        Map<Integer, Vertex> vertexMap = new HashMap<>();
 
         // construct basic blocks and build graph
         for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
@@ -610,15 +596,54 @@ public final class Main {
                 }
             }
         }
+        return basicBlocks;
+    }
+
+    /**
+     * Computes the intra-procedural CFG for a given method. Uses basic blocks to reduce
+     * the number of vertices. The underlying algorithm computes first the leader statements
+     * and then groups statements between two leaders within a basic block.
+     *
+     * @param dexFile The classes.dex containing all classes and its methods.
+     * @param targetMethod The method for which we want to generate the CFG.
+     * @return Returns the intra-procedural CFG using basic blocks for the given method.
+     */
+    private static BaseCFG computeIntraCFGWithBasicBlocks(DexFile dexFile, Method targetMethod) {
+
+        String methodName = Utility.deriveMethodSignature(targetMethod);
+        LOGGER.info("Method Signature: " + methodName);
+        BaseCFG cfg = new IntraProceduralCFG(methodName);
+
+        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                true, ClassPath.NOT_ART), targetMethod,
+                null, false);
+        List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
+
+        // stores the edge mapping between basic blocks based on the instruction id
+        Multimap<Integer, Integer> basicBlockEdges = TreeMultimap.create();
+
+        // keeps track of the instruction indices of return statements
+        List<Integer> returnStmtIndices = new ArrayList<>();
+
+        // compute the leader instructions, as a byproduct also compute the edges between the basic blocks + return indices
+        List<AnalyzedInstruction> leaders = computeLeaders(analyzedInstructions, basicBlockEdges, returnStmtIndices);
+
+        LOGGER.debug("Leaders: " + leaders.stream().map(instruction -> instruction.getInstructionIndex()).collect(Collectors.toList()));
+        LOGGER.debug("Basic Block Edges: " + basicBlockEdges);
+
+        // maps to each vertex the instruction id of the first and last statement
+        Map<Integer, Vertex> vertexMap = new HashMap<>();
+
+        // construct the basic blocks
+        Set<List<AnalyzedInstruction>> basicBlocks = constructBasicBlocks(cfg, analyzedInstructions,
+                leaders, vertexMap, methodName);
 
         LOGGER.debug("Number of BasicBlocks: " + basicBlocks.size());
-        basicBlocks.forEach(bb -> {
-            bb.forEach(i -> {
-                // LOGGER.debug(i);
-                LOGGER.debug(i.getInstructionIndex());
-            }); LOGGER.debug(System.lineSeparator());});
-
-        LOGGER.debug("Size of vertexMap: "+ vertexMap.size());
+        LOGGER.debug("Basic Blocks: " + basicBlocks.stream()
+                .sorted((b1,b2) -> Integer.compare(b1.get(0).getInstructionIndex(),b2.get(0).getInstructionIndex()))
+                .map(list -> list.stream()
+                        .map(elem -> String.valueOf(elem.getInstructionIndex())).collect(Collectors.joining("-","[","]")))
+                .collect(Collectors.joining(", ")));
 
         // connect the basic blocks
         for (Integer srcIndex : basicBlockEdges.keySet()) {
