@@ -605,7 +605,10 @@ public final class Main {
                 Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
 
                 for (AnalyzedInstruction predecessor : predecessors) {
-                    basicBlockEdges.put(predecessor.getInstructionIndex(), analyzedInstruction.getInstructionIndex());
+                    if (predecessor.getInstructionIndex() != -1) {
+                        // there is a dummy instruction located at pos -1 which is the predecessor of the first instruction
+                        basicBlockEdges.put(predecessor.getInstructionIndex(), analyzedInstruction.getInstructionIndex());
+                    }
                 }
 
             } else if (instruction.getOpcode() == Opcode.RETURN
@@ -624,7 +627,10 @@ public final class Main {
                 Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
 
                 for (AnalyzedInstruction predecessor : predecessors) {
-                    basicBlockEdges.put(predecessor.getInstructionIndex(), analyzedInstruction.getInstructionIndex());
+                    if (predecessor.getInstructionIndex() != -1) {
+                        // there is a dummy instruction located at pos -1 which is the predecessor of the first instruction
+                        basicBlockEdges.put(predecessor.getInstructionIndex(), analyzedInstruction.getInstructionIndex());
+                    }
                 }
             } else if (instruction instanceof OffsetInstruction) {
 
