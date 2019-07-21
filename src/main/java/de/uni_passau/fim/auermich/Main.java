@@ -499,7 +499,9 @@ public final class Main {
 
                     if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
 
-                        Set<Edge> incomingEdges = intraCFG.getIncomingEdges(vertex);
+                        LOGGER.debug("Vertex: " + vertex);
+
+                        Set<Edge> incomingEdges = interCFG.getIncomingEdges(vertex);
                         LOGGER.debug("Incoming edges of vertex " + vertex + ": " + incomingEdges);
 
                         // the invoke statement is splitted of the basic block and represented as an own vertex
@@ -522,16 +524,10 @@ public final class Main {
 
                         // add from each predecessor an edge to the invoke statement
                         for (Edge edge : incomingEdges) {
-                            interCFG.addEdge(edge.getSource(),invokeVertex);
+                            if (interCFG.containsVertex(edge.getSource())) {
+                                interCFG.addEdge(edge.getSource(), invokeVertex);
+                            }
                         }
-
-                        /*
-                         * Store the original outgoing edges first, since we add further
-                         * edges later.
-                         *
-                         */
-                        Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
-                        LOGGER.debug("Outgoing edges of vertex " + vertex + ": " + outgoingEdges);
 
                         if (!coveredGraphs.contains(targetCFG)) {
                             // add target graph to inter CFG
@@ -546,9 +542,13 @@ public final class Main {
                             interCFG.addEdge(invokeVertex, targetCFG.getEntry());
                         }
 
+                        LOGGER.debug("Target CFG: " + targetCFG);
+
                         // TODO: need unique return vertices (multiple call within method to same target method)
                         // add edge from exit of target CFG to dummy return vertex
-                        interCFG.addEdge(targetCFG.getExit(), vertex);
+                        if (interCFG.containsVertex(targetCFG.getExit()) && interCFG.containsVertex(vertex)) {
+                            interCFG.addEdge(targetCFG.getExit(), vertex);
+                        }
                     }
                 }
             }

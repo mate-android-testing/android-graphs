@@ -27,7 +27,8 @@ public class EntryStatement extends Statement {
         EntryStatement other = (EntryStatement) o;
 
         // unique method signature + instruction id
-        return this.method.equals(other.method);
+        return this.method.equals(other.method)
+                && this.type == other.type;
     }
 
     @Override

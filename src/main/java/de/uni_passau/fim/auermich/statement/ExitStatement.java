@@ -26,7 +26,8 @@ public class ExitStatement extends Statement{
         ExitStatement other = (ExitStatement) o;
 
         // unique method signature + instruction id
-        return this.method.equals(other.method);
+        return this.method.equals(other.method)
+                && this.type == other.type;
     }
 
     @Override
