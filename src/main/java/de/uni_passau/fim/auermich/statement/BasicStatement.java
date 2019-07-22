@@ -44,4 +44,11 @@ public class BasicStatement extends Statement {
     public int hashCode() {
         return Objects.hash(method, instruction.getInstructionIndex());
     }
+
+    /*
+    public BasicStatement clone() {
+        BasicStatement clone = (BasicStatement) super.clone();
+        return clone;
+    }
+    */
 }

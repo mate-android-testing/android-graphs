@@ -2,7 +2,7 @@ package de.uni_passau.fim.auermich.statement;
 
 import java.util.Objects;
 
-public class ExitStatement extends Statement{
+public class ExitStatement extends Statement {
 
     public ExitStatement(String method) {
         super(method);
@@ -34,4 +34,10 @@ public class ExitStatement extends Statement{
     public int hashCode() {
         return Objects.hash(method);
     }
+
+    /*
+    public ExitStatement clone() {
+        return (ExitStatement) super.clone();
+    }
+    */
 }

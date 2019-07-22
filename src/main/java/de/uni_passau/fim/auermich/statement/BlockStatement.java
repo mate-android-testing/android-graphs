@@ -1,11 +1,12 @@
 package de.uni_passau.fim.auermich.statement;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public class BlockStatement extends Statement {
 
-    private final List<Statement> statements;
+    private List<Statement> statements;
 
     public BlockStatement(String method, List<Statement> statements) {
         super(method);
@@ -77,4 +78,16 @@ public class BlockStatement extends Statement {
     public int hashCode() {
         return Objects.hash(method, statements);
     }
+
+    /*
+    public BlockStatement clone() {
+        BlockStatement clone = (BlockStatement) super.clone();
+        List<Statement> stmts = new ArrayList<>();
+        for (Statement stmt : statements) {
+            stmts.add(stmt.clone());
+        }
+        clone.statements = stmts;
+        return clone;
+    }
+    */
 }

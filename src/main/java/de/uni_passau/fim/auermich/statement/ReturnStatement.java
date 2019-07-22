@@ -53,4 +53,10 @@ public class ReturnStatement extends Statement {
     public String getTargetMethod() {
         return targetMethod;
     }
+
+    /*
+    public ReturnStatement clone() {
+        return (ReturnStatement) super.clone();
+    }
+    */
 }

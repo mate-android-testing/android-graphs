@@ -18,7 +18,7 @@ public class Vertex implements Cloneable {
     // the type of vertex
     private final VertexType type;
 
-    private final Statement statement;
+    private Statement statement;
 
     public Vertex(Statement statement) {
         this.statement = statement;
@@ -81,7 +81,7 @@ public class Vertex implements Cloneable {
 
         try {
             Vertex vertexClone = (Vertex) super.clone();
-            // vertexClone.statement = this.statement.clone();
+            vertexClone.statement = this.statement.clone();
             return vertexClone;
         } catch (CloneNotSupportedException e) {
             LOGGER.warn("Cloning of Vertex failed");

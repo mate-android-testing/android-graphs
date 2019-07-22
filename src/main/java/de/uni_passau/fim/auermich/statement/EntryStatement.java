@@ -35,4 +35,10 @@ public class EntryStatement extends Statement {
     public int hashCode() {
         return Objects.hash(method);
     }
+
+    /*
+    public EntryStatement clone() {
+        return (EntryStatement) super.clone();
+    }
+    */
 }

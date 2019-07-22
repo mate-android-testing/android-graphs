@@ -1,5 +1,7 @@
 package de.uni_passau.fim.auermich.graphs.cfg;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.mxgraph.layout.*;
 import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import com.mxgraph.layout.orthogonal.mxOrthogonalLayout;
@@ -38,8 +40,8 @@ public abstract class BaseCFG implements Cloneable {
             .edgeClass(Edge.class).buildGraph();
 
     // protected AbstractGraph graph = new DirectedMultigraph(DefaultEdge.class);
-    private final Vertex entry; // = new Vertex(-1, null, null);
-    private final Vertex exit; // = new Vertex(-2, null, null);
+    private Vertex entry; // = new Vertex(-1, null, null);
+    private Vertex exit; // = new Vertex(-2, null, null);
 
     /*
      * Contains the full-qualified name of the method,
@@ -120,12 +122,12 @@ public abstract class BaseCFG implements Cloneable {
 
         // add all vertices
         for (Vertex vertex: subGraph.getVertices()) {
-            addVertex(vertex);
+            addVertex(vertex.clone());
         }
 
         // add all edges
         for (Edge edge : subGraph.getEdges()) {
-            addEdge(edge.getSource(), edge.getTarget());
+            addEdge(edge.getSource().clone(), edge.getTarget().clone());
         }
     }
 
@@ -164,8 +166,36 @@ public abstract class BaseCFG implements Cloneable {
     }
 
     public BaseCFG clone() {
+
+        LOGGER.debug("Cloning CFG");
+
+        /*
+        Gson gson = new Gson();
+        BaseCFG clone = gson.fromJson(gson.toJson(this), BaseCFG.class);
+        return clone;
+        */
+
         try {
             BaseCFG cloneCFG = (BaseCFG) super.clone();
+
+            Graph<Vertex, Edge> graphClone = GraphTypeBuilder
+                    .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                    .edgeClass(Edge.class).buildGraph();
+
+            Set<Vertex> vertices = graph.vertexSet();
+            Set<Edge> edges = graph.edgeSet();
+
+            for (Vertex vertex : vertices) {
+                graphClone.addVertex(vertex.clone());
+            }
+
+            for (Edge edge : edges) {
+                graphClone.addEdge(edge.getSource().clone(), edge.getTarget().clone());
+            }
+
+            cloneCFG.entry = this.entry.clone();
+            cloneCFG.exit = this.exit.clone();
+            cloneCFG.graph = graphClone;
             return cloneCFG;
         } catch (CloneNotSupportedException e) {
             LOGGER.warn("Cloning of CFG failed" + e.getMessage());
