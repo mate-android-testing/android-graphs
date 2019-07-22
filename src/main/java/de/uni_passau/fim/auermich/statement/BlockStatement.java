@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class BlockStatement extends Statement {
+public class BlockStatement extends Statement implements Cloneable {
 
     private List<Statement> statements;
 
@@ -79,15 +79,20 @@ public class BlockStatement extends Statement {
         return Objects.hash(method, statements);
     }
 
-    /*
+
     public BlockStatement clone() {
         BlockStatement clone = (BlockStatement) super.clone();
+        return clone;
+
+        // FIXME: enabling clone() on each statements breaks the implementation
+        /*
         List<Statement> stmts = new ArrayList<>();
         for (Statement stmt : statements) {
             stmts.add(stmt.clone());
         }
         clone.statements = stmts;
         return clone;
+        */
     }
-    */
+
 }

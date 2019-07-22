@@ -2,7 +2,7 @@ package de.uni_passau.fim.auermich.statement;
 
 import java.util.Objects;
 
-public class EntryStatement extends Statement {
+public class EntryStatement extends Statement implements Cloneable {
 
     public EntryStatement(String method) {
         super(method);
@@ -36,9 +36,8 @@ public class EntryStatement extends Statement {
         return Objects.hash(method);
     }
 
-    /*
     public EntryStatement clone() {
         return (EntryStatement) super.clone();
     }
-    */
+
 }

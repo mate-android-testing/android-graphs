@@ -7,6 +7,7 @@ import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import com.mxgraph.layout.orthogonal.mxOrthogonalLayout;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxConstants;
+import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import de.uni_passau.fim.auermich.statement.EntryStatement;
@@ -164,6 +165,13 @@ public abstract class BaseCFG implements Cloneable {
             LOGGER.warn(e.getMessage());
         }
     }
+
+    /**
+     * Performs a deep copy of the graph.
+     *
+     * @return Returns a deep copy of the graph.
+     */
+    public abstract BaseCFG copy();
 
     public BaseCFG clone() {
 

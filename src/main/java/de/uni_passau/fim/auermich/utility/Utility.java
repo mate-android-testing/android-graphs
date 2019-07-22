@@ -1,11 +1,15 @@
 package de.uni_passau.fim.auermich.utility;
 
+import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.Main;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.spi.LoggerRegistry;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
+import org.jf.dexlib2.analysis.ClassPath;
+import org.jf.dexlib2.analysis.DexClassProvider;
+import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
@@ -103,6 +107,14 @@ public final class Utility {
             }
         }
         return Optional.empty();
+    }
+
+    public static MethodAnalyzer getAnalyzer(DexFile dexFile, Method targetMethod) {
+
+        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                true, ClassPath.NOT_ART), targetMethod,
+                null, false);
+        return analyzer;
     }
 
     /**

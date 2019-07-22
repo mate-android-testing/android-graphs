@@ -4,6 +4,7 @@ import com.beust.jcommander.JCommander;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
+import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
@@ -418,6 +419,17 @@ public final class Main {
         return interCFG;
     }
 
+    /**
+     * Computes the inter procedural CFG using basic blocks. It links together the individual intra CFGs
+     * by introducing edges from invoke calls to the entry point of an intra CFG. This causes that a basic
+     * block is split into two parts, where one basic block solely consists of the invoke instruction, while
+     * the second basic block contains a virtual return statement and all instructions up to the next leader
+     * instruction.
+     *
+     * @param dexFile The dex file containing all classes and its methods.
+     * @return Returns the inter procedural CFG containing basic blocks.
+     * @throws IOException Should never happen.
+     */
     private static BaseCFG computeInterCFGWithBasicBlocks(DexFile dexFile) throws IOException {
 
         // the final inter-procedural CFG
@@ -427,16 +439,20 @@ public final class Main {
         Map<String, BaseCFG> intraCFGs = new HashMap<>();
         constructIntraCFGs(dexFile, intraCFGs, true);
 
-        // TODO: perform a deep copy of the intra CFGs, otherwise each single intra CFG is corrputed
-
         // avoid concurrent modification exception
         Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
 
         // store graphs already inserted into inter-procedural CFG
         Set<BaseCFG> coveredGraphs = new HashSet<>();
 
+        // store the cloned intra CFGs
+        Map<String, BaseCFG> intraCFGsClone = new HashMap<>();
+
         // compute inter-procedural CFG by connecting intra CFGs
         for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
+
+            // performs a deep copy of the intra CFG for possible later usage
+            intraCFGsClone.put(entry.getKey(), entry.getValue().copy());
 
             BaseCFG cfg = entry.getValue();
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
@@ -460,15 +476,10 @@ public final class Main {
                 }
 
                 // operate on cloned vertex
-                Vertex cloneVertex = vertex.clone();
-
-                Set<Edge> incomingEdges = intraCFG.getIncomingEdges(cloneVertex);
-                Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(cloneVertex);
-                LOGGER.debug("Incoming edges: " + incomingEdges.stream().map(e -> e.getSource().toString()).collect(Collectors.joining(",")));
-                LOGGER.debug("Outgoing edges: " + outgoingEdges.stream().map(e -> e.getTarget().toString()).collect(Collectors.joining(",")));
+                // Vertex cloneVertex = vertex.clone();
 
                 // all vertices are represented by block statements
-                BlockStatement blockStatement = (BlockStatement) cloneVertex.getStatement();
+                BlockStatement blockStatement = (BlockStatement) vertex.getStatement();
 
                 // invoke instructions can only be the first instruction of a block statement
                 BasicStatement statement = ((BasicStatement) blockStatement.getFirstStatement());
@@ -478,6 +489,11 @@ public final class Main {
                 if (instruction instanceof ReferenceInstruction
                         && (instruction instanceof Instruction3rc
                         || instruction instanceof Instruction35c)) {
+
+                    Set<Edge> incomingEdges = intraCFG.getIncomingEdges(vertex);
+                    Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
+                    LOGGER.debug("Incoming edges: " + incomingEdges.stream().map(e -> e.getSource().toString()).collect(Collectors.joining(",")));
+                    LOGGER.debug("Outgoing edges: " + outgoingEdges.stream().map(e -> e.getTarget().toString()).collect(Collectors.joining(",")));
 
                     // search for target CFG by reference of invoke instruction (target method)
                     String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
@@ -521,10 +537,10 @@ public final class Main {
                         blockStatement.addStatement(0, returnStmt);
 
                         // add modified vertex to graph
-                        interCFG.addVertex(cloneVertex);
+                        interCFG.addVertex(vertex);
 
                         // add edge from exit to virtual return vertex
-                        interCFG.addEdge(targetCFG.getExit(), cloneVertex);
+                        interCFG.addEdge(targetCFG.getExit(), vertex);
 
                         // the invoke statement is split off the basic block and represented as an own vertex
                         List<Statement> invokeStmt = new ArrayList<>();
@@ -532,8 +548,8 @@ public final class Main {
                         Vertex invokeVertex = new Vertex(new BlockStatement(intraCFG.getMethodName(), invokeStmt));
                         interCFG.addVertex(invokeVertex);
 
-                        LOGGER.debug("Incoming edges of vertex " + cloneVertex + ": " + incomingEdges);
-                        LOGGER.debug("Outgoing edges of vertex " + cloneVertex + ":" + outgoingEdges);
+                        LOGGER.debug("Incoming edges of vertex " + vertex + ": " + incomingEdges);
+                        LOGGER.debug("Outgoing edges of vertex " + vertex + ":" + outgoingEdges);
 
                         // add from each predecessor an edge to the invoke statement
                         for (Edge edge : incomingEdges) {
@@ -542,7 +558,7 @@ public final class Main {
 
                         // add again each successor now to the return vertex
                         for (Edge edge : outgoingEdges) {
-                            interCFG.addEdge(cloneVertex, edge.getTarget());
+                            interCFG.addEdge(vertex, edge.getTarget());
                         }
 
                         // add edge from invoke instruction to entry vertex of target CFG
@@ -555,14 +571,21 @@ public final class Main {
 
         if (DEBUG_MODE) {
             // LOGGER.debug(interCFG);
-            // intraCFGs.get("Lcom/zola/bmi/BMIMain;->onCreate(Landroid/os/Bundle;)V").drawGraph();
+            // intraCFGsClone.get("Lcom/zola/bmi/BMIMain;->onCreate(Landroid/os/Bundle;)V").drawGraph();
             interCFG.drawGraph();
         }
 
         return interCFG;
     }
 
-
+    /**
+     * Computes the inter procedural CFG with basic blocks or without depending on the given flag {@param useBasicBlocks}.
+     *
+     * @param dexFile The dex file containing the classes and its methods.
+     * @param useBasicBlocks Whether to use basic blocks or not.
+     * @return Returns the inter procedural CFG.
+     * @throws IOException Should never happen.
+     */
     private static BaseCFG computeInterProceduralCFG(DexFile dexFile, boolean useBasicBlocks) throws IOException {
 
         if (useBasicBlocks) {
@@ -662,10 +685,20 @@ public final class Main {
         return leaders;
     }
 
+    /**
+     * Constructs the basic blocks for a given method and adds them to the given CFG.
+     *
+     * @param cfg The CFG that should contain the basic blocks.
+     * @param analyzedInstructions The set of instructions of a given method.
+     * @param leaders The set of leader instructions previously identified.
+     * @param vertexMap A map that stores for each basic block (a vertex) the instruction id of
+     *                  the first and last statement. So we have two entries per vertex.
+     * @param methodName The name of the method for which we want to construct the basic blocks.
+     * @return Returns the basic blocks each as a list of instructions.
+     */
     private static Set<List<AnalyzedInstruction>> constructBasicBlocks(BaseCFG cfg, List<AnalyzedInstruction> analyzedInstructions,
                                                                        List<AnalyzedInstruction> leaders, Map<Integer, Vertex> vertexMap,
                                                                        String methodName) {
-
         // stores all the basic blocks
         Set<List<AnalyzedInstruction>> basicBlocks = new HashSet<>();
 

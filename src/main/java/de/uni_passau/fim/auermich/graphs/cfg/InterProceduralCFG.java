@@ -1,8 +1,16 @@
 package de.uni_passau.fim.auermich.graphs.cfg;
 
+import com.rits.cloning.Cloner;
+import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
+import de.uni_passau.fim.auermich.graphs.Vertex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jgrapht.Graph;
+import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.graph.builder.GraphTypeBuilder;
+
+import java.util.Set;
 
 public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
@@ -18,6 +26,33 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         InterProceduralCFG cloneCFG = (InterProceduralCFG) super.clone();
         return cloneCFG;
+    }
+
+    public BaseCFG copy() {
+
+        BaseCFG clone = new InterProceduralCFG(getMethodName());
+
+        Graph<Vertex, Edge> graphClone = GraphTypeBuilder
+                .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                .edgeClass(Edge.class).buildGraph();
+
+        Set<Vertex> vertices = graph.vertexSet();
+        Set<Edge> edges = graph.edgeSet();
+
+        Cloner cloner = new Cloner();
+
+        for (Vertex vertex : vertices) {
+            graphClone.addVertex(cloner.deepClone(vertex));
+        }
+
+        for (Edge edge : edges) {
+            Vertex src = cloner.deepClone(edge.getSource());
+            Vertex dest = cloner.deepClone(edge.getTarget());
+            graphClone.addEdge(src, dest);
+        }
+
+        clone.graph = graphClone;
+        return clone;
     }
 
 }

@@ -2,7 +2,7 @@ package de.uni_passau.fim.auermich.statement;
 
 import java.util.Objects;
 
-public class ExitStatement extends Statement {
+public class ExitStatement extends Statement implements Cloneable {
 
     public ExitStatement(String method) {
         super(method);
@@ -35,9 +35,8 @@ public class ExitStatement extends Statement {
         return Objects.hash(method);
     }
 
-    /*
     public ExitStatement clone() {
         return (ExitStatement) super.clone();
     }
-    */
+
 }

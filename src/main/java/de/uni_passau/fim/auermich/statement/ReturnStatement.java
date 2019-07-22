@@ -2,7 +2,7 @@ package de.uni_passau.fim.auermich.statement;
 
 import java.util.Objects;
 
-public class ReturnStatement extends Statement {
+public class ReturnStatement extends Statement implements Cloneable {
 
     // either tracks source and target name as String
     // or uses an additional int to make them unique
@@ -12,7 +12,7 @@ public class ReturnStatement extends Statement {
     // return statement should be unique among same intra CFG (multiple calls) (NO)
 
     // stores the method name from which control flow returned
-    private final String targetMethod;
+    private String targetMethod;
 
     // should be the target method name
     public ReturnStatement(String method, String targetMethod) {
@@ -54,9 +54,10 @@ public class ReturnStatement extends Statement {
         return targetMethod;
     }
 
-    /*
     public ReturnStatement clone() {
-        return (ReturnStatement) super.clone();
+        ReturnStatement stmt = (ReturnStatement) super.clone();
+        stmt.targetMethod = this.getTargetMethod();
+        return stmt;
     }
-    */
+
 }

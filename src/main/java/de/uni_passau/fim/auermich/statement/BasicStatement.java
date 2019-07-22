@@ -1,12 +1,13 @@
 package de.uni_passau.fim.auermich.statement;
 
+import com.rits.cloning.Cloner;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 
 import java.util.Objects;
 
-public class BasicStatement extends Statement {
+public class BasicStatement extends Statement implements Cloneable {
 
-    private final AnalyzedInstruction instruction;
+    private AnalyzedInstruction instruction;
 
     public BasicStatement(String method, AnalyzedInstruction instruction) {
         super(method);
@@ -45,10 +46,13 @@ public class BasicStatement extends Statement {
         return Objects.hash(method, instruction.getInstructionIndex());
     }
 
-    /*
+
     public BasicStatement clone() {
         BasicStatement clone = (BasicStatement) super.clone();
+        Cloner cloner = new Cloner();
+        clone.instruction = cloner.deepClone(this.instruction);
+        // clone.instruction = this.instruction;
         return clone;
     }
-    */
+
 }

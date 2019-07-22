@@ -2,10 +2,11 @@ package de.uni_passau.fim.auermich.graphs;
 
 
 import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
-import de.uni_passau.fim.auermich.statement.Statement;
+import de.uni_passau.fim.auermich.statement.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
+import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
 import java.util.List;
@@ -38,7 +39,7 @@ public class Vertex implements Cloneable {
      * Returns the method name of the vertex's statement.
      *
      * @return Returns the method name belonging to the
-     *          vertex statement.
+     * vertex statement.
      */
     public String getMethod() {
         return statement.getMethod();
@@ -52,9 +53,13 @@ public class Vertex implements Cloneable {
         return type == VertexType.ENTRY_VERTEX;
     }
 
-    public boolean isExitVertex() { return type == VertexType.EXIT_VERTEX; }
+    public boolean isExitVertex() {
+        return type == VertexType.EXIT_VERTEX;
+    }
 
-    public boolean isReturnVertex() { return type == VertexType.RETURN_VERTEX; }
+    public boolean isReturnVertex() {
+        return type == VertexType.RETURN_VERTEX;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -77,6 +82,45 @@ public class Vertex implements Cloneable {
         return Objects.hash(statement);
     }
 
+    public Vertex copy() {
+
+        Vertex clone = new Vertex(this.statement.clone());
+
+        Statement stmt = null;
+
+        switch (statement.getType()) {
+            case BASIC_STATEMENT:
+                BasicStatement basicStatement = (BasicStatement) this.statement;
+                /*
+                AnalyzedInstruction analyzedInstruction = basicStatement.getInstruction();
+                Instruction instruction = basicStatement.getInstruction().getInstruction();
+                stmt = new BasicStatement(basicStatement.getMethod(),
+                        new AnalyzedInstruction(analyzer, instruction,
+                                analyzedInstruction.getInstructionIndex(), analyzedInstruction.getRegisterCount()));
+                                */
+                stmt = new BasicStatement(basicStatement.getMethod(), basicStatement.getInstruction());
+                break;
+            case BLOCK_STATEMENT:
+                BlockStatement blockStatement = (BlockStatement) this.statement;
+                stmt = new BlockStatement(blockStatement.getMethod(), null);
+                break;
+            case EXIT_STATEMENT:
+                stmt = new ExitStatement(this.getMethod());
+                break;
+            case ENTRY_STATEMENT:
+                stmt = new EntryStatement(this.getMethod());
+                break;
+            case RETURN_STATEMENT:
+                ReturnStatement returnStatement = (ReturnStatement) this.statement;
+                stmt = new ReturnStatement(returnStatement.getMethod(), returnStatement.getTargetMethod());
+                break;
+            default:
+                throw new UnsupportedOperationException("Statement type not yet supported!");
+        }
+        clone.statement = stmt;
+        return clone;
+    }
+
     public Vertex clone() {
 
         try {
@@ -84,9 +128,9 @@ public class Vertex implements Cloneable {
             vertexClone.statement = this.statement.clone();
             return vertexClone;
         } catch (CloneNotSupportedException e) {
-            LOGGER.warn("Cloning of Vertex failed");
-            return null;
+            throw new Error("Cloning failed");
         }
+
     }
 
 
@@ -123,19 +167,24 @@ public class Vertex implements Cloneable {
                     return VertexType.BASIC_VERTEX;
                 case BLOCK_STATEMENT:
                     return VertexType.BLOCK_VERTEX;
-                    default:
-                        throw new UnsupportedOperationException("Statement type not supported yet!");
+                default:
+                    throw new UnsupportedOperationException("Statement type not supported yet!");
             }
         }
 
         @Override
         public String toString() {
             switch (this) {
-                case EXIT_VERTEX: return "exit";
-                case ENTRY_VERTEX: return "entry";
-                case RETURN_VERTEX: return "return";
-                case BASIC_VERTEX: return "basic";
-                case BLOCK_VERTEX: return "block";
+                case EXIT_VERTEX:
+                    return "exit";
+                case ENTRY_VERTEX:
+                    return "entry";
+                case RETURN_VERTEX:
+                    return "return";
+                case BASIC_VERTEX:
+                    return "basic";
+                case BLOCK_VERTEX:
+                    return "block";
             }
             throw new UnsupportedOperationException("Vertex type not supported yet!");
         }

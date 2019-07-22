@@ -9,7 +9,7 @@ public abstract class Statement implements Cloneable {
     private static final Logger LOGGER = LogManager.getLogger(Statement.class);
 
     // the method the statement is belonging to
-    protected final String method;
+    protected String method;
 
     // the statement type
     protected StatementType type;
@@ -45,6 +45,9 @@ public abstract class Statement implements Cloneable {
     public Statement clone() {
         try {
             Statement cloneStmt = (Statement) super.clone();
+            // added two
+            cloneStmt.method = this.getMethod();
+            cloneStmt.type = this.getType();
             return cloneStmt;
         } catch (CloneNotSupportedException e) {
             LOGGER.warn("Cloning of Statement failed" + e.getMessage());
