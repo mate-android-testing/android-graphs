@@ -123,12 +123,12 @@ public abstract class BaseCFG implements Cloneable {
 
         // add all vertices
         for (Vertex vertex: subGraph.getVertices()) {
-            addVertex(vertex.clone());
+            addVertex(vertex);
         }
 
         // add all edges
         for (Edge edge : subGraph.getEdges()) {
-            addEdge(edge.getSource().clone(), edge.getTarget().clone());
+            addEdge(edge.getSource(), edge.getTarget());
         }
     }
 

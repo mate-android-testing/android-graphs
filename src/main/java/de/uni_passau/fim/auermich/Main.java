@@ -524,15 +524,21 @@ public final class Main {
                             coveredGraphs.add(targetCFG);
                         }
 
-                        // remove the vertex from the graph -> removes edges as well
+                        /*
+                         * We need to remove the vertex, modify it offline and re-insert it.
+                         * Directly modifying the vertex without removing/adding doesn't
+                         * work, since the graph doesn't recognize anymore the vertex in
+                         * the graph due to yet unknown reasons, probably equals() fails.
+                         * Or stated differently, the vertex reference is no longer valid.
+                         */
+
+                        // remove the vertex from the graph -> removes edges as well inherently
                         interCFG.removeVertex(vertex);
 
                         // remove invoke from basic block
                         blockStatement.removeStatement(statement);
 
-                        // TODO: need unique return vertices (multiple call within method to same target method)
                         // add virtual return at front of basic block
-                        // String uniqueID = UUID.randomUUID().toString();
                         Statement returnStmt = new ReturnStatement(vertex.getMethod(), targetCFG.getMethodName());
                         blockStatement.addStatement(0, returnStmt);
 

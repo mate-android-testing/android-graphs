@@ -38,6 +38,7 @@ public class BasicStatement extends Statement implements Cloneable {
 
         // unique method signature + instruction id
         return this.method.equals(other.method)
+                && this.instruction.getInstruction().getOpcode().equals(other.instruction.getInstruction().getOpcode())
                 && this.instruction.getInstructionIndex() == other.instruction.getInstructionIndex();
     }
 

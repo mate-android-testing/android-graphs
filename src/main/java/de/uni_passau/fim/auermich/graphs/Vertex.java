@@ -82,45 +82,6 @@ public class Vertex implements Cloneable {
         return Objects.hash(statement);
     }
 
-    public Vertex copy() {
-
-        Vertex clone = new Vertex(this.statement.clone());
-
-        Statement stmt = null;
-
-        switch (statement.getType()) {
-            case BASIC_STATEMENT:
-                BasicStatement basicStatement = (BasicStatement) this.statement;
-                /*
-                AnalyzedInstruction analyzedInstruction = basicStatement.getInstruction();
-                Instruction instruction = basicStatement.getInstruction().getInstruction();
-                stmt = new BasicStatement(basicStatement.getMethod(),
-                        new AnalyzedInstruction(analyzer, instruction,
-                                analyzedInstruction.getInstructionIndex(), analyzedInstruction.getRegisterCount()));
-                                */
-                stmt = new BasicStatement(basicStatement.getMethod(), basicStatement.getInstruction());
-                break;
-            case BLOCK_STATEMENT:
-                BlockStatement blockStatement = (BlockStatement) this.statement;
-                stmt = new BlockStatement(blockStatement.getMethod(), null);
-                break;
-            case EXIT_STATEMENT:
-                stmt = new ExitStatement(this.getMethod());
-                break;
-            case ENTRY_STATEMENT:
-                stmt = new EntryStatement(this.getMethod());
-                break;
-            case RETURN_STATEMENT:
-                ReturnStatement returnStatement = (ReturnStatement) this.statement;
-                stmt = new ReturnStatement(returnStatement.getMethod(), returnStatement.getTargetMethod());
-                break;
-            default:
-                throw new UnsupportedOperationException("Statement type not yet supported!");
-        }
-        clone.statement = stmt;
-        return clone;
-    }
-
     public Vertex clone() {
 
         try {
