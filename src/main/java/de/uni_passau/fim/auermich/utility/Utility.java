@@ -53,6 +53,16 @@ public final class Utility {
     }
 
     /**
+     * Retrieves the class name of the method's defining class.
+     *
+     * @param methodSignature The given method signature.
+     * @return Returns the class name.
+     */
+    public static String getClassName(String methodSignature) {
+        return methodSignature.split("->")[0];
+    }
+
+    /**
      * Derives a unique method signature in order to avoid
      * name clashes originating from overloaded/inherited methods
      * or methods in different classes.

@@ -448,6 +448,12 @@ public final class Main {
         // store the cloned intra CFGs
         Map<String, BaseCFG> intraCFGsClone = new HashMap<>();
 
+        // stores the relevant onCreate methods
+        List<BaseCFG> onCreateMethods = new ArrayList<>();
+
+        // exclude certain methods/classes
+        Pattern exclusionPattern = Utility.readExcludePatterns();
+
         // compute inter-procedural CFG by connecting intra CFGs
         for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
 
@@ -463,6 +469,20 @@ public final class Main {
                     // add first source graph
                     interCFG.addSubGraph(intraCFG);
                     coveredGraphs.add(intraCFG);
+                }
+            }
+
+            // the method signature (className->methodName->params->returnType)
+            String method = intraCFG.getMethodName();
+            String className = Utility.dottedClassName(Utility.getClassName(method));
+            LOGGER.debug("ClassName: " + className);
+
+            // we need to add an edge from the global entry point if we deal with an onCreate method for instance
+            if (method.contains("onCreate") && !exclusionPattern.matcher(className).matches()) {
+                // we only want the onCreate method of regular classes, not ART (super) classes
+                if (interCFG.containsVertex(intraCFG.getEntry())) {
+                    interCFG.addEdge(interCFG.getEntry(), intraCFG.getEntry());
+                    onCreateMethods.add(intraCFG);
                 }
             }
 
@@ -574,6 +594,13 @@ public final class Main {
             }
             LOGGER.debug(System.lineSeparator());
         }
+
+        /* TODO: we need to model the android lifecycle
+        * That means we need to insert an edge from the exit vertex of an onCreate method
+        * to it's onStop' entry vertex (if present). Moreover, we need to insert an edge
+        * from each exit vertex of onStop to the global exit vertex.
+         */
+
 
         if (DEBUG_MODE) {
             // LOGGER.debug(interCFG);
