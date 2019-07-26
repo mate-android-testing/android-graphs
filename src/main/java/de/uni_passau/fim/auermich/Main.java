@@ -419,6 +419,44 @@ public final class Main {
         return interCFG;
     }
 
+    private static void addAndroidLifecycleMethods(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
+                                                   List<BaseCFG> onCreateMethods) {
+
+        for (BaseCFG onCreateMethod : onCreateMethods) {
+
+            // we need to add an edge from the exit of onCreate to the entry of onStart
+            String methodName = onCreateMethod.getMethodName();
+            String className = Utility.getClassName(methodName);
+            String onStart = className + "->onStart()V";
+            BaseCFG onStartCFG = null;
+
+            // check whether there is a custom onStart or not
+            if (intraCFGs.containsKey(onStart)) {
+                onStartCFG = intraCFGs.get(onStart);
+            } else {
+                onStartCFG = dummyIntraProceduralCFG(onStart);
+                interCFG.addSubGraph(onStartCFG);
+            }
+
+            // add edge from exit of onCreate to entry of onStart
+            interCFG.addEdge(onCreateMethod.getExit(), onStartCFG.getEntry());
+
+            // onStart directly invokes onResume -> edge from exit of onStart to entry of onResume
+            String onResume = className + "->onResume()V";
+            BaseCFG onResumeCFG = null;
+
+            // check whether there is a custom onResume or not
+            if (intraCFGs.containsKey(onResume)) {
+                onResumeCFG = intraCFGs.get(onResume);
+            } else {
+                onResumeCFG = dummyIntraProceduralCFG(onResume);
+                interCFG.addSubGraph(onResumeCFG);
+            }
+
+            interCFG.addEdge(onStartCFG.getExit(), onResumeCFG.getEntry());
+        }
+    }
+
     /**
      * Computes the inter procedural CFG using basic blocks. It links together the individual intra CFGs
      * by introducing edges from invoke calls to the entry point of an intra CFG. This causes that a basic
@@ -477,13 +515,9 @@ public final class Main {
             String className = Utility.dottedClassName(Utility.getClassName(method));
             LOGGER.debug("ClassName: " + className);
 
-            // we need to add an edge from the global entry point if we deal with an onCreate method for instance
-            if (method.contains("onCreate") && !exclusionPattern.matcher(className).matches()) {
-                // we only want the onCreate method of regular classes, not ART (super) classes
-                if (interCFG.containsVertex(intraCFG.getEntry())) {
-                    interCFG.addEdge(interCFG.getEntry(), intraCFG.getEntry());
-                    onCreateMethods.add(intraCFG);
-                }
+            // we need to model the android lifecycle as well -> collect onCreate methods
+            if (method.contains("onCreate(Landroid/os/Bundle;)V") && !exclusionPattern.matcher(className).matches()) {
+                onCreateMethods.add(intraCFG);
             }
 
             LOGGER.debug("Searching for invoke instructions!");
@@ -595,12 +629,8 @@ public final class Main {
             LOGGER.debug(System.lineSeparator());
         }
 
-        /* TODO: we need to model the android lifecycle
-        * That means we need to insert an edge from the exit vertex of an onCreate method
-        * to it's onStop' entry vertex (if present). Moreover, we need to insert an edge
-        * from each exit vertex of onStop to the global exit vertex.
-         */
-
+        // add the android lifecycle methods
+        addAndroidLifecycleMethods(interCFG, intraCFGs, onCreateMethods);
 
         if (DEBUG_MODE) {
             // LOGGER.debug(interCFG);
