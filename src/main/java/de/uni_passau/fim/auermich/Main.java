@@ -166,6 +166,7 @@ public final class Main {
          */
 
         try {
+            // ApkDecoder decoder = new ApkDecoder(new Androlib());
             ApkDecoder decoder = new ApkDecoder(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\com.zola.bmi_400.apk"));
             decoder.setOutDir(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola"));
             // whether to decode classes.dex into smali files: -s
@@ -174,15 +175,13 @@ public final class Main {
             decoder.setForceDelete(true);
             decoder.decode();
 
-            /*
             // not working yet
             ApkOptions apkOptions = new ApkOptions();
-            apkOptions.useAapt2 = true;
+            // apkOptions.useAapt2 = true;
             apkOptions.verbose = true;
 
-            File testApk = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola\\dist", "testapp.apk");
-            new Androlib(apkOptions).build(new ExtFile("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola"), testApk);
-            */
+            File testApk = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola\\dist", "final.apk");
+            new Androlib(apkOptions).build(new ExtFile(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola\\")), null);
         } catch (BrutException e) {
             LOGGER.warn("Failed to decode APK file!");
             LOGGER.warn(e.getMessage());

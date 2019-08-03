@@ -1,4 +1,17 @@
 
+# apktool BUILD
+
+To build the apktool jar follow the instructions at:
+https://ibotpeaches.github.io/Apktool/build/
+
+In particular, we need to execute the shadowJar task, which generates
+a jar file in brut.apktool/apktool-cli/build/libs/ called apktool-cli-all.jar.
+
+Since apktool (I assume smali/baksmali) uses internally also the jcommander,
+there is an conflict to the latest version of jcommander we use as gradle
+dependency. To resolve this issue, I simply removed the respective folder
+named 'com.beust' in the apktool-cli-all.jar.
+
 # Config for intra-procedural CFG on Linux
 
 -f
