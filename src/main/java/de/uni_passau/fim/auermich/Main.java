@@ -1,5 +1,11 @@
 package de.uni_passau.fim.auermich;
 
+import brut.androlib.Androlib;
+import brut.androlib.AndrolibException;
+import brut.androlib.ApkDecoder;
+import brut.androlib.ApkOptions;
+import brut.common.BrutException;
+import brut.directory.ExtFile;
 import com.beust.jcommander.JCommander;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
@@ -158,6 +164,29 @@ public final class Main {
          * should be stored in some result data type. Since mandatory options are missing
          * potentially, we may want to return an empty result -> Optional.
          */
+
+        try {
+            ApkDecoder decoder = new ApkDecoder(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\com.zola.bmi_400.apk"));
+            decoder.setOutDir(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola"));
+            // whether to decode classes.dex into smali files: -s
+            decoder.setDecodeSources(ApkDecoder.DECODE_SOURCES_NONE);
+            // overwrites existing dir: -f
+            decoder.setForceDelete(true);
+            decoder.decode();
+
+            /*
+            // not working yet
+            ApkOptions apkOptions = new ApkOptions();
+            apkOptions.useAapt2 = true;
+            apkOptions.verbose = true;
+
+            File testApk = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola\\dist", "testapp.apk");
+            new Androlib(apkOptions).build(new ExtFile("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola"), testApk);
+            */
+        } catch (BrutException e) {
+            LOGGER.warn("Failed to decode APK file!");
+            LOGGER.warn(e.getMessage());
+        }
 
         LOGGER.debug("Determining which action to take dependent on given command");
 
