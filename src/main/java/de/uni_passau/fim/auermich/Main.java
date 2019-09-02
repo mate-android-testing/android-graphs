@@ -165,6 +165,7 @@ public final class Main {
          * potentially, we may want to return an empty result -> Optional.
          */
 
+        /*
         try {
             // ApkDecoder decoder = new ApkDecoder(new Androlib());
             ApkDecoder decoder = new ApkDecoder(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\com.zola.bmi_400.apk"));
@@ -186,6 +187,7 @@ public final class Main {
             LOGGER.warn("Failed to decode APK file!");
             LOGGER.warn(e.getMessage());
         }
+        */
 
         LOGGER.debug("Determining which action to take dependent on given command");
 
@@ -452,37 +454,83 @@ public final class Main {
 
         for (BaseCFG onCreateMethod : onCreateMethods) {
 
-            // we need to add an edge from the exit of onCreate to the entry of onStart
+            // onCreate directly invokes onStart()
             String methodName = onCreateMethod.getMethodName();
             String className = Utility.getClassName(methodName);
             String onStart = className + "->onStart()V";
-            BaseCFG onStartCFG = null;
+            BaseCFG onStartCFG = addLifeCycle(onStart, intraCFGs, interCFG, onCreateMethod);
 
-            // check whether there is a custom onStart or not
-            if (intraCFGs.containsKey(onStart)) {
-                onStartCFG = intraCFGs.get(onStart);
-            } else {
-                onStartCFG = dummyIntraProceduralCFG(onStart);
-                interCFG.addSubGraph(onStartCFG);
-            }
-
-            // add edge from exit of onCreate to entry of onStart
-            interCFG.addEdge(onCreateMethod.getExit(), onStartCFG.getEntry());
-
-            // onStart directly invokes onResume -> edge from exit of onStart to entry of onResume
+            // onStart directly invokes onResume()
             String onResume = className + "->onResume()V";
-            BaseCFG onResumeCFG = null;
+            BaseCFG onResumeCFG = addLifeCycle(onResume, intraCFGs, interCFG, onStartCFG);
 
-            // check whether there is a custom onResume or not
-            if (intraCFGs.containsKey(onResume)) {
-                onResumeCFG = intraCFGs.get(onResume);
-            } else {
-                onResumeCFG = dummyIntraProceduralCFG(onResume);
-                interCFG.addSubGraph(onResumeCFG);
-            }
+            /*
+            * Each component may define several listeners for certain events, e.g. a button click,
+            * which causes the invocation of a callback function. Those callbacks are active as
+            * long as the corresponding component (activity) is in the onResume state. Thus, in our
+            * graph we have an additional sub-graph 'callbacks' that is directly linked to the end
+            * of 'onResume()' and can either call one of the specified listeners or directly invoke
+            * the onPause() method (indirectly through the entry-exit edge). Each listener function
+            * points back to the 'callbacks' entry node.
+             */
 
-            interCFG.addEdge(onStartCFG.getExit(), onResumeCFG.getEntry());
+            // add callbacks sub graph
+            BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
+            interCFG.addSubGraph(callbacksCFG);
+
+            // callbacks can be invoked after onResume() has finished
+            interCFG.addEdge(onResumeCFG.getExit(), callbacksCFG.getEntry());
+
+            // there can be a sequence of callbacks (loop)
+            interCFG.addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
+
+            // onPause() can be invoked after some callback
+            String onPause = className + "->onPause()V";
+            BaseCFG onPauseCFG = addLifeCycle(onPause, intraCFGs, interCFG, callbacksCFG);
+
+            // TODO: parse callback methods from XML layout files or classes.dex
+            // add them as sub-graphs to callbacksCFG
+
+            // onPause can either invoke onStop() or onResume()
+            interCFG.addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
+            String onStop = className + "->onStop()V";
+            BaseCFG onStopCFG = addLifeCycle(onStop, intraCFGs, interCFG, onPauseCFG);
+
+            // onStop can either invoke onRestart() or onDestroy()
+            String onRestart = className + "->onRestart()V";
+            String onDestroy = className + "->onDestroy()V";
+            BaseCFG onRestartCFG = addLifeCycle(onRestart, intraCFGs, interCFG, onStopCFG);
+            BaseCFG onDestroyCFG = addLifeCycle(onDestroy, intraCFGs, interCFG, onStopCFG);
+
+            // onRestart invokes onStart()
+            interCFG.addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
         }
+    }
+
+    /**
+     * Adds a new lifecycle CFG to the existing graph and connects it to the lifecycle's predecessor.
+     * Uses the custom lifecycle CFG if available, otherwise creates a dummy lifecycle CFG.
+     *
+     * @param method The FQN of the lifecycle, e.g. MAIN_ACTIVTY_FQN->onStop()V.
+     * @param intraCFGs The set of derived intra CFGs.
+     * @param interCFG The resulting graph.
+     * @param predecessor The lifecycle's predecessor.
+     * @return Returns the new lifecycle CFG.
+     */
+    private static BaseCFG addLifeCycle(String method, Map<String,BaseCFG> intraCFGs, BaseCFG interCFG, BaseCFG predecessor) {
+
+        BaseCFG lifeCyle = null;
+
+        if (intraCFGs.containsKey(method)) {
+            lifeCyle = intraCFGs.get(method);
+        } else {
+            // use custom lifecycle CFG
+            lifeCyle = dummyIntraProceduralCFG(method);
+            interCFG.addSubGraph(lifeCyle);
+        }
+
+        interCFG.addEdge(predecessor.getExit(), lifeCyle.getEntry());
+        return lifeCyle;
     }
 
     /**
