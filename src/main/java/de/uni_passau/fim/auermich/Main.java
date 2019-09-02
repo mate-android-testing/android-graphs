@@ -29,7 +29,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.graalvm.compiler.nodes.calc.IntegerDivRemNode;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.Opcodes;
@@ -46,9 +45,7 @@ import org.jf.dexlib2.builder.instruction.BuilderInstruction35c;
 import org.jf.dexlib2.builder.instruction.BuilderInstruction3rc;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.*;
-import org.jf.dexlib2.iface.instruction.Instruction;
-import org.jf.dexlib2.iface.instruction.OffsetInstruction;
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
+import org.jf.dexlib2.iface.instruction.*;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21t;
 import org.jf.dexlib2.iface.instruction.formats.Instruction22t;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
@@ -491,6 +488,7 @@ public final class Main {
 
             // TODO: parse callback methods from XML layout files or classes.dex
             // add them as sub-graphs to callbacksCFG
+            getComponentXMLID(onCreateMethod);
 
             // onPause can either invoke onStop() or onResume()
             interCFG.addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
@@ -508,7 +506,19 @@ public final class Main {
         }
     }
 
+    /**
+     * Looks within the CFG representing the onCreate method for the component's (activity)
+     * XML ID. This is done by searching for the setContentView() invocation, and retrieving
+     * the XML ID from the predecessor instruction, typically  a 'const' instruction, holding
+     * the ID.
+     *
+     * @param onCreateCFG The CFG of the onCreate() method.
+     * @return Returns the XML ID of the component (activity) as integer, or -1 if the XML
+     *              ID couldn't be found.
+     */
     private static int getComponentXMLID(BaseCFG onCreateCFG) {
+
+        LOGGER.debug("Searching for " + onCreateCFG.getMethodName() + " XML ID!");
 
         // TODO: we assume that setContentView is called within onCreate!
         // search for setContentView invoke-virtual instruction
@@ -528,6 +538,10 @@ public final class Main {
             } else if (stmt.getType() == Statement.StatementType.BLOCK_STATEMENT) {
                 BlockStatement blockStatement = (BlockStatement) stmt;
                 // only the first instruction of a basic block can be an invoke instruction
+                Statement statement = blockStatement.getFirstStatement();
+                if (statement.getType() != Statement.StatementType.BASIC_STATEMENT) {
+                    continue;
+                }
                 basicStatement = (BasicStatement) blockStatement.getFirstStatement();
             } else {
                 continue;
@@ -543,15 +557,43 @@ public final class Main {
                     || instruction.getOpcode() == Opcode.INVOKE_VIRTUAL_QUICK
                     || instruction.getOpcode() == Opcode.INVOKE_VIRTUAL_QUICK_RANGE)) {
 
-                // TODO: check for method reference -> should contain setContentView(I)V
+                String methodReference = ((ReferenceInstruction) instruction).getReference().toString();
 
-                // get predecessor -> const vN, xml_id
-                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
-                // TODO: check for type of pred -> should be const, const/64
+                // TODO: there a three different kind of setContentView methods
+                // https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
+                if (methodReference.endsWith("setContentView(I)V")) {
+                    LOGGER.debug("Located setContentView() invocation!");
+
+                    /*
+                    * Typically the XML ID is loaded as a constant using one of the possible
+                    * 'const' instructions. Directly afterwards, the XML ID is used within
+                    * the respective invoke virtual instruction 'setContentView(...)V'. In terms
+                    * of smali code, this looks as follows:
+                    *
+                    *     const v0, 0x7f0a001c
+                    *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
+                    *
+                    * Thus, once we found the setContentView() invocation, we look at its predecessor
+                    * instruction and extract the XML ID stored within its register. Note that we need
+                    * to convert the obtained XML ID into its hexadecimal representation for further
+                    * processing.
+                     */
+
+                    AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+                    Instruction pred = predecessor.getInstruction();
+
+                    // the predecessor should be either const, const/4 or const/16 and holds the XML ID
+                    if (pred instanceof NarrowLiteralInstruction
+                        && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                            || pred.getOpcode() == Opcode.CONST_16)) {
+                        LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                        return ((NarrowLiteralInstruction) pred).getNarrowLiteral();
+                    }
+                }
             }
-
         }
-        return 0;
+        // we couldn't found the XML ID
+        return -1;
     }
 
     /**
@@ -640,7 +682,8 @@ public final class Main {
 
             // we need to model the android lifecycle as well -> collect onCreate methods
             if (method.contains("onCreate(Landroid/os/Bundle;)V") && !exclusionPattern.matcher(className).matches()) {
-                onCreateMethods.add(intraCFG);
+                // copy necessary, otherwise the sub graph misses some vertices
+                onCreateMethods.add(intraCFG.copy());
             }
 
             LOGGER.debug("Searching for invoke instructions!");
