@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.graalvm.compiler.nodes.calc.IntegerDivRemNode;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.Opcodes;
@@ -507,6 +508,52 @@ public final class Main {
         }
     }
 
+    private static int getComponentXMLID(BaseCFG onCreateCFG) {
+
+        // TODO: we assume that setContentView is called within onCreate!
+        // search for setContentView invoke-virtual instruction
+        for (Vertex vertex : onCreateCFG.getVertices()) {
+
+            if (vertex.isEntryVertex() || vertex.isExitVertex()) {
+                // no instruction attached, skip
+                continue;
+            }
+
+            Statement stmt = vertex.getStatement();
+            BasicStatement basicStatement = null;
+
+            if (stmt.getType() == Statement.StatementType.BASIC_STATEMENT) {
+                basicStatement = (BasicStatement) stmt;
+
+            } else if (stmt.getType() == Statement.StatementType.BLOCK_STATEMENT) {
+                BlockStatement blockStatement = (BlockStatement) stmt;
+                // only the first instruction of a basic block can be an invoke instruction
+                basicStatement = (BasicStatement) blockStatement.getFirstStatement();
+            } else {
+                continue;
+            }
+
+            AnalyzedInstruction analyzedInstruction = basicStatement.getInstruction();
+            Instruction instruction = analyzedInstruction.getInstruction();
+
+            // check for invoke virtual /invoke virtual range instruction
+            if (instruction instanceof ReferenceInstruction
+                    && (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL
+                    || instruction.getOpcode() == Opcode.INVOKE_VIRTUAL_RANGE
+                    || instruction.getOpcode() == Opcode.INVOKE_VIRTUAL_QUICK
+                    || instruction.getOpcode() == Opcode.INVOKE_VIRTUAL_QUICK_RANGE)) {
+
+                // TODO: check for method reference -> should contain setContentView(I)V
+
+                // get predecessor -> const vN, xml_id
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+                // TODO: check for type of pred -> should be const, const/64
+            }
+
+        }
+        return 0;
+    }
+
     /**
      * Adds a new lifecycle CFG to the existing graph and connects it to the lifecycle's predecessor.
      * Uses the custom lifecycle CFG if available, otherwise creates a dummy lifecycle CFG.
@@ -549,7 +596,7 @@ public final class Main {
         // the final inter-procedural CFG
         BaseCFG interCFG = new InterProceduralCFG("globalEntryPoint");
 
-        // construct for each method firs the intra-procedural CFG (key: method signature)
+        // construct for each method first the intra-procedural CFG (key: method signature)
         Map<String, BaseCFG> intraCFGs = new HashMap<>();
         constructIntraCFGs(dexFile, intraCFGs, true);
 

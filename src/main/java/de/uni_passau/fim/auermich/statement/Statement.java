@@ -45,7 +45,6 @@ public abstract class Statement implements Cloneable {
     public Statement clone() {
         try {
             Statement cloneStmt = (Statement) super.clone();
-            // added two
             cloneStmt.method = this.getMethod();
             cloneStmt.type = this.getType();
             return cloneStmt;
