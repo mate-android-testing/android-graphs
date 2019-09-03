@@ -175,8 +175,6 @@ public final class Main {
             return;
         }
 
-        decodeAPK();
-
         // intra, inter, sgd coincides with defined Graph type enum
         String selectedCommand = commander.getParsedCommand();
         Optional<GraphType> graphType = GraphType.fromString(selectedCommand);
@@ -479,8 +477,11 @@ public final class Main {
         return interCFG;
     }
 
-    private static void addAndroidLifecycleMethods(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
+    private static List<BaseCFG> addAndroidLifecycleMethods(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
                                                    List<BaseCFG> onCreateMethods) {
+
+        // stores the entry points of the callbacks, which can happen between onResume and onPause
+        List<BaseCFG> callbacksCFGs = new ArrayList<>();
 
         for (BaseCFG onCreateMethod : onCreateMethods) {
 
@@ -508,6 +509,7 @@ public final class Main {
             // add callbacks sub graph
             BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
             interCFG.addSubGraph(callbacksCFG);
+            callbacksCFGs.add(callbacksCFG);
 
             // callbacks can be invoked after onResume() has finished
             interCFG.addEdge(onResumeCFG.getExit(), callbacksCFG.getEntry());
@@ -518,10 +520,6 @@ public final class Main {
             // onPause() can be invoked after some callback
             String onPause = className + "->onPause()V";
             BaseCFG onPauseCFG = addLifeCycle(onPause, intraCFGs, interCFG, callbacksCFG);
-
-            // TODO: parse callback methods from XML layout files or classes.dex
-            // add them as sub-graphs to callbacksCFG
-            int xmlID = getComponentXMLID(onCreateMethod);
 
             // onPause can either invoke onStop() or onResume()
             interCFG.addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
@@ -537,6 +535,7 @@ public final class Main {
             // onRestart invokes onStart()
             interCFG.addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
         }
+        return callbacksCFGs;
     }
 
     /**
@@ -829,7 +828,10 @@ public final class Main {
         }
 
         // add the android lifecycle methods
-        addAndroidLifecycleMethods(interCFG, intraCFGs, onCreateMethods);
+        List<BaseCFG> callbacksCFGs = addAndroidLifecycleMethods(interCFG, intraCFGs, onCreateMethods);
+
+        // add the callbacks specified either through XML or directly in code
+        addCallbacks(interCFG, intraCFGs, onCreateMethods, callbacksCFGs);
 
         if (DEBUG_MODE) {
             // LOGGER.debug(interCFG);
@@ -838,6 +840,68 @@ public final class Main {
         }
 
         return interCFG;
+    }
+
+    private static void addCallbacks(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs, List<BaseCFG> onCreateCFGs, List<BaseCFG> callbacksCFGs) {
+
+        // TODO: parse callback methods from XML layout files or classes.dex
+        // add them as sub-graphs to callbacksCFG
+        // int xmlID = getComponentXMLID(onCreateMethod);
+
+    }
+
+    private static void lookUpCallbacks(DexFile dexFile) {
+
+        // TODO: use exclusion pattern
+
+        List<ClassDef> classDefs = Lists.newArrayList(dexFile.getClasses());
+
+        for (ClassDef classDef : dexFile.getClasses()) {
+
+            for (Method method : classDef.getMethods()) {
+
+                MethodImplementation methodImplementation = method.getImplementation();
+
+                if (methodImplementation != null) {
+
+                    MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                        true, ClassPath.NOT_ART), method,
+                        null, false);
+
+                List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
+
+                    for (Instruction instruction : methodImplementation.getInstructions()) {
+
+                        // check for invoke instruction
+                        if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+
+                            Instruction35c invokeVirtual = (Instruction35c) instruction;
+
+                            // the target method
+                            String methodReference = invokeVirtual.getReference().toString();
+
+                            if (methodReference.contains("setOnClickListener")) {
+                                LOGGER.debug("ClassName: " + classDef);
+                                LOGGER.debug("Method Reference: " + methodReference);
+                                LOGGER.debug("Callback-Instance Register: " + invokeVirtual.getRegisterD());
+                            }
+                        }
+                    }
+                }
+
+            }
+
+        }
+
+
+
+        // search through each class
+
+        // search for methods indicating callbacks, e.g. setOnClickListener()
+        // may can speed up search by containsMethod ???
+
+        // save some mapping, e.g. (class/component -> btn,callback)
+
     }
 
     /**
@@ -849,6 +913,8 @@ public final class Main {
      * @throws IOException Should never happen.
      */
     private static BaseCFG computeInterProceduralCFG(DexFile dexFile, boolean useBasicBlocks) throws IOException {
+
+        lookUpCallbacks(dexFile);
 
         if (useBasicBlocks) {
             return computeInterCFGWithBasicBlocks(dexFile);
@@ -1110,7 +1176,7 @@ public final class Main {
             cfg.addEdge(vertexMap.get(returnIndex), cfg.getExit());
         }
 
-        cfg.drawGraph();
+        // cfg.drawGraph();
         return cfg;
     }
 
