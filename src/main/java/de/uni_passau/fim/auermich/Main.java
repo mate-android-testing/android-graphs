@@ -76,6 +76,9 @@ public final class Main {
     private static final InterCFGCommand interCFGCmd = new InterCFGCommand();
     private static final IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
 
+    // the path to the decoded APK
+    private static String decodingOutputPath;
+
     private Main() {
         throw new UnsupportedOperationException("Utility class!");
     }
@@ -163,30 +166,6 @@ public final class Main {
          * potentially, we may want to return an empty result -> Optional.
          */
 
-        /*
-        try {
-            // ApkDecoder decoder = new ApkDecoder(new Androlib());
-            ApkDecoder decoder = new ApkDecoder(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\com.zola.bmi_400.apk"));
-            decoder.setOutDir(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola"));
-            // whether to decode classes.dex into smali files: -s
-            decoder.setDecodeSources(ApkDecoder.DECODE_SOURCES_NONE);
-            // overwrites existing dir: -f
-            decoder.setForceDelete(true);
-            decoder.decode();
-
-            // not working yet
-            ApkOptions apkOptions = new ApkOptions();
-            // apkOptions.useAapt2 = true;
-            apkOptions.verbose = true;
-
-            File testApk = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola\\dist", "final.apk");
-            new Androlib(apkOptions).build(new ExtFile(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola\\")), null);
-        } catch (BrutException e) {
-            LOGGER.warn("Failed to decode APK file!");
-            LOGGER.warn(e.getMessage());
-        }
-        */
-
         LOGGER.debug("Determining which action to take dependent on given command");
 
         LOGGER.info(mainCmd.getAPKFile().getAbsolutePath());
@@ -195,6 +174,8 @@ public final class Main {
             LOGGER.warn("No valid APK path!");
             return;
         }
+
+        decodeAPK();
 
         // intra, inter, sgd coincides with defined Graph type enum
         String selectedCommand = commander.getParsedCommand();
@@ -244,6 +225,57 @@ public final class Main {
                     }
                     break;
             }
+        }
+    }
+
+    /**
+     * Decodes a given APK using apktool.
+     */
+    private static void decodeAPK() {
+
+        try {
+            // ApkDecoder decoder = new ApkDecoder(new Androlib());
+            ApkDecoder decoder = new ApkDecoder((mainCmd.getAPKFile()));
+
+            // path where we want to decode the APK
+            String parentDir = mainCmd.getAPKFile().getParent();
+            String outputDir = parentDir + File.separator + "out";
+
+            LOGGER.debug("Decoding Output Dir: " + outputDir);
+            decoder.setOutDir(new File(outputDir));
+            decodingOutputPath = outputDir;
+
+            // whether to decode classes.dex into smali files: -s
+            decoder.setDecodeSources(ApkDecoder.DECODE_SOURCES_NONE);
+
+            // overwrites existing dir: -f
+            decoder.setForceDelete(true);
+
+            decoder.decode();
+        } catch (BrutException | IOException e) {
+            LOGGER.warn("Failed to decode APK file!");
+            LOGGER.warn(e.getMessage());
+        }
+
+    }
+
+    /**
+     * Builds a given APK using apktool.
+     */
+    private static void buildAPK() {
+
+        ApkOptions apkOptions = new ApkOptions();
+        // apkOptions.useAapt2 = true;
+        apkOptions.verbose = true;
+
+        try {
+            // when building the APK, it can be found typically in the 'dist' folder
+            File apk = new File(decodingOutputPath + File.separator + "dist", "final.apk");
+            // outFile specifies the path and name of the resulting APK, if null -> default location (dist dir) is used
+            new Androlib(apkOptions).build(new ExtFile(new File(decodingOutputPath)), null);
+        }  catch (BrutException e) {
+            LOGGER.warn("Failed to build APK file!");
+            LOGGER.warn(e.getMessage());
         }
     }
 
@@ -452,9 +484,10 @@ public final class Main {
 
         for (BaseCFG onCreateMethod : onCreateMethods) {
 
-            // onCreate directly invokes onStart()
             String methodName = onCreateMethod.getMethodName();
             String className = Utility.getClassName(methodName);
+
+            // onCreate directly invokes onStart()
             String onStart = className + "->onStart()V";
             BaseCFG onStartCFG = addLifeCycle(onStart, intraCFGs, interCFG, onCreateMethod);
 
@@ -488,7 +521,7 @@ public final class Main {
 
             // TODO: parse callback methods from XML layout files or classes.dex
             // add them as sub-graphs to callbacksCFG
-            getComponentXMLID(onCreateMethod);
+            int xmlID = getComponentXMLID(onCreateMethod);
 
             // onPause can either invoke onStop() or onResume()
             interCFG.addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
@@ -592,7 +625,7 @@ public final class Main {
                 }
             }
         }
-        // we couldn't found the XML ID
+        // we couldn't find the XML ID
         return -1;
     }
 

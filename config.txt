@@ -49,3 +49,10 @@ C:\Users\Michael\Documents\Work\Android\apks\ws.xsoh.etar_15.apk
 inter
 
 ----------------------------------------------------------------------
+
+# Config for ApkDecoder on Windows
+
+"C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\com.zola.bmi_400.apk"
+"C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola"
+"C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola\\dist", "final.apk"
+"C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\zola\\"
