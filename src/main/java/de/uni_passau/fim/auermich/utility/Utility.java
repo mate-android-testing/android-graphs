@@ -119,6 +119,10 @@ public final class Utility {
         return Optional.empty();
     }
 
+    public static boolean isInnerClass(String methodSignature) {
+        return methodSignature.contains("$");
+    }
+
     public static MethodAnalyzer getAnalyzer(DexFile dexFile, Method targetMethod) {
 
         MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),

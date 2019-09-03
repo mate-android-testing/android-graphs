@@ -46,10 +46,7 @@ import org.jf.dexlib2.builder.instruction.BuilderInstruction3rc;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.*;
-import org.jf.dexlib2.iface.instruction.formats.Instruction21t;
-import org.jf.dexlib2.iface.instruction.formats.Instruction22t;
-import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
-import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
+import org.jf.dexlib2.iface.instruction.formats.*;
 import org.jgrapht.graph.DefaultEdge;
 
 import java.io.File;
@@ -850,27 +847,33 @@ public final class Main {
 
     }
 
-    private static void lookUpCallbacks(DexFile dexFile) {
+    private static void lookUpCallbacks(DexFile dexFile) throws IOException {
 
-        // TODO: use exclusion pattern
-
-        List<ClassDef> classDefs = Lists.newArrayList(dexFile.getClasses());
+        Pattern exclusionPattern = Utility.readExcludePatterns();
+        List<ClassDef> innerClasses = new ArrayList<>();
+        String innerClass = null;
 
         for (ClassDef classDef : dexFile.getClasses()) {
+
+            // we need to save the inner classes as they typically represent listeners
+            if (Utility.isInnerClass(classDef.toString())) {
+                innerClasses.add(classDef);
+            }
 
             for (Method method : classDef.getMethods()) {
 
                 MethodImplementation methodImplementation = method.getImplementation();
+                String className = Utility.dottedClassName(Utility.getClassName(classDef.toString()));
 
-                if (methodImplementation != null) {
+                if (methodImplementation != null && !exclusionPattern.matcher(className).matches()) {
 
                     MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
                         true, ClassPath.NOT_ART), method,
                         null, false);
 
-                List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
+                    for (AnalyzedInstruction analyzedInstruction : analyzer.getAnalyzedInstructions()) {
 
-                    for (Instruction instruction : methodImplementation.getInstructions()) {
+                        Instruction instruction = analyzedInstruction.getInstruction();
 
                         // check for invoke instruction
                         if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
@@ -881,27 +884,62 @@ public final class Main {
                             String methodReference = invokeVirtual.getReference().toString();
 
                             if (methodReference.contains("setOnClickListener")) {
+
                                 LOGGER.debug("ClassName: " + classDef);
                                 LOGGER.debug("Method Reference: " + methodReference);
                                 LOGGER.debug("Callback-Instance Register: " + invokeVirtual.getRegisterD());
+
+                                // the register id containing the onClickListener instance
+                                int callbackReg = invokeVirtual.getRegisterD();
+
+                                boolean foundListenerClass = false;
+                                AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+
+                                /*
+                                * We need to search backwards for the inner class that defines the onClick method.
+                                * We do this by checking for a new-instance instruction, where the register id matches
+                                * the register id used within the setOnClickListener(..) instruction.
+                                 */
+                                while (!foundListenerClass) {
+
+                                    LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
+                                    Instruction pred = predecessor.getInstruction();
+
+                                    if (pred.getOpcode() == Opcode.NEW_INSTANCE) {
+                                        LOGGER.debug("found new instance instruction!");
+                                        Instruction21c newInstance = (Instruction21c) pred;
+                                        // we need to check that newInstance is containing the callback
+                                        if (newInstance.getRegisterA() == callbackReg) {
+                                            foundListenerClass = true;
+                                            innerClass = newInstance.getReference().toString();
+                                            LOGGER.debug("Callback Class: " + innerClass);
+                                            LOGGER.debug("Is Inner Class: " + Utility.isInnerClass(innerClass));
+                                        }
+                                    }
+                                    predecessor = predecessor.getPredecessors().first();
+                                }
                             }
                         }
                     }
                 }
-
             }
-
         }
 
+        ClassDef targetClass = null;
 
+        // search for inner class defining listener callback action
+        for (ClassDef innerClassDef : innerClasses) {
+            if (innerClassDef.toString().equals(innerClass)) {
+                targetClass = innerClassDef;
+                break;
+            }
+        }
 
-        // search through each class
-
-        // search for methods indicating callbacks, e.g. setOnClickListener()
-        // may can speed up search by containsMethod ???
+        for (Method method : targetClass.getVirtualMethods()) {
+            LOGGER.debug(method.toString());
+        }
 
         // save some mapping, e.g. (class/component -> btn,callback)
-
     }
 
     /**
