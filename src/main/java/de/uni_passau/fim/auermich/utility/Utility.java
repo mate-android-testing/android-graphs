@@ -123,6 +123,10 @@ public final class Utility {
         return methodSignature.contains("$");
     }
 
+    public static String getOuterClass(String className) {
+        return className.split("\\$")[0];
+    }
+
     public static MethodAnalyzer getAnalyzer(DexFile dexFile, Method targetMethod) {
 
         MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),

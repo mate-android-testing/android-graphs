@@ -32,7 +32,7 @@ import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Set;
 
-public abstract class BaseCFG implements Cloneable {
+public abstract class BaseCFG implements Cloneable, Comparable<BaseCFG> {
 
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
@@ -209,5 +209,10 @@ public abstract class BaseCFG implements Cloneable {
             LOGGER.warn("Cloning of CFG failed" + e.getMessage());
             return null;
         }
+    }
+
+    @Override
+    public int compareTo(BaseCFG o) {
+        return this.methodName.compareTo(o.methodName);
     }
 }

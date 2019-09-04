@@ -696,7 +696,7 @@ public final class Main {
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug("Integrating CFG: " + intraCFG.getMethodName());
 
-            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
+            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
                 if (!coveredGraphs.contains(intraCFG)) {
                     // add first source graph
                     interCFG.addSubGraph(intraCFG);
@@ -765,7 +765,7 @@ public final class Main {
                         intraCFGs.put(methodSignature, targetCFG);
                     }
 
-                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
+                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
 
                         if (!coveredGraphs.contains(targetCFG)) {
                             // add target graph to inter CFG
@@ -829,6 +829,7 @@ public final class Main {
 
         // add the callbacks specified either through XML or directly in code
         addCallbacks(interCFG, intraCFGs, onCreateMethods, callbacksCFGs);
+        lookUpCallbacks(intraCFGs);
 
         if (DEBUG_MODE) {
             // LOGGER.debug(interCFG);
@@ -847,9 +848,57 @@ public final class Main {
 
     }
 
-    private static void lookUpCallbacks(DexFile dexFile) throws IOException {
+    private static Multimap<String, BaseCFG> lookUpCallbacks(Map<String, BaseCFG> intraCFGs) throws IOException {
+
+        /*
+        * Rather than searching for the call of e.g. setOnClickListener() and following
+        * the invocation to the corresponding onClick() method defined by some inner class,
+        * we can directly search for the onClick() method and query the outer class (the component
+        * defining the callback). We don't even need to go through the code, we can actually
+        * look up in the set of intra CFGs for a specific listener through its FQN. To get
+        * the outer class, we need to inspect the FQN of the inner class, which is of the following form:
+        *       Lmy/package/OuterClassName$InnerClassName;
+        * This means, we need to split the FQN at the '$' symbol to retrieve the name of the outer class.
+         */
+
+        // key: FQN of component defining a callback (may define several ones)
+        Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
 
         Pattern exclusionPattern = Utility.readExcludePatterns();
+
+        for (Map.Entry<String, BaseCFG> intraCFG : intraCFGs.entrySet()) {
+            String methodName = intraCFG.getKey();
+            String className = Utility.getClassName(methodName);
+
+            if (!exclusionPattern.matcher(Utility.dottedClassName(className)).matches()
+                && methodName.endsWith("onClick(Landroid/view/View;)V")) {
+                LOGGER.debug("Callback method: " + methodName);
+                if (Utility.isInnerClass(methodName)) {
+                    String outerClass = Utility.getOuterClass(className);
+                    callbacks.put(outerClass, intraCFG.getValue());
+                }
+            }
+        }
+        LOGGER.debug(callbacks);
+        return callbacks;
+    }
+
+    private static void lookUpCallbacks(DexFile dexFile) throws IOException {
+
+        /*
+        * Since each callback/listener is represented as a (sequence of) method(s), e.g. onClick(),
+        * we only need to find the FQN and retrieve the corresponding intra CFG, only the entry
+        * point actually, and connect it to the callbacks sub-graph. We could use some brute force
+        * approach by checking whether a given class contains a specific listener method. This can
+        * be done by checking the set of intra CFGs for a specific method signature.
+        *
+        * TODO: return type -> multi-map of <component,callback(FQN)>
+        *       get all callbacks, a class may define several of them
+         */
+
+        Pattern exclusionPattern = Utility.readExcludePatterns();
+
+        // inner classes typically define listeners
         List<ClassDef> innerClasses = new ArrayList<>();
         String innerClass = null;
 
@@ -875,7 +924,7 @@ public final class Main {
 
                         Instruction instruction = analyzedInstruction.getInstruction();
 
-                        // check for invoke instruction
+                        // check for invoke-virtual instruction
                         if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
 
                             Instruction35c invokeVirtual = (Instruction35c) instruction;
@@ -935,8 +984,12 @@ public final class Main {
             }
         }
 
+        // search for the onClick method (virtual method)
         for (Method method : targetClass.getVirtualMethods()) {
             LOGGER.debug(method.toString());
+            if (method.toString().endsWith("onClick(Landroid/view/View;)V")) {
+
+            }
         }
 
         // save some mapping, e.g. (class/component -> btn,callback)
@@ -1308,7 +1361,7 @@ public final class Main {
         }
 
         LOGGER.info(cfg.toString());
-        cfg.drawGraph();
+        // cfg.drawGraph();
         return cfg;
     }
 
