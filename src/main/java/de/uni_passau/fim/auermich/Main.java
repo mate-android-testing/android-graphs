@@ -474,11 +474,11 @@ public final class Main {
         return interCFG;
     }
 
-    private static List<BaseCFG> addAndroidLifecycleMethods(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
+    private static Map<String, BaseCFG> addAndroidLifecycleMethods(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
                                                    List<BaseCFG> onCreateMethods) {
 
         // stores the entry points of the callbacks, which can happen between onResume and onPause
-        List<BaseCFG> callbacksCFGs = new ArrayList<>();
+        Map<String, BaseCFG> callbacksCFGs = new HashMap<>();
 
         for (BaseCFG onCreateMethod : onCreateMethods) {
 
@@ -506,7 +506,7 @@ public final class Main {
             // add callbacks sub graph
             BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
             interCFG.addSubGraph(callbacksCFG);
-            callbacksCFGs.add(callbacksCFG);
+            callbacksCFGs.put(className, callbacksCFG);
 
             // callbacks can be invoked after onResume() has finished
             interCFG.addEdge(onResumeCFG.getExit(), callbacksCFG.getEntry());
@@ -825,11 +825,10 @@ public final class Main {
         }
 
         // add the android lifecycle methods
-        List<BaseCFG> callbacksCFGs = addAndroidLifecycleMethods(interCFG, intraCFGs, onCreateMethods);
+        Map<String, BaseCFG> callbackEntryPoints = addAndroidLifecycleMethods(interCFG, intraCFGs, onCreateMethods);
 
         // add the callbacks specified either through XML or directly in code
-        addCallbacks(interCFG, intraCFGs, onCreateMethods, callbacksCFGs);
-        lookUpCallbacks(intraCFGs);
+        addCallbacks(interCFG, intraCFGs, onCreateMethods, callbackEntryPoints);
 
         if (DEBUG_MODE) {
             // LOGGER.debug(interCFG);
@@ -840,9 +839,26 @@ public final class Main {
         return interCFG;
     }
 
-    private static void addCallbacks(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs, List<BaseCFG> onCreateCFGs, List<BaseCFG> callbacksCFGs) {
+    private static void addCallbacks(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
+                                     List<BaseCFG> onCreateCFGs, Map<String, BaseCFG> callbackEntryPoints) throws IOException {
 
         // TODO: parse callback methods from XML layout files or classes.dex
+
+        // get callbacks directly declared in code
+        Multimap<String, BaseCFG> callbacks = lookUpCallbacks(intraCFGs);
+
+        for (String key : callbacks.keys()) {
+            LOGGER.debug("Callback: " + key);
+        }
+
+        // add for each android component, e.g. activity, its callbacks/listeners to its callbacks subgraph
+        for(Map.Entry<String,BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
+            LOGGER.debug("Callback component: " + callbackEntryPoint.getKey());
+            callbacks.get(callbackEntryPoint.getKey()).forEach(cfg ->
+                    interCFG.addEdge(callbackEntryPoint.getValue().getEntry(), cfg.getEntry()));
+            // TODO: add edge from exit of callback, e.g. exit of onClick, to exit of 'callbacks' subgraph
+        }
+
         // add them as sub-graphs to callbacksCFG
         // int xmlID = getComponentXMLID(onCreateMethod);
 
@@ -874,12 +890,11 @@ public final class Main {
                 && methodName.endsWith("onClick(Landroid/view/View;)V")) {
                 LOGGER.debug("Callback method: " + methodName);
                 if (Utility.isInnerClass(methodName)) {
-                    String outerClass = Utility.getOuterClass(className);
+                    String outerClass = Utility.getOuterClass(className)+";";
                     callbacks.put(outerClass, intraCFG.getValue());
                 }
             }
         }
-        LOGGER.debug(callbacks);
         return callbacks;
     }
 
@@ -1004,8 +1019,6 @@ public final class Main {
      * @throws IOException Should never happen.
      */
     private static BaseCFG computeInterProceduralCFG(DexFile dexFile, boolean useBasicBlocks) throws IOException {
-
-        lookUpCallbacks(dexFile);
 
         if (useBasicBlocks) {
             return computeInterCFGWithBasicBlocks(dexFile);
