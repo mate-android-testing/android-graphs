@@ -842,24 +842,19 @@ public final class Main {
     private static void addCallbacks(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
                                      List<BaseCFG> onCreateCFGs, Map<String, BaseCFG> callbackEntryPoints) throws IOException {
 
-        // TODO: parse callback methods from XML layout files or classes.dex
-
         // get callbacks directly declared in code
         Multimap<String, BaseCFG> callbacks = lookUpCallbacks(intraCFGs);
 
-        for (String key : callbacks.keys()) {
-            LOGGER.debug("Callback: " + key);
-        }
-
-        // add for each android component, e.g. activity, its callbacks/listeners to its callbacks subgraph
+        // add for each android component, e.g. activity, its callbacks/listeners to its callbacks subgraph (the callback entry point)
         for(Map.Entry<String,BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
-            LOGGER.debug("Callback component: " + callbackEntryPoint.getKey());
-            callbacks.get(callbackEntryPoint.getKey()).forEach(cfg ->
-                    interCFG.addEdge(callbackEntryPoint.getValue().getEntry(), cfg.getEntry()));
-            // TODO: add edge from exit of callback, e.g. exit of onClick, to exit of 'callbacks' subgraph
+            callbacks.get(callbackEntryPoint.getKey()).forEach(cfg -> {
+                    interCFG.addEdge(callbackEntryPoint.getValue().getEntry(), cfg.getEntry());
+                    interCFG.addEdge(cfg.getExit(),callbackEntryPoint.getValue().getExit());
+            });
         }
 
-        // add them as sub-graphs to callbacksCFG
+        // get callbacks declared in XML files
+        
         // int xmlID = getComponentXMLID(onCreateMethod);
 
     }
@@ -890,7 +885,7 @@ public final class Main {
                 && methodName.endsWith("onClick(Landroid/view/View;)V")) {
                 LOGGER.debug("Callback method: " + methodName);
                 if (Utility.isInnerClass(methodName)) {
-                    String outerClass = Utility.getOuterClass(className)+";";
+                    String outerClass = Utility.getOuterClass(className);
                     callbacks.put(outerClass, intraCFG.getValue());
                 }
             }

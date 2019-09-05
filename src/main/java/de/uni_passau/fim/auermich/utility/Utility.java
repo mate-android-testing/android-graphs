@@ -124,7 +124,7 @@ public final class Utility {
     }
 
     public static String getOuterClass(String className) {
-        return className.split("\\$")[0];
+        return className.split("\\$")[0]+";";
     }
 
     public static MethodAnalyzer getAnalyzer(DexFile dexFile, Method targetMethod) {
