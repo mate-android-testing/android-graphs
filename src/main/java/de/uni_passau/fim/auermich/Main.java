@@ -828,7 +828,7 @@ public final class Main {
         Map<String, BaseCFG> callbackEntryPoints = addAndroidLifecycleMethods(interCFG, intraCFGs, onCreateMethods);
 
         // add the callbacks specified either through XML or directly in code
-        addCallbacks(interCFG, intraCFGs, onCreateMethods, callbackEntryPoints);
+        addCallbacks(interCFG, intraCFGs, callbackEntryPoints, dexFile);
 
         if (DEBUG_MODE) {
             // LOGGER.debug(interCFG);
@@ -840,7 +840,7 @@ public final class Main {
     }
 
     private static void addCallbacks(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
-                                     List<BaseCFG> onCreateCFGs, Map<String, BaseCFG> callbackEntryPoints) throws IOException {
+                                     Map<String, BaseCFG> callbackEntryPoints, DexFile dexFile) throws IOException {
 
         // get callbacks directly declared in code
         Multimap<String, BaseCFG> callbacks = lookUpCallbacks(intraCFGs);
@@ -854,14 +854,147 @@ public final class Main {
         }
 
         // get callbacks declared in XML files
-        decodeAPK();
+        // decodeAPK();
 
-        for (BaseCFG onCreateCFG : onCreateCFGs) {
-            getComponentXMLID(onCreateCFG);
-        }
-
+        lookUpCallbacksXML(dexFile);
         // int xmlID = getComponentXMLID(onCreateMethod);
 
+    }
+
+    private static Multimap<String, BaseCFG> lookUpCallbacksXML(DexFile dexFile) throws IOException {
+
+        // TODO: track relation between outer/inner classes -> multimap as well (param to this function)
+
+        // return value, key: name of component
+        Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
+
+        Pattern exclusionPattern = Utility.readExcludePatterns();
+
+        for (ClassDef classDef : dexFile.getClasses()) {
+
+            for (Method method : classDef.getMethods()) {
+
+                MethodImplementation methodImplementation = method.getImplementation();
+                String className = Utility.dottedClassName(Utility.getClassName(classDef.toString()));
+
+                if (methodImplementation != null && !exclusionPattern.matcher(className).matches()
+                        // we can speed up search for looking only for onCreate(..) and onCreateView(..)
+                        // this assumes that only these two methods declare the layout via setContentView()/inflate()!
+                    && method.getName().contains("onCreate")) {
+
+                    MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                            true, ClassPath.NOT_ART), method,
+                            null, false);
+
+                    for (AnalyzedInstruction analyzedInstruction : analyzer.getAnalyzedInstructions()) {
+
+                        Instruction instruction = analyzedInstruction.getInstruction();
+
+                        /*
+                        * We need to search for calls to setContentView(..) and inflate(..).
+                        * Both of them are of type invoke-virtual.
+                        * TODO: check if there are cases where invoke-virtual/range is used
+                         */
+                        if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+
+                            Instruction35c invokeVirtual = (Instruction35c) instruction;
+
+                            // the method that is invoked by this instruction
+                            String methodReference = invokeVirtual.getReference().toString();
+
+                            if (methodReference.contains("setContentView")) {
+                                // TODO: there are multiple overloaded setContentView() implementations
+                                // we assume here only setContentView(int layoutResID)
+                                // link: https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
+
+                                /*
+                                * We need to find the resource id located in one of the registers. A typicall call to
+                                * setContentView(int layoutResID) looks as follows:
+                                *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
+                                * Here, v0 contains the resource id, thus we need to search backwards for the last
+                                * change of v0. This is typically the previous instruction and is of type 'const'.
+                                 */
+
+                                LOGGER.debug("ClassName: " + classDef);
+                                LOGGER.debug("Method Reference: " + methodReference);
+                                LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
+
+                                // the id of the register, which contains the layoutResID
+                                int layoutResIDRegister = invokeVirtual.getRegisterD();
+
+                                boolean foundLayoutResID = false;
+                                AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+
+                                while (!foundLayoutResID) {
+
+                                    LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
+                                    Instruction pred = predecessor.getInstruction();
+
+                                    // the predecessor should be either const, const/4 or const/16 and holds the XML ID
+                                    if (pred instanceof NarrowLiteralInstruction
+                                            && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                                            || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
+                                        foundLayoutResID = true;
+                                        LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                                    }
+
+                                    predecessor = predecessor.getPredecessors().first();
+                                }
+                            } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(")) {
+                                // TODO: there are multiple overloaded inflate() implementations
+                                // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
+                                // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
+
+                                /*
+                                * A typical call of inflate(int resource,ViewGroup root, boolean attachToRoot) looks as follows:
+                                *   invoke-virtual {p1, v0, p2, v1}, Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z)Landroid/view/View;
+                                * Here, v0 contains the resource id, thus we need to search backwards for the last change of v0.
+                                * This is typically the previous instruction and is of type 'const'.
+                                 */
+
+                                LOGGER.debug("ClassName: " + classDef);
+                                LOGGER.debug("Method Reference: " + methodReference);
+                                LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
+
+                                // the id of the register, which contains the layoutResID
+                                int layoutResIDRegister = invokeVirtual.getRegisterD();
+
+                                boolean foundLayoutResID = false;
+                                AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+
+                                while (!foundLayoutResID) {
+
+                                    LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
+                                    Instruction pred = predecessor.getInstruction();
+
+                                    // the predecessor should be either const, const/4 or const/16 and holds the XML ID
+                                    if (pred instanceof NarrowLiteralInstruction
+                                            && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                                            || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
+                                        foundLayoutResID = true;
+                                        LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                                    }
+
+                                    predecessor = predecessor.getPredecessors().first();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // TODO: search in public.xml (res/values/) for name of layout files per component
+        // we have a linkage between component and layout file, e.g. BMIMainActivity -> activity_bmimain
+
+        // TODO: go to layout file and search for specific tags, e.g. android:onClick
+        // we have a linkage which component defines a callback, e.g. fragment_bmimain -> fragmentOnClick()
+
+        // TODO: search for callback method in associated component class file (first in inner class, then outer class)
+        //  we now finally know which component reacts to which callback
+
+        // TODO: add to callbacks subgraph (should probably outside this method)
+        return callbacks;
     }
 
     /**
