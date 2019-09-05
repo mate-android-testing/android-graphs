@@ -268,7 +268,7 @@ public final class Main {
             File apk = new File(decodingOutputPath + File.separator + "dist", "final.apk");
             // outFile specifies the path and name of the resulting APK, if null -> default location (dist dir) is used
             new Androlib(apkOptions).build(new ExtFile(new File(decodingOutputPath)), null);
-        }  catch (BrutException e) {
+        } catch (BrutException e) {
             LOGGER.warn("Failed to build APK file!");
             LOGGER.warn(e.getMessage());
         }
@@ -475,7 +475,7 @@ public final class Main {
     }
 
     private static Map<String, BaseCFG> addAndroidLifecycleMethods(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
-                                                   List<BaseCFG> onCreateMethods) {
+                                                                   List<BaseCFG> onCreateMethods) {
 
         // stores the entry points of the callbacks, which can happen between onResume and onPause
         Map<String, BaseCFG> callbacksCFGs = new HashMap<>();
@@ -494,13 +494,13 @@ public final class Main {
             BaseCFG onResumeCFG = addLifeCycle(onResume, intraCFGs, interCFG, onStartCFG);
 
             /*
-            * Each component may define several listeners for certain events, e.g. a button click,
-            * which causes the invocation of a callback function. Those callbacks are active as
-            * long as the corresponding component (activity) is in the onResume state. Thus, in our
-            * graph we have an additional sub-graph 'callbacks' that is directly linked to the end
-            * of 'onResume()' and can either call one of the specified listeners or directly invoke
-            * the onPause() method (indirectly through the entry-exit edge). Each listener function
-            * points back to the 'callbacks' entry node.
+             * Each component may define several listeners for certain events, e.g. a button click,
+             * which causes the invocation of a callback function. Those callbacks are active as
+             * long as the corresponding component (activity) is in the onResume state. Thus, in our
+             * graph we have an additional sub-graph 'callbacks' that is directly linked to the end
+             * of 'onResume()' and can either call one of the specified listeners or directly invoke
+             * the onPause() method (indirectly through the entry-exit edge). Each listener function
+             * points back to the 'callbacks' entry node.
              */
 
             // add callbacks sub graph
@@ -543,7 +543,7 @@ public final class Main {
      *
      * @param onCreateCFG The CFG of the onCreate() method.
      * @return Returns the XML ID of the component (activity) as integer, or -1 if the XML
-     *              ID couldn't be found.
+     * ID couldn't be found.
      */
     private static int getComponentXMLID(BaseCFG onCreateCFG) {
 
@@ -594,18 +594,18 @@ public final class Main {
                     LOGGER.debug("Located setContentView() invocation!");
 
                     /*
-                    * Typically the XML ID is loaded as a constant using one of the possible
-                    * 'const' instructions. Directly afterwards, the XML ID is used within
-                    * the respective invoke virtual instruction 'setContentView(...)V'. In terms
-                    * of smali code, this looks as follows:
-                    *
-                    *     const v0, 0x7f0a001c
-                    *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
-                    *
-                    * Thus, once we found the setContentView() invocation, we look at its predecessor
-                    * instruction and extract the XML ID stored within its register. Note that we need
-                    * to convert the obtained XML ID into its hexadecimal representation for further
-                    * processing.
+                     * Typically the XML ID is loaded as a constant using one of the possible
+                     * 'const' instructions. Directly afterwards, the XML ID is used within
+                     * the respective invoke virtual instruction 'setContentView(...)V'. In terms
+                     * of smali code, this looks as follows:
+                     *
+                     *     const v0, 0x7f0a001c
+                     *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
+                     *
+                     * Thus, once we found the setContentView() invocation, we look at its predecessor
+                     * instruction and extract the XML ID stored within its register. Note that we need
+                     * to convert the obtained XML ID into its hexadecimal representation for further
+                     * processing.
                      */
 
                     AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
@@ -613,7 +613,7 @@ public final class Main {
 
                     // the predecessor should be either const, const/4 or const/16 and holds the XML ID
                     if (pred instanceof NarrowLiteralInstruction
-                        && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                            && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
                             || pred.getOpcode() == Opcode.CONST_16)) {
                         LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
                         return ((NarrowLiteralInstruction) pred).getNarrowLiteral();
@@ -629,13 +629,13 @@ public final class Main {
      * Adds a new lifecycle CFG to the existing graph and connects it to the lifecycle's predecessor.
      * Uses the custom lifecycle CFG if available, otherwise creates a dummy lifecycle CFG.
      *
-     * @param method The FQN of the lifecycle, e.g. MAIN_ACTIVTY_FQN->onStop()V.
-     * @param intraCFGs The set of derived intra CFGs.
-     * @param interCFG The resulting graph.
+     * @param method      The FQN of the lifecycle, e.g. MAIN_ACTIVTY_FQN->onStop()V.
+     * @param intraCFGs   The set of derived intra CFGs.
+     * @param interCFG    The resulting graph.
      * @param predecessor The lifecycle's predecessor.
      * @return Returns the new lifecycle CFG.
      */
-    private static BaseCFG addLifeCycle(String method, Map<String,BaseCFG> intraCFGs, BaseCFG interCFG, BaseCFG predecessor) {
+    private static BaseCFG addLifeCycle(String method, Map<String, BaseCFG> intraCFGs, BaseCFG interCFG, BaseCFG predecessor) {
 
         BaseCFG lifeCyle = null;
 
@@ -846,24 +846,26 @@ public final class Main {
         Multimap<String, BaseCFG> callbacks = lookUpCallbacks(intraCFGs);
 
         // add for each android component, e.g. activity, its callbacks/listeners to its callbacks subgraph (the callback entry point)
-        for(Map.Entry<String,BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
+        for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
             callbacks.get(callbackEntryPoint.getKey()).forEach(cfg -> {
-                    interCFG.addEdge(callbackEntryPoint.getValue().getEntry(), cfg.getEntry());
-                    interCFG.addEdge(cfg.getExit(),callbackEntryPoint.getValue().getExit());
+                interCFG.addEdge(callbackEntryPoint.getValue().getEntry(), cfg.getEntry());
+                interCFG.addEdge(cfg.getExit(), callbackEntryPoint.getValue().getExit());
             });
         }
 
         // get callbacks declared in XML files
         // decodeAPK();
 
-        lookUpCallbacksXML(dexFile);
+        // stores the relation between outer and inner classes
+        Multimap<String, String> classRelations = TreeMultimap.create();
+
+        lookUpCallbacksXML(dexFile, classRelations);
         // int xmlID = getComponentXMLID(onCreateMethod);
 
     }
 
-    private static Multimap<String, BaseCFG> lookUpCallbacksXML(DexFile dexFile) throws IOException {
-
-        // TODO: track relation between outer/inner classes -> multimap as well (param to this function)
+    private static Multimap<String, BaseCFG> lookUpCallbacksXML(DexFile dexFile, Multimap<String, String> classRelations)
+            throws IOException {
 
         // return value, key: name of component
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
@@ -872,110 +874,119 @@ public final class Main {
 
         for (ClassDef classDef : dexFile.getClasses()) {
 
-            for (Method method : classDef.getMethods()) {
+            String className = Utility.dottedClassName(Utility.getClassName(classDef.toString()));
 
-                MethodImplementation methodImplementation = method.getImplementation();
-                String className = Utility.dottedClassName(Utility.getClassName(classDef.toString()));
+            if (!exclusionPattern.matcher(className).matches()) {
 
-                if (methodImplementation != null && !exclusionPattern.matcher(className).matches()
-                        // we can speed up search for looking only for onCreate(..) and onCreateView(..)
-                        // this assumes that only these two methods declare the layout via setContentView()/inflate()!
-                    && method.getName().contains("onCreate")) {
+                // track outer/inner class relations
+                if (Utility.isInnerClass(classDef.toString())) {
+                    classRelations.put(Utility.getOuterClass(classDef.toString()), classDef.toString());
+                }
 
-                    MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
-                            true, ClassPath.NOT_ART), method,
-                            null, false);
+                for (Method method : classDef.getMethods()) {
 
-                    for (AnalyzedInstruction analyzedInstruction : analyzer.getAnalyzedInstructions()) {
+                    MethodImplementation methodImplementation = method.getImplementation();
 
-                        Instruction instruction = analyzedInstruction.getInstruction();
+                    if (methodImplementation != null
+                            // we can speed up search for looking only for onCreate(..) and onCreateView(..)
+                            // this assumes that only these two methods declare the layout via setContentView()/inflate()!
+                            && method.getName().contains("onCreate")) {
 
-                        /*
-                        * We need to search for calls to setContentView(..) and inflate(..).
-                        * Both of them are of type invoke-virtual.
-                        * TODO: check if there are cases where invoke-virtual/range is used
-                         */
-                        if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+                        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                                true, ClassPath.NOT_ART), method,
+                                null, false);
 
-                            Instruction35c invokeVirtual = (Instruction35c) instruction;
+                        for (AnalyzedInstruction analyzedInstruction : analyzer.getAnalyzedInstructions()) {
 
-                            // the method that is invoked by this instruction
-                            String methodReference = invokeVirtual.getReference().toString();
+                            Instruction instruction = analyzedInstruction.getInstruction();
 
-                            if (methodReference.contains("setContentView")) {
-                                // TODO: there are multiple overloaded setContentView() implementations
-                                // we assume here only setContentView(int layoutResID)
-                                // link: https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
+                            /*
+                             * We need to search for calls to setContentView(..) and inflate(..).
+                             * Both of them are of type invoke-virtual.
+                             * TODO: check if there are cases where invoke-virtual/range is used
+                             */
+                            if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
 
-                                /*
-                                * We need to find the resource id located in one of the registers. A typicall call to
-                                * setContentView(int layoutResID) looks as follows:
-                                *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
-                                * Here, v0 contains the resource id, thus we need to search backwards for the last
-                                * change of v0. This is typically the previous instruction and is of type 'const'.
-                                 */
+                                Instruction35c invokeVirtual = (Instruction35c) instruction;
 
-                                LOGGER.debug("ClassName: " + classDef);
-                                LOGGER.debug("Method Reference: " + methodReference);
-                                LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
+                                // the method that is invoked by this instruction
+                                String methodReference = invokeVirtual.getReference().toString();
 
-                                // the id of the register, which contains the layoutResID
-                                int layoutResIDRegister = invokeVirtual.getRegisterD();
+                                if (methodReference.contains("setContentView")) {
+                                    // TODO: there are multiple overloaded setContentView() implementations
+                                    // we assume here only setContentView(int layoutResID)
+                                    // link: https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
 
-                                boolean foundLayoutResID = false;
-                                AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+                                    /*
+                                     * We need to find the resource id located in one of the registers. A typicall call to
+                                     * setContentView(int layoutResID) looks as follows:
+                                     *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
+                                     * Here, v0 contains the resource id, thus we need to search backwards for the last
+                                     * change of v0. This is typically the previous instruction and is of type 'const'.
+                                     */
 
-                                while (!foundLayoutResID) {
+                                    LOGGER.debug("ClassName: " + classDef);
+                                    LOGGER.debug("Method Reference: " + methodReference);
+                                    LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
 
-                                    LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
-                                    Instruction pred = predecessor.getInstruction();
+                                    // the id of the register, which contains the layoutResID
+                                    int layoutResIDRegister = invokeVirtual.getRegisterD();
 
-                                    // the predecessor should be either const, const/4 or const/16 and holds the XML ID
-                                    if (pred instanceof NarrowLiteralInstruction
-                                            && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
-                                            || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
-                                        foundLayoutResID = true;
-                                        LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                                    boolean foundLayoutResID = false;
+                                    AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+
+                                    while (!foundLayoutResID) {
+
+                                        LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
+                                        Instruction pred = predecessor.getInstruction();
+
+                                        // the predecessor should be either const, const/4 or const/16 and holds the XML ID
+                                        if (pred instanceof NarrowLiteralInstruction
+                                                && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                                                || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
+                                            foundLayoutResID = true;
+                                            LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                                        }
+
+                                        predecessor = predecessor.getPredecessors().first();
                                     }
+                                } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(")) {
+                                    // TODO: there are multiple overloaded inflate() implementations
+                                    // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
+                                    // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
 
-                                    predecessor = predecessor.getPredecessors().first();
-                                }
-                            } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(")) {
-                                // TODO: there are multiple overloaded inflate() implementations
-                                // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
-                                // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
+                                    /*
+                                     * A typical call of inflate(int resource,ViewGroup root, boolean attachToRoot) looks as follows:
+                                     *   invoke-virtual {p1, v0, p2, v1}, Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z)Landroid/view/View;
+                                     * Here, v0 contains the resource id, thus we need to search backwards for the last change of v0.
+                                     * This is typically the previous instruction and is of type 'const'.
+                                     */
 
-                                /*
-                                * A typical call of inflate(int resource,ViewGroup root, boolean attachToRoot) looks as follows:
-                                *   invoke-virtual {p1, v0, p2, v1}, Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z)Landroid/view/View;
-                                * Here, v0 contains the resource id, thus we need to search backwards for the last change of v0.
-                                * This is typically the previous instruction and is of type 'const'.
-                                 */
+                                    LOGGER.debug("ClassName: " + classDef);
+                                    LOGGER.debug("Method Reference: " + methodReference);
+                                    LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
 
-                                LOGGER.debug("ClassName: " + classDef);
-                                LOGGER.debug("Method Reference: " + methodReference);
-                                LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
+                                    // the id of the register, which contains the layoutResID
+                                    int layoutResIDRegister = invokeVirtual.getRegisterD();
 
-                                // the id of the register, which contains the layoutResID
-                                int layoutResIDRegister = invokeVirtual.getRegisterD();
+                                    boolean foundLayoutResID = false;
+                                    AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
 
-                                boolean foundLayoutResID = false;
-                                AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+                                    while (!foundLayoutResID) {
 
-                                while (!foundLayoutResID) {
+                                        LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
+                                        Instruction pred = predecessor.getInstruction();
 
-                                    LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
-                                    Instruction pred = predecessor.getInstruction();
+                                        // the predecessor should be either const, const/4 or const/16 and holds the XML ID
+                                        if (pred instanceof NarrowLiteralInstruction
+                                                && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                                                || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
+                                            foundLayoutResID = true;
+                                            LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                                        }
 
-                                    // the predecessor should be either const, const/4 or const/16 and holds the XML ID
-                                    if (pred instanceof NarrowLiteralInstruction
-                                            && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
-                                            || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
-                                        foundLayoutResID = true;
-                                        LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                                        predecessor = predecessor.getPredecessors().first();
                                     }
-
-                                    predecessor = predecessor.getPredecessors().first();
                                 }
                             }
                         }
@@ -983,6 +994,8 @@ public final class Main {
                 }
             }
         }
+
+        LOGGER.debug(classRelations);
 
         // TODO: search in public.xml (res/values/) for name of layout files per component
         // we have a linkage between component and layout file, e.g. BMIMainActivity -> activity_bmimain
@@ -1010,14 +1023,14 @@ public final class Main {
     private static Multimap<String, BaseCFG> lookUpCallbacks(Map<String, BaseCFG> intraCFGs) throws IOException {
 
         /*
-        * Rather than searching for the call of e.g. setOnClickListener() and following
-        * the invocation to the corresponding onClick() method defined by some inner class,
-        * we can directly search for the onClick() method and query the outer class (the component
-        * defining the callback). We don't even need to go through the code, we can actually
-        * look up in the set of intra CFGs for a specific listener through its FQN. To get
-        * the outer class, we need to inspect the FQN of the inner class, which is of the following form:
-        *       Lmy/package/OuterClassName$InnerClassName;
-        * This means, we need to split the FQN at the '$' symbol to retrieve the name of the outer class.
+         * Rather than searching for the call of e.g. setOnClickListener() and following
+         * the invocation to the corresponding onClick() method defined by some inner class,
+         * we can directly search for the onClick() method and query the outer class (the component
+         * defining the callback). We don't even need to go through the code, we can actually
+         * look up in the set of intra CFGs for a specific listener through its FQN. To get
+         * the outer class, we need to inspect the FQN of the inner class, which is of the following form:
+         *       Lmy/package/OuterClassName$InnerClassName;
+         * This means, we need to split the FQN at the '$' symbol to retrieve the name of the outer class.
          */
 
         // key: FQN of component defining a callback (may define several ones)
@@ -1033,7 +1046,7 @@ public final class Main {
                     // TODO: add missing callbacks for each event listener
                     // see: https://developer.android.com/guide/topics/ui/ui-events
                     // TODO: check whether there can be other custom event listeners
-                && methodName.endsWith("onClick(Landroid/view/View;)V")) {
+                    && methodName.endsWith("onClick(Landroid/view/View;)V")) {
                 // TODO: is it always an inner class???
                 if (Utility.isInnerClass(methodName)) {
                     String outerClass = Utility.getOuterClass(className);
@@ -1048,14 +1061,14 @@ public final class Main {
     private static void lookUpCallbacks(DexFile dexFile) throws IOException {
 
         /*
-        * Since each callback/listener is represented as a (sequence of) method(s), e.g. onClick(),
-        * we only need to find the FQN and retrieve the corresponding intra CFG, only the entry
-        * point actually, and connect it to the callbacks sub-graph. We could use some brute force
-        * approach by checking whether a given class contains a specific listener method. This can
-        * be done by checking the set of intra CFGs for a specific method signature.
-        *
-        * TODO: return type -> multi-map of <component,callback(FQN)>
-        *       get all callbacks, a class may define several of them
+         * Since each callback/listener is represented as a (sequence of) method(s), e.g. onClick(),
+         * we only need to find the FQN and retrieve the corresponding intra CFG, only the entry
+         * point actually, and connect it to the callbacks sub-graph. We could use some brute force
+         * approach by checking whether a given class contains a specific listener method. This can
+         * be done by checking the set of intra CFGs for a specific method signature.
+         *
+         * TODO: return type -> multi-map of <component,callback(FQN)>
+         *       get all callbacks, a class may define several of them
          */
 
         Pattern exclusionPattern = Utility.readExcludePatterns();
@@ -1079,8 +1092,8 @@ public final class Main {
                 if (methodImplementation != null && !exclusionPattern.matcher(className).matches()) {
 
                     MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
-                        true, ClassPath.NOT_ART), method,
-                        null, false);
+                            true, ClassPath.NOT_ART), method,
+                            null, false);
 
                     for (AnalyzedInstruction analyzedInstruction : analyzer.getAnalyzedInstructions()) {
 
@@ -1107,9 +1120,9 @@ public final class Main {
                                 AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
 
                                 /*
-                                * We need to search backwards for the inner class that defines the onClick method.
-                                * We do this by checking for a new-instance instruction, where the register id matches
-                                * the register id used within the setOnClickListener(..) instruction.
+                                 * We need to search backwards for the inner class that defines the onClick method.
+                                 * We do this by checking for a new-instance instruction, where the register id matches
+                                 * the register id used within the setOnClickListener(..) instruction.
                                  */
                                 while (!foundListenerClass) {
 
@@ -1160,7 +1173,7 @@ public final class Main {
     /**
      * Computes the inter procedural CFG with basic blocks or without depending on the given flag {@param useBasicBlocks}.
      *
-     * @param dexFile The dex file containing the classes and its methods.
+     * @param dexFile        The dex file containing the classes and its methods.
      * @param useBasicBlocks Whether to use basic blocks or not.
      * @return Returns the inter procedural CFG.
      * @throws IOException Should never happen.
@@ -1267,12 +1280,12 @@ public final class Main {
     /**
      * Constructs the basic blocks for a given method and adds them to the given CFG.
      *
-     * @param cfg The CFG that should contain the basic blocks.
+     * @param cfg                  The CFG that should contain the basic blocks.
      * @param analyzedInstructions The set of instructions of a given method.
-     * @param leaders The set of leader instructions previously identified.
-     * @param vertexMap A map that stores for each basic block (a vertex) the instruction id of
-     *                  the first and last statement. So we have two entries per vertex.
-     * @param methodName The name of the method for which we want to construct the basic blocks.
+     * @param leaders              The set of leader instructions previously identified.
+     * @param vertexMap            A map that stores for each basic block (a vertex) the instruction id of
+     *                             the first and last statement. So we have two entries per vertex.
+     * @param methodName           The name of the method for which we want to construct the basic blocks.
      * @return Returns the basic blocks each as a list of instructions.
      */
     private static Set<List<AnalyzedInstruction>> constructBasicBlocks(BaseCFG cfg, List<AnalyzedInstruction> analyzedInstructions,
