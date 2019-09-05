@@ -854,11 +854,26 @@ public final class Main {
         }
 
         // get callbacks declared in XML files
-        
+        decodeAPK();
+
+        for (BaseCFG onCreateCFG : onCreateCFGs) {
+            getComponentXMLID(onCreateCFG);
+        }
+
         // int xmlID = getComponentXMLID(onCreateMethod);
 
     }
 
+    /**
+     * Returns for each component, e.g. an activity, its associated callbacks. It goes through all
+     * intra CFGs looking for a specific callback by its full-qualified name. If there is a match,
+     * we extract the defining component, which is typically the outer class, and the CFG representing
+     * the callback.
+     *
+     * @param intraCFGs The set of all generated intra CFGs.
+     * @return Returns a mapping between a component and its associated callbacks (can be multiple per instance).
+     * @throws IOException Should never happen.
+     */
     private static Multimap<String, BaseCFG> lookUpCallbacks(Map<String, BaseCFG> intraCFGs) throws IOException {
 
         /*
@@ -882,8 +897,11 @@ public final class Main {
             String className = Utility.getClassName(methodName);
 
             if (!exclusionPattern.matcher(Utility.dottedClassName(className)).matches()
+                    // TODO: add missing callbacks for each event listener
+                    // see: https://developer.android.com/guide/topics/ui/ui-events
+                    // TODO: check whether there can be other custom event listeners
                 && methodName.endsWith("onClick(Landroid/view/View;)V")) {
-                LOGGER.debug("Callback method: " + methodName);
+                // TODO: is it always an inner class???
                 if (Utility.isInnerClass(methodName)) {
                     String outerClass = Utility.getOuterClass(className);
                     callbacks.put(outerClass, intraCFG.getValue());
@@ -893,6 +911,7 @@ public final class Main {
         return callbacks;
     }
 
+    // inefficient, can be removed in the future
     private static void lookUpCallbacks(DexFile dexFile) throws IOException {
 
         /*
