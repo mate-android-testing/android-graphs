@@ -1011,22 +1011,80 @@ public final class Main {
         LOGGER.debug(classRelations);
         LOGGER.debug(componentResourceID);
 
-        // TODO: search in public.xml (res/values/) for name of layout files per component
-        // we have a linkage between component and layout file, e.g. BMIMainActivity -> activity_bmimain
+        /*
+        * We now need to find the layout file for a given component. Then, we need to
+        * parse it in order to get possible callbacks. Finally, we need to add these callbacks
+        * to the 'callbacks' sub graph of the respecitve component.
+         */
 
         // we need to first decode the APK to access its resource files
         decodeAPK();
 
+        // we want to link a component to its associated layout file -> (parsing the public.xml file)
+        // a typical entry has the following form: <className,layoutFileName>, e.g. <L../BMIMain;,activity_bmimain>
         Map<String, String> componentLayoutFile = retrieveComponentLayoutFile(componentResourceID);
 
-        // TODO: go to layout file and search for specific tags, e.g. android:onClick
-        // we have a linkage which component defines a callback, e.g. fragment_bmimain -> fragmentOnClick()
+        // we search in each component's layout file for specific tags describing callbacks
+        // a typical entry has the following form: <className,callbackName>
+        Multimap<String, String> componentCallbacks = findCallbacksXML(componentLayoutFile);
 
         // TODO: search for callback method in associated component class file (first in inner class, then outer class)
         //  we now finally know which component reacts to which callback
 
         // TODO: add to callbacks subgraph (should probably outside this method)
         return callbacks;
+    }
+
+    /**
+     * Returns a mapping between a component (its class name) and associated callbacks declared in the component's
+     * layout file. Each component can define multiple callbacks.
+     *
+     * @param componentLayoutFile A mapping between a component (its class name) and its associated layout file.
+     * @return Returns a mapping between a component and its associated callbacks declared in its layout file.
+     */
+    private static Multimap<String, String> findCallbacksXML(Map<String, String> componentLayoutFile) {
+
+        Multimap<String, String> componentCallbacks = TreeMultimap.create();
+
+        for (Map.Entry<String, String> component : componentLayoutFile.entrySet()) {
+
+            LOGGER.debug("Parsing layout file of component: " + component.getKey());
+
+            String layoutFileName = component.getValue();
+
+            final String layoutFilePath = decodingOutputPath + File.separator + "res" + File.separator
+                    + "layout" + File.separator + layoutFileName + ".xml";
+
+            SAXReader reader = new SAXReader();
+            Document document = null;
+
+            try {
+
+                document = reader.read(new File(layoutFilePath));
+                Element rootElement = document.getRootElement();
+
+                Iterator itr = rootElement.elementIterator();
+                while (itr.hasNext()) {
+
+                    // each node is a widget, e.g. a button, textView, ...
+                    // TODO: we may can exclude some sort of widgets
+                    Node node = (Node) itr.next();
+                    Element element = (Element) node;
+                    // LOGGER.debug(element.getName());
+
+                    // NOTE: we need to access the attribute WITHOUT its namespace -> can't use android:onClick!
+                    String onClickCallback = element.attributeValue("onClick");
+                    if (onClickCallback != null) {
+                        LOGGER.debug(onClickCallback);
+                        componentCallbacks.put(component.getKey(), onClickCallback);
+                    }
+                }
+            } catch (DocumentException e) {
+                LOGGER.error("Reading layout file " + layoutFileName + " failed");
+                LOGGER.error(e.getMessage());
+            }
+        }
+        return componentCallbacks;
     }
 
     /**
