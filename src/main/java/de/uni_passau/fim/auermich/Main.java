@@ -29,6 +29,11 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.dom4j.Document;
+import org.dom4j.DocumentException;
+import org.dom4j.Element;
+import org.dom4j.Node;
+import org.dom4j.io.SAXReader;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.Opcodes;
@@ -55,6 +60,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Comparator.comparingInt;
 
@@ -870,6 +876,9 @@ public final class Main {
         // return value, key: name of component
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
 
+        // stores for each component its resource id in hexadecimal representation
+        Map<String, String> componentResourceID = new HashMap<>();
+
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
         for (ClassDef classDef : dexFile.getClasses()) {
@@ -946,6 +955,8 @@ public final class Main {
                                                 || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
                                             foundLayoutResID = true;
                                             LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                                            int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
+                                            componentResourceID.put(classDef.toString(), "0x" + Integer.toHexString(resourceID));
                                         }
 
                                         predecessor = predecessor.getPredecessors().first();
@@ -983,6 +994,8 @@ public final class Main {
                                                 || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
                                             foundLayoutResID = true;
                                             LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                                            int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
+                                            componentResourceID.put(classDef.toString(), "0x" + Integer.toHexString(resourceID));
                                         }
 
                                         predecessor = predecessor.getPredecessors().first();
@@ -996,9 +1009,15 @@ public final class Main {
         }
 
         LOGGER.debug(classRelations);
+        LOGGER.debug(componentResourceID);
 
         // TODO: search in public.xml (res/values/) for name of layout files per component
         // we have a linkage between component and layout file, e.g. BMIMainActivity -> activity_bmimain
+
+        // we need to first decode the APK to access its resource files
+        decodeAPK();
+
+        Map<String, String> componentLayoutFile = retrieveComponentLayoutFile(componentResourceID);
 
         // TODO: go to layout file and search for specific tags, e.g. android:onClick
         // we have a linkage which component defines a callback, e.g. fragment_bmimain -> fragmentOnClick()
@@ -1008,6 +1027,72 @@ public final class Main {
 
         // TODO: add to callbacks subgraph (should probably outside this method)
         return callbacks;
+    }
+
+    /**
+     * Parses the public.xml file to retrieve the layout file names associated with certain layout resource ids.
+     * Returns a mapping between a component (its class name) and the associated layout file name.
+     *
+     * @param componentResourceID A map associating a component (its class name) with its resource id.
+     * @return Returns a mapping between a component (its class name) and the associated layout file name.
+     */
+    private static Map<String, String> retrieveComponentLayoutFile(Map<String, String> componentResourceID) {
+
+        Map<String, String> componentLayoutFile = new HashMap<>();
+
+        final String publicXMLPath = decodingOutputPath + File.separator + "res" + File.separator
+                + "values" + File.separator + "public.xml";
+
+        LOGGER.debug("Path to public.xml file: " + publicXMLPath);
+
+        SAXReader reader = new SAXReader();
+        Document document = null;
+
+        try {
+            document = reader.read(new File(publicXMLPath));
+            Element rootElement = document.getRootElement();
+            // LOGGER.debug(rootElement.getName());
+
+            Iterator itr = rootElement.elementIterator();
+            while (itr.hasNext()) {
+
+                // each node is a <public ... /> xml tag
+                Node node = (Node) itr.next();
+                Element element = (Element) node;
+                // LOGGER.debug("ElementName: " + node.getName());
+
+                // each <public /> tag contains the attributes type,name,id
+                String layoutFile = element.attributeValue("name");
+                String layoutResourceID = element.attributeValue("id");
+
+                /*
+                LOGGER.debug("Type: " + element.attributeValue("type"));
+                LOGGER.debug("Name: " + element.attributeValue("name"));
+                LOGGER.debug("ID: " + element.attributeValue("id"));
+                */
+
+                // check whether componentResourceID contains a mapping for the given resource ID
+                List<String> componentName = componentResourceID
+                        .entrySet()
+                        .stream()
+                        .filter(entry -> layoutResourceID.equals(entry.getValue()))
+                        .map(Map.Entry::getKey)
+                        .collect(Collectors.toList());
+
+                if (!componentName.isEmpty()) {
+                    // each component can have only one associated layout file/id
+                    String className = componentName.get(0);
+                    LOGGER.debug("Class: " + className + " has associated the following layout file: " + layoutFile);
+                    componentLayoutFile.put(className, layoutFile);
+                }
+            }
+
+        } catch (DocumentException e) {
+            LOGGER.error("Reading public.xml failed");
+            LOGGER.error(e.getMessage());
+        }
+
+        return componentLayoutFile;
     }
 
     /**
