@@ -860,21 +860,34 @@ public final class Main {
         }
 
         // get callbacks declared in XML files
-        // decodeAPK();
+        Multimap<String, BaseCFG> callbacksXML = lookUpCallbacksXML(dexFile, intraCFGs);
 
-        // stores the relation between outer and inner classes
-        Multimap<String, String> classRelations = TreeMultimap.create();
-
-        lookUpCallbacksXML(dexFile, classRelations);
-        // int xmlID = getComponentXMLID(onCreateMethod);
-
+        // add for each android component callbacks declared in XML to its callbacks subgraph (the callback entry point)
+        for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
+            callbacksXML.get(callbackEntryPoint.getKey()).forEach(cfg -> {
+                interCFG.addEdge(callbackEntryPoint.getValue().getEntry(), cfg.getEntry());
+                interCFG.addEdge(cfg.getExit(), callbackEntryPoint.getValue().getExit());
+            });
+        }
     }
 
-    private static Multimap<String, BaseCFG> lookUpCallbacksXML(DexFile dexFile, Multimap<String, String> classRelations)
+    /**
+     * Looks up callbacks declared in XML layout files and associates them to its defining component.
+     *
+     * @param dexFile The classes.dex file containing all classes and its methods.
+     * @param intraCFGs The set of intra CFGs.
+     * @return Returns a mapping between a component (its class name) and its callbacks (actually the
+     *          corresponding intra CFGs). Each component may define multiple callbacks.
+     * @throws IOException Should never happen.
+     */
+    private static Multimap<String, BaseCFG> lookUpCallbacksXML(DexFile dexFile, Map<String, BaseCFG> intraCFGs)
             throws IOException {
 
         // return value, key: name of component
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
+
+        // stores the relation between outer and inner classes
+        Multimap<String, String> classRelations = TreeMultimap.create();
 
         // stores for each component its resource id in hexadecimal representation
         Map<String, String> componentResourceID = new HashMap<>();
@@ -1027,11 +1040,30 @@ public final class Main {
         // we search in each component's layout file for specific tags describing callbacks
         // a typical entry has the following form: <className,callbackName>
         Multimap<String, String> componentCallbacks = findCallbacksXML(componentLayoutFile);
+        LOGGER.debug(componentCallbacks);
 
-        // TODO: search for callback method in associated component class file (first in inner class, then outer class)
-        //  we now finally know which component reacts to which callback
+        // associate each component with its intraCFGs representing callbacks
+        for (String component : componentCallbacks.keySet()) {
+            for (String callbackName : componentCallbacks.get(component)) {
+                // TODO: may need to distinguish between different callbacks, e.g. onClick, onLongClick, ...
+                // callbacks can have a custom method name but the rest of the method signature is fixed
+                String callback = component + "->" + callbackName + "(Landroid/view/View;)V";
 
-        // TODO: add to callbacks subgraph (should probably outside this method)
+                // first check whether the callback is declared directly in its defining component
+                if (intraCFGs.containsKey(callback)) {
+                    callbacks.put(component, intraCFGs.get(callback));
+                } else {
+                    // check for outer class defining the callback in its code base
+                    if (Utility.isInnerClass(component)) {
+                        String outerClassName = Utility.getOuterClass(component);
+                        callback = callback.replace(component, outerClassName);
+                        if (intraCFGs.containsKey(callback)) {
+                            callbacks.put(outerClassName, intraCFGs.get(callback));
+                        }
+                    }
+                }
+            }
+        }
         return callbacks;
     }
 
