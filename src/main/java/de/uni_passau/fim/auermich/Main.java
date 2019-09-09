@@ -871,6 +871,10 @@ public final class Main {
         }
     }
 
+    private static void recursiveLayoutIDLookup() {
+
+    }
+
     /**
      * Looks up callbacks declared in XML layout files and associates them to its defining component.
      *
@@ -896,7 +900,7 @@ public final class Main {
 
         for (ClassDef classDef : dexFile.getClasses()) {
 
-            String className = Utility.dottedClassName(Utility.getClassName(classDef.toString()));
+            String className = Utility.dottedClassName(classDef.toString());
 
             if (!exclusionPattern.matcher(className).matches()) {
 
@@ -934,7 +938,9 @@ public final class Main {
                                 // the method that is invoked by this instruction
                                 String methodReference = invokeVirtual.getReference().toString();
 
-                                if (methodReference.contains("setContentView")) {
+                                if (methodReference.endsWith("setContentView(I)V")
+                                        // ensure that setContentView() refers to the given class
+                                        && classDef.toString().equals(Utility.getClassName(methodReference))) {
                                     // TODO: there are multiple overloaded setContentView() implementations
                                     // we assume here only setContentView(int layoutResID)
                                     // link: https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
@@ -974,7 +980,34 @@ public final class Main {
 
                                         predecessor = predecessor.getPredecessors().first();
                                     }
-                                } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(")) {
+                                } else if (methodReference.endsWith("setContentView(Landroid/view/View;)V")
+                                        // ensure that setContentView() refers to the given class
+                                        && classDef.toString().equals(Utility.getClassName(methodReference))) {
+
+                                    /*
+                                    * A typical example of this call looks as follows:
+                                    * invoke-virtual {v2, v3}, Landroid/widget/PopupWindow;->setContentView(Landroid/view/View;)V
+                                    *
+                                    * Here, register v2 is the PopupWindow instance while v3 refers to the View object param.
+                                    * Thus, we need to search for the call of setContentView/inflate() on the View object
+                                    * in order to retrieve its layout resource ID.
+                                     */
+
+                                    LOGGER.debug("Class " + className + " makes use of setContentView(View v)!");
+
+                                    /*
+                                    * TODO: are we interested in calls to setContentView(..) that don't refer to the this object?
+                                    * The primary goal is to derive the layout ID of a given component (class). However, it seems
+                                    * like classes (components) can define the layout of other (sub) components. Are we interested
+                                    * in getting the layout ID of those (sub) components?
+                                     */
+
+                                    // we need to resolve the layout ID of the given View object parameter
+
+
+                                } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(")
+                                        // ensure that setContentView() refers to the given class
+                                        && classDef.toString().equals(Utility.getClassName(methodReference))) {
                                     // TODO: there are multiple overloaded inflate() implementations
                                     // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
                                     // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
@@ -1235,119 +1268,6 @@ public final class Main {
             }
         }
         return callbacks;
-    }
-
-    // inefficient, can be removed in the future
-    private static void lookUpCallbacks(DexFile dexFile) throws IOException {
-
-        /*
-         * Since each callback/listener is represented as a (sequence of) method(s), e.g. onClick(),
-         * we only need to find the FQN and retrieve the corresponding intra CFG, only the entry
-         * point actually, and connect it to the callbacks sub-graph. We could use some brute force
-         * approach by checking whether a given class contains a specific listener method. This can
-         * be done by checking the set of intra CFGs for a specific method signature.
-         *
-         * TODO: return type -> multi-map of <component,callback(FQN)>
-         *       get all callbacks, a class may define several of them
-         */
-
-        Pattern exclusionPattern = Utility.readExcludePatterns();
-
-        // inner classes typically define listeners
-        List<ClassDef> innerClasses = new ArrayList<>();
-        String innerClass = null;
-
-        for (ClassDef classDef : dexFile.getClasses()) {
-
-            // we need to save the inner classes as they typically represent listeners
-            if (Utility.isInnerClass(classDef.toString())) {
-                innerClasses.add(classDef);
-            }
-
-            for (Method method : classDef.getMethods()) {
-
-                MethodImplementation methodImplementation = method.getImplementation();
-                String className = Utility.dottedClassName(Utility.getClassName(classDef.toString()));
-
-                if (methodImplementation != null && !exclusionPattern.matcher(className).matches()) {
-
-                    MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
-                            true, ClassPath.NOT_ART), method,
-                            null, false);
-
-                    for (AnalyzedInstruction analyzedInstruction : analyzer.getAnalyzedInstructions()) {
-
-                        Instruction instruction = analyzedInstruction.getInstruction();
-
-                        // check for invoke-virtual instruction
-                        if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
-
-                            Instruction35c invokeVirtual = (Instruction35c) instruction;
-
-                            // the target method
-                            String methodReference = invokeVirtual.getReference().toString();
-
-                            if (methodReference.contains("setOnClickListener")) {
-
-                                LOGGER.debug("ClassName: " + classDef);
-                                LOGGER.debug("Method Reference: " + methodReference);
-                                LOGGER.debug("Callback-Instance Register: " + invokeVirtual.getRegisterD());
-
-                                // the register id containing the onClickListener instance
-                                int callbackReg = invokeVirtual.getRegisterD();
-
-                                boolean foundListenerClass = false;
-                                AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
-
-                                /*
-                                 * We need to search backwards for the inner class that defines the onClick method.
-                                 * We do this by checking for a new-instance instruction, where the register id matches
-                                 * the register id used within the setOnClickListener(..) instruction.
-                                 */
-                                while (!foundListenerClass) {
-
-                                    LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
-                                    Instruction pred = predecessor.getInstruction();
-
-                                    if (pred.getOpcode() == Opcode.NEW_INSTANCE) {
-                                        LOGGER.debug("found new instance instruction!");
-                                        Instruction21c newInstance = (Instruction21c) pred;
-                                        // we need to check that newInstance is containing the callback
-                                        if (newInstance.getRegisterA() == callbackReg) {
-                                            foundListenerClass = true;
-                                            innerClass = newInstance.getReference().toString();
-                                            LOGGER.debug("Callback Class: " + innerClass);
-                                            LOGGER.debug("Is Inner Class: " + Utility.isInnerClass(innerClass));
-                                        }
-                                    }
-                                    predecessor = predecessor.getPredecessors().first();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        ClassDef targetClass = null;
-
-        // search for inner class defining listener callback action
-        for (ClassDef innerClassDef : innerClasses) {
-            if (innerClassDef.toString().equals(innerClass)) {
-                targetClass = innerClassDef;
-                break;
-            }
-        }
-
-        // search for the onClick method (virtual method)
-        for (Method method : targetClass.getVirtualMethods()) {
-            LOGGER.debug(method.toString());
-            if (method.toString().endsWith("onClick(Landroid/view/View;)V")) {
-
-            }
-        }
-
-        // save some mapping, e.g. (class/component -> btn,callback)
     }
 
     /**
