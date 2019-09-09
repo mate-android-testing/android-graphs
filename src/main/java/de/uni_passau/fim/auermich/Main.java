@@ -1005,9 +1005,7 @@ public final class Main {
                                     // we need to resolve the layout ID of the given View object parameter
 
 
-                                } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(")
-                                        // ensure that setContentView() refers to the given class
-                                        && classDef.toString().equals(Utility.getClassName(methodReference))) {
+                                } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(")) {
                                     // TODO: there are multiple overloaded inflate() implementations
                                     // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
                                     // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
