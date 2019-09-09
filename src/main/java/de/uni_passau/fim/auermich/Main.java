@@ -1221,7 +1221,12 @@ public final class Main {
                     // TODO: add missing callbacks for each event listener
                     // see: https://developer.android.com/guide/topics/ui/ui-events
                     // TODO: check whether there can be other custom event listeners
-                    && methodName.endsWith("onClick(Landroid/view/View;)V")) {
+                    && (methodName.endsWith("onClick(Landroid/view/View;)V")
+                        || methodName.endsWith("onLongClick(Landroid/view/View;)Z")
+                        || methodName.endsWith("onFocusChange(Landroid/view/View;Z)V")
+                        || methodName.endsWith("onKey(Landroid/view/View;ILandroid/view/KeyEvent;)Z")
+                        || methodName.endsWith("onTouch(Landroid/view/View;Landroid/view/MotionEvent;)Z")
+                        || methodName.endsWith("onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V"))) {
                 // TODO: is it always an inner class???
                 if (Utility.isInnerClass(methodName)) {
                     String outerClass = Utility.getOuterClass(className);
