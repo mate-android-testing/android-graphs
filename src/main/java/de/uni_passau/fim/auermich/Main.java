@@ -365,11 +365,17 @@ public final class Main {
         Map<String, BaseCFG> intraCFGs = new HashMap<>();
         constructIntraCFGs(dexFile, intraCFGs, false);
 
+        // stores the relevant onCreate methods
+        List<BaseCFG> onCreateMethods = new ArrayList<>();
+
         // avoid concurrent modification exception
         Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
 
         // store graphs already inserted into inter-procedural CFG
         Set<BaseCFG> coveredGraphs = new HashSet<>();
+
+        // exclude certain methods/classes
+        Pattern exclusionPattern = Utility.readExcludePatterns();
 
         // compute inter-procedural CFG by connecting intra CFGs
         for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
@@ -378,12 +384,23 @@ public final class Main {
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug(intraCFG.getMethodName());
 
-            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
+            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
                 if (!coveredGraphs.contains(cfg)) {
                     // add first source graph
                     interCFG.addSubGraph(intraCFG);
                     coveredGraphs.add(cfg);
                 }
+            }
+
+            // the method signature (className->methodName->params->returnType)
+            String method = intraCFG.getMethodName();
+            String className = Utility.dottedClassName(Utility.getClassName(method));
+            LOGGER.debug("ClassName: " + className);
+
+            // we need to model the android lifecycle as well -> collect onCreate methods
+            if (method.contains("onCreate(Landroid/os/Bundle;)V") && !exclusionPattern.matcher(className).matches()) {
+                // copy necessary, otherwise the sub graph misses some vertices
+                onCreateMethods.add(intraCFG.copy());
             }
 
             LOGGER.debug("Searching for invoke instructions!");
@@ -427,7 +444,7 @@ public final class Main {
                         intraCFGs.put(methodSignature, targetCFG);
                     }
 
-                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain;")) {
+                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
 
                         /*
                          * Store the original outgoing edges first, since we add further
@@ -471,9 +488,18 @@ public final class Main {
             }
         }
 
+        // add the android lifecycle methods
+        Map<String, BaseCFG> callbackEntryPoints = addAndroidLifecycleMethods(interCFG, intraCFGs, onCreateMethods);
+
+        // add global entry point to each constructor and link constructor to onCreate method
+        addGlobalEntryPoints(interCFG, intraCFGs, onCreateMethods);
+
+        // add the callbacks specified either through XML or directly in code
+        addCallbacks(interCFG, intraCFGs, callbackEntryPoints, dexFile);
+
         if (DEBUG_MODE) {
             // intraCFGs.get("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V").drawGraph();
-            LOGGER.debug(interCFG);
+            // LOGGER.debug(interCFG);
             interCFG.drawGraph();
         }
 
@@ -539,96 +565,6 @@ public final class Main {
             interCFG.addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
         }
         return callbacksCFGs;
-    }
-
-    /**
-     * Looks within the CFG representing the onCreate method for the component's (activity)
-     * XML ID. This is done by searching for the setContentView() invocation, and retrieving
-     * the XML ID from the predecessor instruction, typically  a 'const' instruction, holding
-     * the ID.
-     *
-     * @param onCreateCFG The CFG of the onCreate() method.
-     * @return Returns the XML ID of the component (activity) as integer, or -1 if the XML
-     * ID couldn't be found.
-     */
-    private static int getComponentXMLID(BaseCFG onCreateCFG) {
-
-        LOGGER.debug("Searching for " + onCreateCFG.getMethodName() + " XML ID!");
-
-        // TODO: we assume that setContentView is called within onCreate!
-        // search for setContentView invoke-virtual instruction
-        for (Vertex vertex : onCreateCFG.getVertices()) {
-
-            if (vertex.isEntryVertex() || vertex.isExitVertex()) {
-                // no instruction attached, skip
-                continue;
-            }
-
-            Statement stmt = vertex.getStatement();
-            BasicStatement basicStatement = null;
-
-            if (stmt.getType() == Statement.StatementType.BASIC_STATEMENT) {
-                basicStatement = (BasicStatement) stmt;
-
-            } else if (stmt.getType() == Statement.StatementType.BLOCK_STATEMENT) {
-                BlockStatement blockStatement = (BlockStatement) stmt;
-                // only the first instruction of a basic block can be an invoke instruction
-                Statement statement = blockStatement.getFirstStatement();
-                if (statement.getType() != Statement.StatementType.BASIC_STATEMENT) {
-                    continue;
-                }
-                basicStatement = (BasicStatement) blockStatement.getFirstStatement();
-            } else {
-                continue;
-            }
-
-            AnalyzedInstruction analyzedInstruction = basicStatement.getInstruction();
-            Instruction instruction = analyzedInstruction.getInstruction();
-
-            // check for invoke virtual /invoke virtual range instruction
-            if (instruction instanceof ReferenceInstruction
-                    && (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL
-                    || instruction.getOpcode() == Opcode.INVOKE_VIRTUAL_RANGE
-                    || instruction.getOpcode() == Opcode.INVOKE_VIRTUAL_QUICK
-                    || instruction.getOpcode() == Opcode.INVOKE_VIRTUAL_QUICK_RANGE)) {
-
-                String methodReference = ((ReferenceInstruction) instruction).getReference().toString();
-
-                // TODO: there a three different kind of setContentView methods
-                // https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
-                if (methodReference.endsWith("setContentView(I)V")) {
-                    LOGGER.debug("Located setContentView() invocation!");
-
-                    /*
-                     * Typically the XML ID is loaded as a constant using one of the possible
-                     * 'const' instructions. Directly afterwards, the XML ID is used within
-                     * the respective invoke virtual instruction 'setContentView(...)V'. In terms
-                     * of smali code, this looks as follows:
-                     *
-                     *     const v0, 0x7f0a001c
-                     *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
-                     *
-                     * Thus, once we found the setContentView() invocation, we look at its predecessor
-                     * instruction and extract the XML ID stored within its register. Note that we need
-                     * to convert the obtained XML ID into its hexadecimal representation for further
-                     * processing.
-                     */
-
-                    AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
-                    Instruction pred = predecessor.getInstruction();
-
-                    // the predecessor should be either const, const/4 or const/16 and holds the XML ID
-                    if (pred instanceof NarrowLiteralInstruction
-                            && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
-                            || pred.getOpcode() == Opcode.CONST_16)) {
-                        LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
-                        return ((NarrowLiteralInstruction) pred).getNarrowLiteral();
-                    }
-                }
-            }
-        }
-        // we couldn't find the XML ID
-        return -1;
     }
 
     /**
@@ -833,6 +769,9 @@ public final class Main {
         // add the android lifecycle methods
         Map<String, BaseCFG> callbackEntryPoints = addAndroidLifecycleMethods(interCFG, intraCFGs, onCreateMethods);
 
+        // add global entry point to each constructor and link constructor to onCreate method
+        addGlobalEntryPoints(interCFG, intraCFGs, onCreateMethods);
+
         // add the callbacks specified either through XML or directly in code
         addCallbacks(interCFG, intraCFGs, callbackEntryPoints, dexFile);
 
@@ -843,6 +782,32 @@ public final class Main {
         }
 
         return interCFG;
+    }
+
+    /**
+     * Adds for each component (activity) a global entry point to the respective constructor. Additionally, an edge
+     * is created between constructor CFG and the onCreate CFG since the constructor is called prior to onCreate().
+     *
+     * @param interCFG The inter-procedural CFG.
+     * @param intraCFGs The set of intra-procedural CFGs.
+     * @param onCreateMethods The set of onCreate methods (the respective CFGs).
+     */
+    private static void addGlobalEntryPoints(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs, List<BaseCFG> onCreateMethods) {
+
+        for (BaseCFG onCreate : onCreateMethods) {
+
+            // each component defines a default constructor, which is called prior to onCreate()
+            String className = Utility.getClassName(onCreate.getMethodName());
+            String constructorName = className + "-><init>()V";
+
+            if (intraCFGs.containsKey(constructorName)) {
+                BaseCFG constructor = intraCFGs.get(constructorName);
+                interCFG.addEdge(constructor.getExit(), onCreate.getEntry());
+
+                // add global entry point to constructor
+                interCFG.addEdge(interCFG.getEntry(), constructor.getEntry());
+            }
+        }
     }
 
     private static void addCallbacks(BaseCFG interCFG, Map<String, BaseCFG> intraCFGs,
