@@ -14,6 +14,8 @@ public class BlockStatement extends Statement implements Cloneable {
         type = StatementType.BLOCK_STATEMENT;
     }
 
+    public List<Statement> getStatements() { return statements; }
+
     public Statement getFirstStatement() {
         return statements.get(0);
     }

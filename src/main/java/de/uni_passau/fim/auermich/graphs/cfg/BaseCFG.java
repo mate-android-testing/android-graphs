@@ -16,6 +16,8 @@ import de.uni_passau.fim.auermich.statement.Statement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
+import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
+import org.jgrapht.alg.shortestpath.FloydWarshallShortestPaths;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.AbstractGraph;
 import org.jgrapht.graph.DefaultEdge;
@@ -63,6 +65,14 @@ public abstract class BaseCFG implements Cloneable, Comparable<BaseCFG> {
         exit = new Vertex(new ExitStatement(methodName));
         graph.addVertex(entry);
         graph.addVertex(exit);
+    }
+
+    public int getShortestDistance(Vertex source, Vertex target) {
+        /*
+        FloydWarshallShortestPaths shortestPathsAlgorithm = new FloydWarshallShortestPaths(graph);
+        return shortestPathsAlgorithm.getPath(source, target).getLength();
+        */
+        return DijkstraShortestPath.findPathBetween(graph, source, target).getLength();
     }
 
     public void addEdge(Vertex src, Vertex dest) {
@@ -137,6 +147,9 @@ public abstract class BaseCFG implements Cloneable, Comparable<BaseCFG> {
         return graph.toString();
     }
 
+    /**
+     * Draws the cFG where vertices are encoded as (instruction id, instruction opcode).
+     */
     public void drawGraph() {
 
         JGraphXAdapter<Vertex, Edge> graphXAdapter

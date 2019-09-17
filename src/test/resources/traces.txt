@@ -1,0 +1,8 @@
+Lcom/zola/bmi/BMIMain;->onCreate(Landroid/os/Bundle;)V->entry
+Lcom/zola/bmi/BMIMain;->onCreate(Landroid/os/Bundle;)V->exit
+Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->entry
+Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->140
+Lcom/zola/bmi/BMIMain;->interpretBMI(D)Ljava/lang/String;->entry
+Lcom/zola/bmi/BMIMain;->interpretBMI(D)Ljava/lang/String;->3
+Lcom/zola/bmi/BMIMain;->interpretBMI(D)Ljava/lang/String;->exit
+Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->exit

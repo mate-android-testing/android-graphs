@@ -36,6 +36,50 @@ public class Vertex implements Cloneable {
     }
 
     /**
+     * Checks whether a vertex represents a certain instruction. If the
+     * vertex represents a basic block, each statement inside the block
+     * is inspected.
+     *
+     * @param method The full-qualified method name. (matching criteria)
+     * @param instructionID The instruction id. (matching criteria)
+     * @return Returns {@code true} if the vertex represents a certain
+     *          instruction, otherwise {@code false}.
+     */
+    public boolean containsInstruction(String method, int instructionID) {
+
+        switch (statement.getType()) {
+            case ENTRY_STATEMENT:
+            case RETURN_STATEMENT:
+            case EXIT_STATEMENT:
+                return false;
+            case BASIC_STATEMENT:
+                BasicStatement stmt = (BasicStatement) statement;
+                return statement.getMethod().equals(method)
+                        && stmt.getInstructionIndex() == instructionID;
+            case BLOCK_STATEMENT:
+                // inspect each single statement in the basic block
+                BlockStatement block = (BlockStatement) statement;
+                List<Statement> stmts = block.getStatements();
+
+                boolean containsInstruction = false;
+
+                for (Statement statement : stmts) {
+                    if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
+                        BasicStatement basicStatement = (BasicStatement) statement;
+                        if (basicStatement.getMethod().equals(method)
+                                && basicStatement.getInstructionIndex() == instructionID) {
+                            containsInstruction = true;
+                            break;
+                        }
+                    }
+                }
+                return containsInstruction;
+            default:
+                throw new UnsupportedOperationException("Statement type not supported yet");
+        }
+    }
+
+    /**
      * Returns the method name of the vertex's statement.
      *
      * @return Returns the method name belonging to the

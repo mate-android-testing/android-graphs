@@ -52,15 +52,18 @@ import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.*;
 import org.jf.dexlib2.iface.instruction.formats.*;
+import org.jgrapht.alg.shortestpath.FloydWarshallShortestPaths;
 import org.jgrapht.graph.DefaultEdge;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -235,7 +238,8 @@ public final class Main {
 
     private static void computeApproachLevel(BaseCFG interCFG) {
 
-        File traces = new File("traces.txt");
+        Path resourceDirectory = Paths.get("src","test","resources");
+        File traces = new File(resourceDirectory.toFile(), "traces.txt");
         List<String> executionPath = new ArrayList<>();
 
         try (Stream<String> stream = Files.lines(traces.toPath(), StandardCharsets.UTF_8)) {
@@ -245,18 +249,51 @@ public final class Main {
             e.printStackTrace();
         }
 
+        LOGGER.debug(executionPath);
+
         // we need to mark vertices we visit
         List<Vertex> visitedVertices = new ArrayList<>();
 
-        //
+        // look up each pathNode (vertex) in the CFG
         for (String pathNode : executionPath) {
-            interCFG.getVertices().stream().filter(v -> true);
+            LOGGER.debug("Searching for vertex: " + pathNode);
+
+            // get full-qualified method name + type (entry,exit,instructionID)
+            int index = pathNode.lastIndexOf("->");
+            String method = pathNode.substring(0, index);
+            String type = pathNode.substring(index+2);
+
+            if (type.equals("entry")) {
+                Vertex entry = interCFG.getVertices().stream().filter(v -> v.isEntryVertex() && v.getMethod().equals(method)).findFirst().get();
+                LOGGER.debug("Entry Vertex: " + entry);
+                visitedVertices.add(entry);
+            } else if (type.equals("exit")) {
+                Vertex exit = interCFG.getVertices().stream().filter(v -> v.isExitVertex() && v.getMethod().equals(method)).findFirst().get();
+                LOGGER.debug("Exit Vertex: " + exit);
+                visitedVertices.add(exit);
+            } else {
+                // must be the instruction id of a branch
+                int id = Integer.parseInt(type);
+                Vertex branch = interCFG.getVertices().stream().filter(v -> v.containsInstruction(method,id)).findFirst().get();
+                LOGGER.debug("Branch Vertex: " + branch);
+                visitedVertices.add(branch);
+            }
         }
 
-        // we start traversal from the entry vertex
-        Vertex entry = interCFG.getEntry();
+        // we need to select a target vertex
+        Vertex target = interCFG.getExit();
+        /*
+        Vertex target = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
+                        && v.getMethod().equals("Lcom/zola/bmi/BMIMain;->onStart()V")).findFirst().get();
+        LOGGER.debug("Target Vertex: " + target);
+        */
 
+        for (Vertex source : visitedVertices) {
+            LOGGER.debug("Shortest Distance from Vertex: " + source);
+            LOGGER.debug(interCFG.getShortestDistance(source, target));
+        }
     }
+
 
     /**
      * Decodes a given APK using apktool.

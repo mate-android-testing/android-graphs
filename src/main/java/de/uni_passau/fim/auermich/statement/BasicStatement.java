@@ -15,6 +15,8 @@ public class BasicStatement extends Statement implements Cloneable {
         type = StatementType.BASIC_STATEMENT;
     }
 
+    public int getInstructionIndex() { return instruction.getInstructionIndex(); }
+
     public AnalyzedInstruction getInstruction() {
         return instruction;
     }
