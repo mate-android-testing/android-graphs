@@ -56,6 +56,9 @@ import org.jgrapht.graph.DefaultEdge;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -223,10 +226,36 @@ public final class Main {
                     if (checkArguments(interCFGCmd)) {
                         BaseCFG interCFG = computeInterProceduralCFG(dexFile, interCFGCmd.isUseBasicBlocks());
                         // TODO: perform some computation on the graph
+                        computeApproachLevel(interCFG);
                     }
                     break;
             }
         }
+    }
+
+    private static void computeApproachLevel(BaseCFG interCFG) {
+
+        File traces = new File("traces.txt");
+        List<String> executionPath = new ArrayList<>();
+
+        try (Stream<String> stream = Files.lines(traces.toPath(), StandardCharsets.UTF_8)) {
+            executionPath = stream.collect(Collectors.toList());
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        // we need to mark vertices we visit
+        List<Vertex> visitedVertices = new ArrayList<>();
+
+        //
+        for (String pathNode : executionPath) {
+            interCFG.getVertices().stream().filter(v -> true);
+        }
+
+        // we start traversal from the entry vertex
+        Vertex entry = interCFG.getEntry();
+
     }
 
     /**
