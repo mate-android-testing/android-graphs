@@ -33,6 +33,9 @@ Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V
 
 ---------------------------------------------------------------------
 
+# some modified APK using both XML and code declared callbacks
+/home/auermich/Downloads/com.zola.bmi_400_src.tar.gz/BMI/build/outputs/apk/debug/BMI-debug.apk
+
 # Config for inter-procedural CFG on Linux
 
 -f

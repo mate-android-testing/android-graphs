@@ -281,12 +281,10 @@ public final class Main {
         }
 
         // we need to select a target vertex
-        Vertex target = interCFG.getExit();
-        /*
+        // Vertex target = interCFG.getExit();
         Vertex target = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
                         && v.getMethod().equals("Lcom/zola/bmi/BMIMain;->onStart()V")).findFirst().get();
         LOGGER.debug("Target Vertex: " + target);
-        */
 
         for (Vertex source : visitedVertices) {
             LOGGER.debug("Shortest Distance from Vertex: " + source);
