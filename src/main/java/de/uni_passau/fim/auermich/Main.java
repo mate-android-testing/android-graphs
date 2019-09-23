@@ -290,6 +290,11 @@ public final class Main {
             LOGGER.debug("Shortest Distance from Vertex: " + source);
             LOGGER.debug(interCFG.getShortestDistance(source, target));
         }
+
+        // get all branches
+        List<Vertex> branches = new ArrayList<>();
+        interCFG.getVertices().stream().filter(v -> v.isBranchVertex());
+        LOGGER.debug("Branches: " + branches);
     }
 
 

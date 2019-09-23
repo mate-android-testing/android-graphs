@@ -5,12 +5,14 @@ import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.statement.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.Format;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class Vertex implements Cloneable {
 
@@ -77,6 +79,59 @@ public class Vertex implements Cloneable {
             default:
                 throw new UnsupportedOperationException("Statement type not supported yet");
         }
+    }
+
+    /**
+     * Checks whether a given vertex represents a branch target, i.e. a successor of an if-statement.
+     * Essentially, every branch target must be a leader instruction.
+     *
+     * @return Returns whether the given vertex represents a branch target.
+     */
+    public boolean isBranchVertex() {
+
+        switch (statement.getType()) {
+            case ENTRY_STATEMENT:
+            case RETURN_STATEMENT:
+            case EXIT_STATEMENT:
+                return false;
+            case BASIC_STATEMENT:
+                BasicStatement stmt = (BasicStatement) statement;
+                Set<AnalyzedInstruction> predecessors = stmt.getInstruction().getPredecessors();
+                // check if one of the predecessors is an if statement
+                for (AnalyzedInstruction predecessor : predecessors) {
+                    Format format = predecessor.getInstruction().getOpcode().format;
+                    // 21t and 22t are if instructions
+                    if (format == Format.Format21t
+                            || format == Format.Format22t) {
+                        return true;
+                    }
+                }
+                return false;
+            case BLOCK_STATEMENT:
+                // inspect each single statement in the basic block
+                BlockStatement block = (BlockStatement) statement;
+                List<Statement> stmts = block.getStatements();
+
+                for (Statement statement : stmts) {
+                    if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
+                        BasicStatement basicStatement = (BasicStatement) statement;
+                        Set<AnalyzedInstruction> preds = basicStatement.getInstruction().getPredecessors();
+                        // check if one of the predecessors is an if statement
+                        for (AnalyzedInstruction predecessor : preds) {
+                            Format format = predecessor.getInstruction().getOpcode().format;
+                            // 21t and 22t are if instructions
+                            if (format == Format.Format21t
+                                    || format == Format.Format22t) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            default:
+                throw new UnsupportedOperationException("Statement type not supported yet");
+        }
+
     }
 
     /**
