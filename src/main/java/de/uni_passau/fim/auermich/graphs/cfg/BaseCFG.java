@@ -16,6 +16,7 @@ import de.uni_passau.fim.auermich.statement.Statement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
+import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 import org.jgrapht.alg.shortestpath.FloydWarshallShortestPaths;
 import org.jgrapht.ext.JGraphXAdapter;
@@ -72,7 +73,12 @@ public abstract class BaseCFG implements Cloneable, Comparable<BaseCFG> {
         FloydWarshallShortestPaths shortestPathsAlgorithm = new FloydWarshallShortestPaths(graph);
         return shortestPathsAlgorithm.getPath(source, target).getLength();
         */
-        return DijkstraShortestPath.findPathBetween(graph, source, target).getLength();
+        GraphPath<Vertex, Edge> path = DijkstraShortestPath.findPathBetween(graph, source, target);
+        if (path != null ) {
+            return path.getLength();
+        } else {
+            return -1;
+        }
     }
 
     public void addEdge(Vertex src, Vertex dest) {

@@ -292,9 +292,12 @@ public final class Main {
         }
 
         // get all branches
-        List<Vertex> branches = new ArrayList<>();
-        interCFG.getVertices().stream().filter(v -> v.isBranchVertex());
-        LOGGER.debug("Branches: " + branches);
+        List<Vertex> branches = interCFG.getVertices().stream()
+                .filter(v -> v.isBranchVertex()).collect(Collectors.toList());
+        
+        for (Vertex branch : branches) {
+            LOGGER.debug("Branch: " + branch);
+        }
     }
 
 
