@@ -70,6 +70,7 @@ import java.util.stream.Stream;
 
 import static java.util.Comparator.comparingInt;
 
+// TODO: rename to AndroidGraphs or whatever
 public final class Main {
 
     private static final Logger LOGGER = LogManager.getLogger(Main.class);
@@ -163,6 +164,36 @@ public final class Main {
         assert cmd.getGraphType() == GraphType.INTERCFG;
         // Objects.requireNonNull(cmd.getMetric());
         return true;
+    }
+
+    public static BaseCFG computeInterCFGWithBasicBlocks(String apkfile) throws IOException {
+
+        // process directly apk file (support for multi-dex)
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(new File(apkfile), API_OPCODE);
+
+        // used inside decodeAPK()
+        mainCmd.setApkFile(apkfile);
+        mainCmd.setDebug(true);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile));
+            } catch (IOException e) {
+                LOGGER.warn("Failure loading dexFile");
+                LOGGER.warn(e.getMessage());
+                return;
+            }
+        });
+
+        // TODO: change methods to support a list of dexFiles, now just pick first one
+        DexFile dexFile = dexFiles.get(0);
+
+        // TODO: remove decoded APK folder (see BranchDistance implementation)
+
+        return computeInterProceduralCFG(dexFile, true);
     }
 
 
@@ -294,7 +325,7 @@ public final class Main {
         // get all branches
         List<Vertex> branches = interCFG.getVertices().stream()
                 .filter(v -> v.isBranchVertex()).collect(Collectors.toList());
-        
+
         for (Vertex branch : branches) {
             LOGGER.debug("Branch: " + branch);
         }
@@ -1359,7 +1390,6 @@ public final class Main {
                         basicBlockEdges.put(predecessor.getInstructionIndex(), analyzedInstruction.getInstructionIndex());
                     }
                 }
-
             } else if (instruction.getOpcode() == Opcode.RETURN
                     || instruction.getOpcode() == Opcode.RETURN_OBJECT
                     || instruction.getOpcode() == Opcode.RETURN_VOID

@@ -1,14 +1,43 @@
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.1'
+    }
+}
+
 plugins {
     id 'java'
 }
 
+apply plugin: 'com.github.johnrengelman.shadow'
+
 group 'de.uni-passau.fim.auermich'
-version '1.0-SNAPSHOT'
+// version '1.0-SNAPSHOT'
 
 sourceCompatibility = 1.8
 
 repositories {
     mavenCentral()
+}
+
+//create a single Jar with all dependencies
+task fatJar(type: Jar) {
+    manifest {
+        attributes 'Main-Class': 'de.uni_passau.fim.auermich.Main'
+    }
+
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+jar {
+    manifest {
+        attributes "Main-Class": "de.uni_passau.fim.auermich.Main"
+    }
 }
 
 dependencies {

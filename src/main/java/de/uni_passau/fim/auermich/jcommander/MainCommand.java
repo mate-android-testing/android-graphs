@@ -48,4 +48,12 @@ public class MainCommand {
     public boolean isHelp() {
         return help;
     }
+
+    public void setDebug(boolean debug) {
+        this.debug = debug;
+    }
+
+    public void setApkFile(String apkFile) {
+        this.apkFile = new File(apkFile);
+    }
 }
