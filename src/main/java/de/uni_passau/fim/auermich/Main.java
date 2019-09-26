@@ -327,8 +327,18 @@ public final class Main {
                 .filter(v -> v.isBranchVertex()).collect(Collectors.toList());
 
         for (Vertex branch : branches) {
-            LOGGER.debug("Branch: " + branch);
+            Integer branchID = null;
+            if (branch.getStatement() instanceof BasicStatement) {
+                branchID = ((BasicStatement) branch.getStatement()).getInstructionIndex();
+            } else if (branch.getStatement() instanceof BlockStatement) {
+                branchID = ((BasicStatement) ((BlockStatement) branch.getStatement()).getFirstStatement()).getInstructionIndex();
+            }
+
+            if (branchID != null) {
+                LOGGER.debug(branch.getMethod() + "->" + branchID);
+            }
         }
+
     }
 
 
