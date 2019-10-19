@@ -180,7 +180,7 @@ public final class Main {
 
         apk.getDexEntryNames().forEach(dexFile -> {
             try {
-                dexFiles.add(apk.getEntry(dexFile));
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
             } catch (IOException e) {
                 LOGGER.warn("Failure loading dexFile");
                 LOGGER.warn(e.getMessage());
@@ -232,7 +232,7 @@ public final class Main {
 
             apk.getDexEntryNames().forEach(dexFile -> {
                 try {
-                    dexFiles.add(apk.getEntry(dexFile));
+                    dexFiles.add(apk.getEntry(dexFile).getDexFile());
                 } catch (IOException e) {
                     LOGGER.warn("Failure loading dexFile");
                     LOGGER.warn(e.getMessage());
