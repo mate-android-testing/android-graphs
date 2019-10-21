@@ -6,6 +6,7 @@ import de.uni_passau.fim.auermich.utility.Utility;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
 
+import java.io.File;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,6 +29,8 @@ public class BaseGraphBuilder {
 
     private boolean useBasicBlocks = false;
 
+    private File apkFile;
+
     /* END OPTIONAL FIELDS */
 
     public BaseGraphBuilder(GraphType type, List<DexFile> dexFiles) {
@@ -45,6 +48,11 @@ public class BaseGraphBuilder {
         return this;
     }
 
+    public BaseGraphBuilder withAPKFile(File apkFile) {
+        this.apkFile = apkFile;
+        return this;
+    }
+
     public BaseGraph build() {
         switch (type) {
             case INTRACFG:
@@ -59,7 +67,8 @@ public class BaseGraphBuilder {
                 return new IntraProceduralCFG(name, dexFile.get(), useBasicBlocks);
             case INTERCFG:
                 Objects.requireNonNull(name, "CFG name is mandatory!");
-                return new InterProceduralCFG(name, dexFiles, useBasicBlocks);
+                Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
+                return new InterProceduralCFG(name, dexFiles, useBasicBlocks, apkFile);
             default:
                 throw new UnsupportedOperationException("Graph type not yet supported!");
         }

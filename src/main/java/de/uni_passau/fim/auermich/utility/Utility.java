@@ -1,5 +1,7 @@
 package de.uni_passau.fim.auermich.utility;
 
+import brut.androlib.ApkDecoder;
+import brut.common.BrutException;
 import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.Main;
 import de.uni_passau.fim.auermich.graphs.Vertex;
@@ -144,6 +146,39 @@ public final class Utility {
         return Optional.empty();
     }
 
+    /**
+     * Decodes a given APK using apktool.
+     */
+    public static String decodeAPK(File apkFile) {
+
+        String decodingOutputPath = null;
+
+        try {
+            // ApkDecoder decoder = new ApkDecoder(new Androlib());
+            ApkDecoder decoder = new ApkDecoder(apkFile);
+
+            // path where we want to decode the APK
+            String parentDir = apkFile.getParent();
+            String outputDir = parentDir + File.separator + "out";
+
+            LOGGER.debug("Decoding Output Dir: " + outputDir);
+            decoder.setOutDir(new File(outputDir));
+            decodingOutputPath = outputDir;
+
+            // whether to decode classes.dex into smali files: -s
+            decoder.setDecodeSources(ApkDecoder.DECODE_SOURCES_NONE);
+
+            // overwrites existing dir: -f
+            decoder.setForceDelete(true);
+
+            decoder.decode();
+        } catch (BrutException | IOException e) {
+            LOGGER.warn("Failed to decode APK file!");
+            LOGGER.warn(e.getMessage());
+        }
+        return decodingOutputPath;
+    }
+
     public static boolean isInnerClass(String methodSignature) {
         return methodSignature.contains("$");
     }
@@ -164,10 +199,8 @@ public final class Utility {
      * Generates patterns of classes which should be excluded from the instrumentation.
      *
      * @return The pattern representing classes that should not be instrumented.
-     * @throws IOException        If the file containing excluded classes is not available.
-     * @throws URISyntaxException If the file is not present.
      */
-    public static Pattern readExcludePatterns() throws IOException {
+    public static Pattern readExcludePatterns() {
 
         ClassLoader classLoader = ClassLoader.getSystemClassLoader();
         InputStream inputStream = classLoader.getResourceAsStream(EXCLUSION_PATTERN_FILE);
@@ -180,15 +213,22 @@ public final class Utility {
         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
         String line;
         StringBuilder builder = new StringBuilder();
-        boolean first = true;
-        while ((line = reader.readLine()) != null) {
-            if (first)
-                first = false;
-            else
-                builder.append("|");
-            builder.append(line);
+
+        try {
+            boolean first = true;
+            while ((line = reader.readLine()) != null) {
+                if (first)
+                    first = false;
+                else
+                    builder.append("|");
+                builder.append(line);
+            }
+            reader.close();
+        } catch (IOException e) {
+            LOGGER.error("Couldn't read from exclusion file!");
+            e.printStackTrace();
+            return null;
         }
-        reader.close();
         return Pattern.compile(builder.toString());
     }
 
