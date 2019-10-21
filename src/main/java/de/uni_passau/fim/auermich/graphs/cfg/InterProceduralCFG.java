@@ -495,7 +495,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      * @param componentLayoutFile A mapping between a component (its class name) and its associated layout file.
      * @return Returns a mapping between a component and its associated callbacks declared in its layout file.
      */
-    private static Multimap<String, String> findCallbacksXML(Map<String, String> componentLayoutFile, String decodingOutputPath) {
+    private Multimap<String, String> findCallbacksXML(Map<String, String> componentLayoutFile, String decodingOutputPath) {
 
         Multimap<String, String> componentCallbacks = TreeMultimap.create();
 
@@ -613,9 +613,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      *
      * @param intraCFGs The set of all generated intra CFGs.
      * @return Returns a mapping between a component and its associated callbacks (can be multiple per instance).
-     * @throws IOException Should never happen.
      */
-    private static Multimap<String, BaseCFG> lookUpCallbacks(Map<String, BaseCFG> intraCFGs) {
+    private Multimap<String, BaseCFG> lookUpCallbacks(Map<String, BaseCFG> intraCFGs) {
 
         /*
          * Rather than searching for the call of e.g. setOnClickListener() and following
