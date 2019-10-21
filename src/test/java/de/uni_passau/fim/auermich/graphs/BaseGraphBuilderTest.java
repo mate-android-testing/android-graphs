@@ -1,0 +1,66 @@
+package de.uni_passau.fim.auermich.graphs;
+
+import org.jf.dexlib2.DexFileFactory;
+import org.jf.dexlib2.dexbacked.DexBackedDexFile;
+import org.jf.dexlib2.iface.DexFile;
+import org.jf.dexlib2.iface.MultiDexContainer;
+import org.junit.Test;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static de.uni_passau.fim.auermich.Main.API_OPCODE;
+
+public class BaseGraphBuilderTest {
+
+    @Test
+    public void constructIntraCFG() throws IOException {
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(new File("/home/auermich/smali/ws.xsoh.etar_15.apk"), API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
+                .withName("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")
+                .build();
+
+        baseGraph.drawGraph();
+    }
+
+    @Test
+    public void constructIntraCFGWithBasicBlocks() throws IOException {
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(new File("/home/auermich/smali/ws.xsoh.etar_15.apk"), API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
+                .withName("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")
+                .withBasicBlocks()
+                .build();
+
+        baseGraph.drawGraph();
+    }
+}

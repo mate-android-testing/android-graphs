@@ -6,10 +6,12 @@ import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.iface.DexFile;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 
+import java.util.List;
 import java.util.Set;
 
 public class InterProceduralCFG extends BaseCFG implements Cloneable {
@@ -21,6 +23,29 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
     public InterProceduralCFG(String methodName) {
         super(methodName);
     }
+
+    public InterProceduralCFG(String methodName, List<DexFile> dexFiles, boolean useBasicBlocks) {
+        super(methodName);
+        constructCFG(dexFiles, useBasicBlocks);
+    }
+
+
+    private void constructCFG(List<DexFile> dexFiles, boolean useBasicBlocks) {
+        if (useBasicBlocks) {
+            constructCFGWithBasicBlocks(dexFiles);
+        } else {
+            constructCFG(dexFiles);
+        }
+    }
+
+    private void constructCFGWithBasicBlocks(List<DexFile> dexFiles) {
+
+    }
+
+    private void constructCFG(List<DexFile> dexFiles) {
+
+    }
+
 
     public InterProceduralCFG clone() {
 

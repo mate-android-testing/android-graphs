@@ -92,13 +92,38 @@ public final class Utility {
         return builder.toString();
     }
 
-    /**
-     * Searches for a target method in the given {@code dexFile}.
-     *
-     * @param dexFile The dexFile to search in.
-     * @param methodSignature The signature of the target method.
-     * @return Returns an optional containing either the target method or not.
-     */
+    public static Optional<DexFile> containsTargetMethod(List<DexFile> dexFiles, String methodSignature) {
+
+        String className = methodSignature.split("->")[0];
+
+        for (DexFile dexFile : dexFiles) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+                if (classDef.toString().equals(className)) {
+                    for (Method method : classDef.getMethods()) {
+                        if (Utility.deriveMethodSignature(method).equals(methodSignature)) {
+                            return Optional.of(dexFile);
+                        }
+                    }
+                    // speed up
+                    return Optional.empty();
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    public static Optional<Method> searchForTargetMethod(List<DexFile> dexFile, String methodSignature) {
+        return null;
+    }
+
+
+        /**
+         * Searches for a target method in the given {@code dexFile}.
+         *
+         * @param dexFile The dexFile to search in.
+         * @param methodSignature The signature of the target method.
+         * @return Returns an optional containing either the target method or not.
+         */
     public static Optional<Method> searchForTargetMethod(DexFile dexFile, String methodSignature) {
 
         // TODO: search for target method based on className + method signature

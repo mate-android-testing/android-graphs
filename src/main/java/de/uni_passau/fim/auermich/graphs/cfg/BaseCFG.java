@@ -8,6 +8,7 @@ import com.mxgraph.layout.orthogonal.mxOrthogonalLayout;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxConstants;
 import com.rits.cloning.Cloner;
+import de.uni_passau.fim.auermich.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import de.uni_passau.fim.auermich.statement.EntryStatement;
@@ -15,6 +16,7 @@ import de.uni_passau.fim.auermich.statement.ExitStatement;
 import de.uni_passau.fim.auermich.statement.Statement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.iface.DexFile;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
@@ -37,7 +39,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public abstract class BaseCFG implements Cloneable, Comparable<BaseCFG> {
+public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCFG> {
 
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
@@ -57,7 +59,6 @@ public abstract class BaseCFG implements Cloneable, Comparable<BaseCFG> {
      * distinguish vertices among different intra CFGs.
      */
     private final String methodName;
-
 
     /**
      * Used to initialize an inter-procedural CFG.

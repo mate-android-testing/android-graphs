@@ -1,0 +1,67 @@
+package de.uni_passau.fim.auermich.graphs;
+
+import de.uni_passau.fim.auermich.graphs.cfg.InterProceduralCFG;
+import de.uni_passau.fim.auermich.graphs.cfg.IntraProceduralCFG;
+import de.uni_passau.fim.auermich.utility.Utility;
+import org.jf.dexlib2.iface.DexFile;
+import org.jf.dexlib2.iface.Method;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+public class BaseGraphBuilder {
+
+    /* REQUIRED FIELDS */
+
+    private GraphType type;
+
+    // may use some abstract 'source' type here
+    private List<DexFile> dexFiles;
+
+    /* END REQUIRED FIELDS */
+
+    /* OPTIONAL FIELDS */
+
+    // the CFG (method) name
+    private String name;
+
+    private boolean useBasicBlocks = false;
+
+    /* END OPTIONAL FIELDS */
+
+    public BaseGraphBuilder(GraphType type, List<DexFile> dexFiles) {
+        this.type = type;
+        this.dexFiles = dexFiles;
+    }
+
+    public BaseGraphBuilder withName(String name) {
+        this.name = name;
+        return this;
+    }
+
+    public BaseGraphBuilder withBasicBlocks() {
+        this.useBasicBlocks = true;
+        return this;
+    }
+
+    public BaseGraph build() {
+        switch (type) {
+            case INTRACFG:
+
+                // constraints:
+                Objects.requireNonNull(name, "CFG method name is mandatory!");
+                Optional<DexFile> dexFile = Utility.containsTargetMethod(dexFiles, name);
+                if (!dexFile.isPresent()) {
+                    throw new IllegalArgumentException("Method not present in dex files!");
+                }
+
+                return new IntraProceduralCFG(name, dexFile.get(), useBasicBlocks);
+            case INTERCFG:
+                Objects.requireNonNull(name, "CFG name is mandatory!");
+                return new InterProceduralCFG(name, dexFiles, useBasicBlocks);
+            default:
+                throw new UnsupportedOperationException("Graph type not yet supported!");
+        }
+    }
+}
