@@ -693,22 +693,50 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         BaseCFG onPauseCFG = addLifecycle(onPause, callbacksCFG);
 
         // TODO: onPause() invokes onPause of fragments
+        if (!fragments.isEmpty()) {
+            // if the activity hosts some fragments, the invocations onAttach, onCreate, onCreateView, ... comes now
+            for (String fragment : fragments) {
 
-        // onPause can either invoke onStop() or onResume()
-        addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
-        String onStop = className + "->onStop()V";
-        BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
+                // TODO: add missing multi edges, e.g. onPause() -> onStop(),onResume() for both activities and
+                // fragments
 
-        // TODO: onStop() invokes onStop of fragments
+                String onPauseFragment = fragment + "->onPause()V";
+                BaseCFG onPauseFragmentCFG = addLifecycle(onPauseFragment, onPauseCFG);
 
-        // onStop can either invoke onRestart() or onDestroy()
-        String onRestart = className + "->onRestart()V";
-        String onDestroy = className + "->onDestroy()V";
-        BaseCFG onRestartCFG = addLifecycle(onRestart, onStopCFG);
-        BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
+                String onStop = className + "->onStop()V";
+                BaseCFG onStopCFG = addLifecycle(onStop, onPauseFragmentCFG);
 
-        // onRestart invokes onStart()
-        addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
+                String onStopFragment = fragment + "->onStop()V";
+                BaseCFG onStopFragmentCFG = addLifecycle(onStopFragment, onStopCFG);
+
+                String onDestroy = className + "->onDestroy()V";
+                BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopFragmentCFG);
+
+                String onDestroyViewFragment = fragment + "->onDestroyView()V";
+                BaseCFG onDestroyViewFragmentCFG = addLifecycle(onDestroyViewFragment, onDestroyCFG);
+
+                String onDestroyFragment = fragment + "->onDestroy()V";
+                BaseCFG onDestroyFragmentCFG = addLifecycle(onDestroyFragment, onDestroyViewFragmentCFG);
+
+                String onDetachFragment = fragment + "->onDetach()V";
+                BaseCFG onDetachFragmentCFG = addLifecycle(onDetachFragment, onDestroyFragmentCFG);
+            }
+        } else {
+
+            // onPause can either invoke onStop() or onResume()
+            addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
+            String onStop = className + "->onStop()V";
+            BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
+
+            // onStop can either invoke onRestart() or onDestroy()
+            String onRestart = className + "->onRestart()V";
+            String onDestroy = className + "->onDestroy()V";
+            BaseCFG onRestartCFG = addLifecycle(onRestart, onStopCFG);
+            BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
+
+            // onRestart invokes onStart()
+            addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
+        }
 
         return callbacksCFG;
     }
