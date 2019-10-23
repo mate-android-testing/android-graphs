@@ -1,7 +1,6 @@
 package de.uni_passau.fim.auermich.app.xml;
 
 import de.uni_passau.fim.auermich.utility.Utility;
-import jdk.internal.jline.internal.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dom4j.Document;
@@ -59,7 +58,6 @@ public class LayoutFile {
         return callbacks;
     }
 
-    @Nullable
     public static LayoutFile findLayoutFile(String decodingOutputPath, String resourceID) {
 
         final String publicXMLPath = decodingOutputPath + File.separator + "res" + File.separator

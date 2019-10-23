@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.graphs;
 
+import de.uni_passau.fim.auermich.app.APK;
 import de.uni_passau.fim.auermich.graphs.cfg.InterProceduralCFG;
 import de.uni_passau.fim.auermich.graphs.cfg.IntraProceduralCFG;
 import de.uni_passau.fim.auermich.utility.Utility;
@@ -68,7 +69,8 @@ public class BaseGraphBuilder {
             case INTERCFG:
                 Objects.requireNonNull(name, "CFG name is mandatory!");
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
-                return new InterProceduralCFG(name, dexFiles, useBasicBlocks, apkFile);
+                APK apk = new APK(apkFile, dexFiles);
+                return new InterProceduralCFG(name, apk, useBasicBlocks);
             default:
                 throw new UnsupportedOperationException("Graph type not yet supported!");
         }

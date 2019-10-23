@@ -4,6 +4,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import com.rits.cloning.Cloner;
+import de.uni_passau.fim.auermich.app.APK;
+import de.uni_passau.fim.auermich.app.xml.LayoutFile;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
@@ -49,33 +51,32 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
     private static final GraphType GRAPH_TYPE = GraphType.INTERCFG;
 
+    private Map<String, BaseCFG> intraCFGs = new HashMap<>();
+
     public InterProceduralCFG(String methodName) {
         super(methodName);
     }
 
-    public InterProceduralCFG(String methodName, List<DexFile> dexFiles, boolean useBasicBlocks, File apkFile) {
+    public InterProceduralCFG(String methodName, APK apk, boolean useBasicBlocks) {
         super(methodName);
-        constructCFG(dexFiles, useBasicBlocks, apkFile);
+        intraCFGs = constructIntraCFGs(apk.getDexFiles(), useBasicBlocks);
+        constructCFG(apk, useBasicBlocks);
     }
 
 
-    private void constructCFG(List<DexFile> dexFiles, boolean useBasicBlocks, File apkFile) {
+    private void constructCFG(APK apk, boolean useBasicBlocks) {
         if (useBasicBlocks) {
-            constructCFGWithBasicBlocks(dexFiles, apkFile);
+            constructCFGWithBasicBlocks(apk);
         } else {
-            constructCFG(dexFiles, apkFile);
+            constructCFG(apk);
         }
     }
 
-    private void constructCFGWithBasicBlocks(List<DexFile> dexFiles, File apkFile) {
+    private void constructCFGWithBasicBlocks(APK apk) {
 
     }
 
-    private void constructCFG(List<DexFile> dexFiles, File apkFile) {
-
-        // construct for each method firs the intra-procedural CFG (key: method signature)
-        Map<String, BaseCFG> intraCFGs = new HashMap<>();
-        constructIntraCFGs(dexFiles, intraCFGs, false);
+    private void constructCFG(APK apk) {
 
         // stores the relevant onCreate methods
         List<BaseCFG> onCreateMethods = new ArrayList<>();
@@ -85,6 +86,9 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         // store graphs already inserted into inter-procedural CFG
         Set<BaseCFG> coveredGraphs = new HashSet<>();
+
+        // collect the callback entry points
+        Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
 
         // exclude certain methods/classes
         Pattern exclusionPattern = Utility.readExcludePatterns();
@@ -113,7 +117,10 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             if (method.contains("onCreate(Landroid/os/Bundle;)V") &&
                     exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                 // copy necessary, otherwise the sub graph misses some vertices
-                onCreateMethods.add(intraCFG.copy());
+                BaseCFG callbackEntryPoint = addAndroidLifecycle(intraCFG.copy());
+                callbackEntryPoints.put(Utility.getClassName(method), callbackEntryPoint);
+                // TODO: check whether copy is here as well necessary
+                addGlobalEntryPoint(intraCFG);
             }
 
             LOGGER.debug("Searching for invoke instructions!");
@@ -201,14 +208,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             }
         }
 
-        // add the android lifecycle methods
-        Map<String, BaseCFG> callbackEntryPoints = addAndroidLifecycleMethods(intraCFGs, onCreateMethods);
-
-        // add global entry point to each constructor and link constructor to onCreate method
-        addGlobalEntryPoints(intraCFGs, onCreateMethods);
-
         // add the callbacks specified either through XML or directly in code
-        addCallbacks(intraCFGs, callbackEntryPoints, dexFiles, apkFile);
+        addCallbacks(callbackEntryPoints, apk);
 
     }
 
@@ -216,33 +217,28 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      * Adds for each component (activity) a global entry point to the respective constructor. Additionally, an edge
      * is created between constructor CFG and the onCreate CFG since the constructor is called prior to onCreate().
      *
-     * @param intraCFGs The set of intra-procedural CFGs.
+     * @param intraCFGs       The set of intra-procedural CFGs.
      * @param onCreateMethods The set of onCreate methods (the respective CFGs).
      */
-    private void addGlobalEntryPoints(Map<String, BaseCFG> intraCFGs, List<BaseCFG> onCreateMethods) {
+    private void addGlobalEntryPoint(BaseCFG onCreateCFG) {
 
-        for (BaseCFG onCreate : onCreateMethods) {
+        // each component defines a default constructor, which is called prior to onCreate()
+        String className = Utility.getClassName(onCreateCFG.getMethodName());
+        String constructorName = className + "-><init>()V";
 
-            // each component defines a default constructor, which is called prior to onCreate()
-            String className = Utility.getClassName(onCreate.getMethodName());
-            String constructorName = className + "-><init>()V";
+        if (intraCFGs.containsKey(constructorName)) {
+            BaseCFG constructor = intraCFGs.get(constructorName);
+            addEdge(constructor.getExit(), onCreateCFG.getEntry());
 
-            if (intraCFGs.containsKey(constructorName)) {
-                BaseCFG constructor = intraCFGs.get(constructorName);
-                addEdge(constructor.getExit(), onCreate.getEntry());
-
-                // add global entry point to constructor
-                addEdge(getEntry(), constructor.getEntry());
-            }
+            // add global entry point to constructor
+            addEdge(getEntry(), constructor.getEntry());
         }
     }
 
-    private void addCallbacks(Map<String, BaseCFG> intraCFGs,
-                                     Map<String, BaseCFG> callbackEntryPoints, List<DexFile> dexFiles,
-                              File apkFile) {
+    private void addCallbacks(Map<String, BaseCFG> callbackEntryPoints, APK apk) {
 
         // get callbacks directly declared in code
-        Multimap<String, BaseCFG> callbacks = lookUpCallbacks(intraCFGs);
+        Multimap<String, BaseCFG> callbacks = lookUpCallbacks();
 
         // add for each android component, e.g. activity, its callbacks/listeners to its callbacks subgraph (the callback entry point)
         for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
@@ -253,7 +249,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         }
 
         // get callbacks declared in XML files
-        Multimap<String, BaseCFG> callbacksXML = lookUpCallbacksXML(dexFiles, intraCFGs, apkFile);
+        Multimap<String, BaseCFG> callbacksXML = lookUpCallbacksXML(apk);
 
         // add for each android component callbacks declared in XML to its callbacks subgraph (the callback entry point)
         for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
@@ -267,12 +263,10 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
     /**
      * Looks up callbacks declared in XML layout files and associates them to its defining component.
      *
-     * @param dexFiles The list of dex files.
-     * @param intraCFGs The set of intra CFGs.
      * @return Returns a mapping between a component (its class name) and its callbacks (actually the
-     *          corresponding intra CFGs). Each component may define multiple callbacks.
+     * corresponding intra CFGs). Each component may define multiple callbacks.
      */
-    private Multimap<String, BaseCFG> lookUpCallbacksXML(List<DexFile> dexFiles, Map<String, BaseCFG> intraCFGs, File apkFile) {
+    private Multimap<String, BaseCFG> lookUpCallbacksXML(APK apk) {
 
         // return value, key: name of component
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
@@ -285,7 +279,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
-        for (DexFile dexFile : dexFiles) {
+        for (DexFile dexFile : apk.getDexFiles()) {
 
             for (ClassDef classDef : dexFile.getClasses()) {
 
@@ -452,15 +446,18 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
          */
 
         // we need to first decode the APK to access its resource files
-        String outputPath = Utility.decodeAPK(apkFile);
+        if (!apk.decodeAPK()) {
+            return callbacks;
+        }
 
-        // we want to link a component to its associated layout file -> (parsing the public.xml file)
-        // a typical entry has the following form: <className,layoutFileName>, e.g. <L../BMIMain;,activity_bmimain>
-        Map<String, String> componentLayoutFile = retrieveComponentLayoutFile(componentResourceID, outputPath);
+        Multimap<String, String> componentCallbacks = TreeMultimap.create();
 
-        // we search in each component's layout file for specific tags describing callbacks
-        // a typical entry has the following form: <className,callbackName>
-        Multimap<String, String> componentCallbacks = findCallbacksXML(componentLayoutFile, outputPath);
+        // derive for each component the callbacks declared in the component's layout file
+        componentResourceID.forEach(
+                (component,resourceID) -> {
+                    componentCallbacks.putAll(component,LayoutFile.findLayoutFile(apk.getDecodingOutputPath(), resourceID).parseCallbacks());
+                });
+
         LOGGER.debug(componentCallbacks);
 
         // associate each component with its intraCFGs representing callbacks
@@ -489,132 +486,14 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
     }
 
     /**
-     * Returns a mapping between a component (its class name) and associated callbacks declared in the component's
-     * layout file. Each component can define multiple callbacks.
-     *
-     * @param componentLayoutFile A mapping between a component (its class name) and its associated layout file.
-     * @return Returns a mapping between a component and its associated callbacks declared in its layout file.
-     */
-    private Multimap<String, String> findCallbacksXML(Map<String, String> componentLayoutFile, String decodingOutputPath) {
-
-        Multimap<String, String> componentCallbacks = TreeMultimap.create();
-
-        for (Map.Entry<String, String> component : componentLayoutFile.entrySet()) {
-
-            LOGGER.debug("Parsing layout file of component: " + component.getKey());
-
-            String layoutFileName = component.getValue();
-
-            final String layoutFilePath = decodingOutputPath + File.separator + "res" + File.separator
-                    + "layout" + File.separator + layoutFileName + ".xml";
-
-            SAXReader reader = new SAXReader();
-            Document document = null;
-
-            try {
-
-                document = reader.read(new File(layoutFilePath));
-                Element rootElement = document.getRootElement();
-
-                Iterator itr = rootElement.elementIterator();
-                while (itr.hasNext()) {
-
-                    // each node is a widget, e.g. a button, textView, ...
-                    // TODO: we may can exclude some sort of widgets
-                    Node node = (Node) itr.next();
-                    Element element = (Element) node;
-                    // LOGGER.debug(element.getName());
-
-                    // NOTE: we need to access the attribute WITHOUT its namespace -> can't use android:onClick!
-                    String onClickCallback = element.attributeValue("onClick");
-                    if (onClickCallback != null) {
-                        LOGGER.debug(onClickCallback);
-                        componentCallbacks.put(component.getKey(), onClickCallback);
-                    }
-                }
-            } catch (DocumentException e) {
-                LOGGER.error("Reading layout file " + layoutFileName + " failed");
-                LOGGER.error(e.getMessage());
-            }
-        }
-        return componentCallbacks;
-    }
-
-    /**
-     * Parses the public.xml file to retrieve the layout file names associated with certain layout resource ids.
-     * Returns a mapping between a component (its class name) and the associated layout file name.
-     *
-     * @param componentResourceID A map associating a component (its class name) with its resource id.
-     * @return Returns a mapping between a component (its class name) and the associated layout file name.
-     */
-    private Map<String, String> retrieveComponentLayoutFile(Map<String, String> componentResourceID, String decodingOutputPath) {
-
-        Map<String, String> componentLayoutFile = new HashMap<>();
-
-        final String publicXMLPath = decodingOutputPath + File.separator + "res" + File.separator
-                + "values" + File.separator + "public.xml";
-
-        LOGGER.debug("Path to public.xml file: " + publicXMLPath);
-
-        SAXReader reader = new SAXReader();
-        Document document = null;
-
-        try {
-            document = reader.read(new File(publicXMLPath));
-            Element rootElement = document.getRootElement();
-            // LOGGER.debug(rootElement.getName());
-
-            Iterator itr = rootElement.elementIterator();
-            while (itr.hasNext()) {
-
-                // each node is a <public ... /> xml tag
-                Node node = (Node) itr.next();
-                Element element = (Element) node;
-                // LOGGER.debug("ElementName: " + node.getName());
-
-                // each <public /> tag contains the attributes type,name,id
-                String layoutFile = element.attributeValue("name");
-                String layoutResourceID = element.attributeValue("id");
-
-                /*
-                LOGGER.debug("Type: " + element.attributeValue("type"));
-                LOGGER.debug("Name: " + element.attributeValue("name"));
-                LOGGER.debug("ID: " + element.attributeValue("id"));
-                */
-
-                // check whether componentResourceID contains a mapping for the given resource ID
-                List<String> componentName = componentResourceID
-                        .entrySet()
-                        .stream()
-                        .filter(entry -> layoutResourceID.equals(entry.getValue()))
-                        .map(Map.Entry::getKey)
-                        .collect(Collectors.toList());
-
-                if (!componentName.isEmpty()) {
-                    // each component can have only one associated layout file/id
-                    String className = componentName.get(0);
-                    LOGGER.debug("Class: " + className + " has associated the following layout file: " + layoutFile);
-                    componentLayoutFile.put(className, layoutFile);
-                }
-            }
-
-        } catch (DocumentException e) {
-            LOGGER.error("Reading public.xml failed");
-            LOGGER.error(e.getMessage());
-        }
-        return componentLayoutFile;
-    }
-
-    /**
      * Returns for each component, e.g. an activity, its associated callbacks. It goes through all
      * intra CFGs looking for a specific callback by its full-qualified name. If there is a match,
      * we extract the defining component, which is typically the outer class, and the CFG representing
      * the callback.
      *
-     * @param intraCFGs The set of all generated intra CFGs.
      * @return Returns a mapping between a component and its associated callbacks (can be multiple per instance).
      */
-    private Multimap<String, BaseCFG> lookUpCallbacks(Map<String, BaseCFG> intraCFGs) {
+    private Multimap<String, BaseCFG> lookUpCallbacks() {
 
         /*
          * Rather than searching for the call of e.g. setOnClickListener() and following
@@ -656,90 +535,75 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         return callbacks;
     }
 
-    private Map<String, BaseCFG> addAndroidLifecycleMethods(Map<String, BaseCFG> intraCFGs,
-                                                                   List<BaseCFG> onCreateMethods) {
+    private BaseCFG addLifecycle(String newLifecycle, BaseCFG predecessor) {
 
-        // stores the entry points of the callbacks, which can happen between onResume and onPause
-        Map<String, BaseCFG> callbacksCFGs = new HashMap<>();
+        BaseCFG lifecyle = null;
 
-        for (BaseCFG onCreateMethod : onCreateMethods) {
-
-            String methodName = onCreateMethod.getMethodName();
-            String className = Utility.getClassName(methodName);
-
-            // onCreate directly invokes onStart()
-            String onStart = className + "->onStart()V";
-            BaseCFG onStartCFG = addLifeCycle(onStart, intraCFGs, onCreateMethod);
-
-            // onStart directly invokes onResume()
-            String onResume = className + "->onResume()V";
-            BaseCFG onResumeCFG = addLifeCycle(onResume, intraCFGs, onStartCFG);
-
-            /*
-             * Each component may define several listeners for certain events, e.g. a button click,
-             * which causes the invocation of a callback function. Those callbacks are active as
-             * long as the corresponding component (activity) is in the onResume state. Thus, in our
-             * graph we have an additional sub-graph 'callbacks' that is directly linked to the end
-             * of 'onResume()' and can either call one of the specified listeners or directly invoke
-             * the onPause() method (indirectly through the entry-exit edge). Each listener function
-             * points back to the 'callbacks' entry node.
-             */
-
-            // add callbacks sub graph
-            BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
-            addSubGraph(callbacksCFG);
-            callbacksCFGs.put(className, callbacksCFG);
-
-            // callbacks can be invoked after onResume() has finished
-            addEdge(onResumeCFG.getExit(), callbacksCFG.getEntry());
-
-            // there can be a sequence of callbacks (loop)
-            addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
-
-            // onPause() can be invoked after some callback
-            String onPause = className + "->onPause()V";
-            BaseCFG onPauseCFG = addLifeCycle(onPause, intraCFGs, callbacksCFG);
-
-            // onPause can either invoke onStop() or onResume()
-            addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
-            String onStop = className + "->onStop()V";
-            BaseCFG onStopCFG = addLifeCycle(onStop, intraCFGs, onPauseCFG);
-
-            // onStop can either invoke onRestart() or onDestroy()
-            String onRestart = className + "->onRestart()V";
-            String onDestroy = className + "->onDestroy()V";
-            BaseCFG onRestartCFG = addLifeCycle(onRestart, intraCFGs, onStopCFG);
-            BaseCFG onDestroyCFG = addLifeCycle(onDestroy, intraCFGs, onStopCFG);
-
-            // onRestart invokes onStart()
-            addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
-        }
-        return callbacksCFGs;
-    }
-
-    /**
-     * Adds a new lifecycle CFG to the existing graph and connects it to the lifecycle's predecessor.
-     * Uses the custom lifecycle CFG if available, otherwise creates a dummy lifecycle CFG.
-     *
-     * @param method      The FQN of the lifecycle, e.g. MAIN_ACTIVTY_FQN->onStop()V.
-     * @param intraCFGs   The set of derived intra CFGs.
-     * @param predecessor The lifecycle's predecessor.
-     * @return Returns the new lifecycle CFG.
-     */
-    private BaseCFG addLifeCycle(String method, Map<String, BaseCFG> intraCFGs, BaseCFG predecessor) {
-
-        BaseCFG lifeCyle = null;
-
-        if (intraCFGs.containsKey(method)) {
-            lifeCyle = intraCFGs.get(method);
+        if (intraCFGs.containsKey(newLifecycle)) {
+            lifecyle = intraCFGs.get(newLifecycle);
         } else {
             // use custom lifecycle CFG
-            lifeCyle = dummyIntraProceduralCFG(method);
-            addSubGraph(lifeCyle);
+            lifecyle = dummyIntraProceduralCFG(newLifecycle);
+            addSubGraph(lifecyle);
         }
 
-        addEdge(predecessor.getExit(), lifeCyle.getEntry());
-        return lifeCyle;
+        addEdge(predecessor.getExit(), lifecyle.getEntry());
+        return lifecyle;
+
+    }
+
+    private BaseCFG addAndroidLifecycle(BaseCFG onCreateCFG) {
+
+        String methodName = onCreateCFG.getMethodName();
+        String className = Utility.getClassName(methodName);
+
+        // onCreate directly invokes onStart()
+        String onStart = className + "->onStart()V";
+        BaseCFG onStartCFG = addLifecycle(onStart, onCreateCFG);
+
+        // onStart directly invokes onResume()
+        String onResume = className + "->onResume()V";
+        BaseCFG onResumeCFG = addLifecycle(onResume, onStartCFG);
+
+        /*
+         * Each component may define several listeners for certain events, e.g. a button click,
+         * which causes the invocation of a callback function. Those callbacks are active as
+         * long as the corresponding component (activity) is in the onResume state. Thus, in our
+         * graph we have an additional sub-graph 'callbacks' that is directly linked to the end
+         * of 'onResume()' and can either call one of the specified listeners or directly invoke
+         * the onPause() method (indirectly through the entry-exit edge). Each listener function
+         * points back to the 'callbacks' entry node.
+         */
+
+        // add callbacks sub graph
+        BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
+        addSubGraph(callbacksCFG);
+
+        // callbacks can be invoked after onResume() has finished
+        addEdge(onResumeCFG.getExit(), callbacksCFG.getEntry());
+
+        // there can be a sequence of callbacks (loop)
+        addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
+
+        // onPause() can be invoked after some callback
+        String onPause = className + "->onPause()V";
+        BaseCFG onPauseCFG = addLifecycle(onPause, callbacksCFG);
+
+        // onPause can either invoke onStop() or onResume()
+        addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
+        String onStop = className + "->onStop()V";
+        BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
+
+        // onStop can either invoke onRestart() or onDestroy()
+        String onRestart = className + "->onRestart()V";
+        String onDestroy = className + "->onDestroy()V";
+        BaseCFG onRestartCFG = addLifecycle(onRestart, onStopCFG);
+        BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
+
+        // onRestart invokes onStart()
+        addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
+
+        return callbacksCFG;
     }
 
     /**
@@ -763,19 +627,20 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      * by a certain pattern, a simplistic CFG consisting only of the virtual start and end vertex plus
      * an edge in between those vertices.
      *
-     * @param dexFiles   The list of dex files.
-     * @param intraCFGs A map containing for each method (key: method signature) its CFG.
+     * @param dexFiles       The list of dex files.
      * @param useBasicBlocks Whether to use basic blocks or not.
      */
-    private void constructIntraCFGs(List<DexFile> dexFiles, Map<String, BaseCFG> intraCFGs,
-                                           boolean useBasicBlocks) {
+    private Map<String, BaseCFG> constructIntraCFGs(List<DexFile> dexFiles,
+                                                    boolean useBasicBlocks) {
 
         Pattern exclusionPattern = Utility.readExcludePatterns();
+
+        Map<String, BaseCFG> intraCFGs = new HashMap<>();
 
         // track for how many methods we computed the complete CFG (no dummy CFGs)
         AtomicInteger realMethods = new AtomicInteger(0);
 
-        for(DexFile dexFile : dexFiles) {
+        for (DexFile dexFile : dexFiles) {
 
             // construct for ART classes only a dummy CFG consisting of virtual start and end vertex
             dexFile.getClasses().forEach(classDef ->
@@ -794,8 +659,9 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     }));
         }
         LOGGER.debug("Number of completely constructed CFGs: " + realMethods.get());
+        return intraCFGs;
     }
-
+    
     /**
      * Constructs a dummy CFG only consisting of the virtual entry and exit vertices
      * and an edge between. This CFG is used to model Android Runtime methods (ART).
@@ -824,7 +690,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         BaseCFG clone = new InterProceduralCFG(getMethodName());
 
         Graph<Vertex, Edge> graphClone = GraphTypeBuilder
-                .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
                 .edgeClass(Edge.class).buildGraph();
 
         Set<Vertex> vertices = graph.vertexSet();

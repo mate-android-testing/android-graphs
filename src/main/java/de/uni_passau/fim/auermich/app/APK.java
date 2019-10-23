@@ -30,7 +30,7 @@ public class APK {
 
     // TODO: provide overloaded decodeAPK methods (params: outputdir, decodeSources, decodeResources, decodeManifest,..)
 
-    public boolean decodeAPK(File apkFile) {
+    public boolean decodeAPK() {
 
         try {
             ApkDecoder decoder = new ApkDecoder(apkFile);
@@ -54,5 +54,17 @@ public class APK {
             return false;
         }
         return true;
+    }
+
+    public File getApkFile() {
+        return apkFile;
+    }
+
+    public List<DexFile> getDexFiles() {
+        return dexFiles;
+    }
+
+    public String getDecodingOutputPath() {
+        return decodingOutputPath;
     }
 }
