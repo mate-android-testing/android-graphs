@@ -661,7 +661,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         LOGGER.debug("Number of completely constructed CFGs: " + realMethods.get());
         return intraCFGs;
     }
-    
+
     /**
      * Constructs a dummy CFG only consisting of the virtual entry and exit vertices
      * and an edge between. This CFG is used to model Android Runtime methods (ART).
