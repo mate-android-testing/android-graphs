@@ -636,6 +636,10 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         String onResume = className + "->onResume()V";
         BaseCFG onResumeCFG = null;
 
+        // add callbacks sub graph
+        BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
+        addSubGraph(callbacksCFG);
+
         if (!fragments.isEmpty()) {
             // if the activity hosts some fragments, the invocations onAttach, onCreate, onCreateView, ... comes now
             for (String fragment : fragments) {
@@ -657,6 +661,9 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                 String onResumeFragment = fragment + "->onResume()V";
                 BaseCFG onResumeFragmentCFG = addLifecycle(onResumeFragment, onResumeCFG);
+
+                // we assume that all callbacks are handled by a central handler
+                addEdge(onResumeFragmentCFG.getExit(), callbacksCFG.getEntry());
             }
         } else {
             // onStart directly invokes onResume()
@@ -673,10 +680,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
          * points back to the 'callbacks' entry node.
          */
 
-        // add callbacks sub graph
-        BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
-        addSubGraph(callbacksCFG);
-
+        // TODO: should there be a direct edge from onResume() to callbackEntry when fragments are present
+        // if(fragments.isEmpty()) {... next line ... }
         // callbacks can be invoked after onResume() has finished
         addEdge(onResumeCFG.getExit(), callbacksCFG.getEntry());
 
@@ -687,10 +692,14 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         String onPause = className + "->onPause()V";
         BaseCFG onPauseCFG = addLifecycle(onPause, callbacksCFG);
 
+        // TODO: onPause() invokes onPause of fragments
+
         // onPause can either invoke onStop() or onResume()
         addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
         String onStop = className + "->onStop()V";
         BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
+
+        // TODO: onStop() invokes onStop of fragments
 
         // onStop can either invoke onRestart() or onDestroy()
         String onRestart = className + "->onRestart()V";
