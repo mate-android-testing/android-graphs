@@ -87,6 +87,12 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // store graphs already inserted into inter-procedural CFG
         Set<BaseCFG> coveredGraphs = new HashSet<>();
 
+        // collect all activities by its onCreate CFG
+        Map<String, BaseCFG> onCreateCFGs = new HashMap<>();
+
+        // collect all fragments of an activity
+        Multimap<String, String> activityFragments = TreeMultimap.create();
+
         // collect the callback entry points
         Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
 
@@ -117,10 +123,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             if (method.contains("onCreate(Landroid/os/Bundle;)V") &&
                     exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                 // copy necessary, otherwise the sub graph misses some vertices
-                BaseCFG callbackEntryPoint = addAndroidLifecycle(intraCFG.copy());
-                callbackEntryPoints.put(Utility.getClassName(method), callbackEntryPoint);
-                // TODO: check whether copy is here as well necessary
-                addGlobalEntryPoint(intraCFG);
+                onCreateCFGs.put(Utility.getClassName(method), intraCFG.copy());
             }
 
             LOGGER.debug("Searching for invoke instructions!");
@@ -146,6 +149,51 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
 
                     LOGGER.debug("Invoke: " + methodSignature);
+
+                    // TODO: check for fragment add transaction
+                    if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+                        Instruction35c invokeVirtual = (Instruction35c) instruction;
+
+                        if (methodSignature.contains("Landroid/support/v4/app/FragmentTransaction;->" +
+                                "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")) {
+                            // a fragment is added to the current component (class)
+
+                            // typical call: v0 (Reg C), v1 (Reg D), v2 (Reg E)
+                            //     invoke-virtual {v0, v1, v2}, Landroid/support/v4/app/FragmentTransaction;->
+                            // add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;
+
+                            LOGGER.debug("Add Fragment Invocation found!");
+                            LOGGER.debug("Register Count: " + invokeVirtual.getRegisterCount());
+                            LOGGER.debug("Using Register v"+invokeVirtual.getRegisterC());
+                            LOGGER.debug("Using Register v"+invokeVirtual.getRegisterD());
+                            LOGGER.debug("Using Register v"+invokeVirtual.getRegisterE());
+
+                            // we are interested in register E (refers to the fragment)
+                            int fragmentRegisterID = invokeVirtual.getRegisterE();
+
+                            boolean foundFragmentConstructor = false;
+                            AnalyzedInstruction pred = statement.getInstruction().getPredecessors().first();
+
+                            // iterate backwards
+                            while (!foundFragmentConstructor) {
+
+                                // invoke direct refers to constructor calls
+                                if (pred.getInstruction().getOpcode() == Opcode.INVOKE_DIRECT) {
+                                    // invoke-direct {v2}, Lcom/zola/bmi/BMIMain$PlaceholderFragment;-><init>()V
+                                    Instruction35c constructor = (Instruction35c) pred.getInstruction();
+                                    if (constructor.getRegisterC() == fragmentRegisterID) {
+                                        String constructorInvocation = constructor.getReference().toString();
+                                        LOGGER.debug("Fragment: " + constructorInvocation);
+                                        // save for each activity the name of the fragment it hosts
+                                        activityFragments.put(Utility.getClassName(method),
+                                                Utility.getClassName(constructorInvocation));
+                                        foundFragmentConstructor = true;
+                                    }
+                                }
+                                pred = pred.getPredecessors().first();
+                            }
+                        }
+                    }
 
                     BaseCFG targetCFG;
 
@@ -207,6 +255,14 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 }
             }
         }
+
+        // add activity and fragment lifecycle as well as global entry point for activities
+        onCreateCFGs.forEach((activity, onCreateCFG) -> {
+            BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
+            callbackEntryPoints.put(activity, callbackEntryPoint);
+            // TODO: check whether copy is here as well necessary
+            addGlobalEntryPoint(onCreateCFG);
+        });
 
         // add the callbacks specified either through XML or directly in code
         addCallbacks(callbackEntryPoints, apk);
@@ -280,7 +336,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             // link: https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
 
             /*
-             * We need to find the resource id located in one of the registers. A typicall call to
+             * We need to find the resource id located in one of the registers. A typical call to
              * setContentView(int layoutResID) looks as follows:
              *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
              * Here, v0 contains the resource id, thus we need to search backwards for the last
@@ -470,7 +526,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // derive for each component the callbacks declared in the component's layout file
         componentResourceID.forEach(
                 (component,resourceID) -> {
-                    componentCallbacks.putAll(component,LayoutFile.findLayoutFile(apk.getDecodingOutputPath(), resourceID).parseCallbacks());
+                    componentCallbacks.putAll(component,LayoutFile.findLayoutFile(apk.getDecodingOutputPath(),
+                            resourceID).parseCallbacks());
                 });
 
         LOGGER.debug(componentCallbacks);
@@ -567,7 +624,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
     }
 
-    private BaseCFG addAndroidLifecycle(BaseCFG onCreateCFG) {
+    private BaseCFG addAndroidLifecycle(BaseCFG onCreateCFG, Collection<String> fragments) {
 
         String methodName = onCreateCFG.getMethodName();
         String className = Utility.getClassName(methodName);
@@ -576,9 +633,35 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         String onStart = className + "->onStart()V";
         BaseCFG onStartCFG = addLifecycle(onStart, onCreateCFG);
 
-        // onStart directly invokes onResume()
         String onResume = className + "->onResume()V";
-        BaseCFG onResumeCFG = addLifecycle(onResume, onStartCFG);
+        BaseCFG onResumeCFG = null;
+
+        if (!fragments.isEmpty()) {
+            // if the activity hosts some fragments, the invocations onAttach, onCreate, onCreateView, ... comes now
+            for (String fragment : fragments) {
+                // TODO: there is a deprecated onAttach using an activity instance as parameter
+                String onAttachFragment = fragment + "->onAttach(Landroid/content/Context;)V";
+                BaseCFG onAttachFragmentCFG = addLifecycle(onAttachFragment, onCreateCFG);
+
+                String onCreateFragment = fragment + "->onCreate(Landroid/os/Bundle;)V";
+                BaseCFG onCreateFragmentCFG = addLifecycle(onCreateFragment, onAttachFragmentCFG);
+
+                String onCreateViewFragment = fragment + "->onCreateView(Landroid/view/LayoutInflater;" +
+                        "Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;";
+                BaseCFG onCreateViewFragmentCFG = addLifecycle(onCreateViewFragment, onCreateFragmentCFG);
+
+                String onStartFragment = fragment + "->onStart()V";
+                BaseCFG onStartFragmentCFG = addLifecycle(onStartFragment, onCreateViewFragmentCFG);
+
+                onResumeCFG = addLifecycle(onResume, onStartFragmentCFG);
+
+                String onResumeFragment = fragment + "->onResume()V";
+                BaseCFG onResumeFragmentCFG = addLifecycle(onResumeFragment, onResumeCFG);
+            }
+        } else {
+            // onStart directly invokes onResume()
+            onResumeCFG = addLifecycle(onResume, onStartCFG);
+        }
 
         /*
          * Each component may define several listeners for certain events, e.g. a button click,
