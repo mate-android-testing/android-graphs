@@ -411,12 +411,13 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
     /**
      * Checks whether the given invoke instruction refers to adding a fragment to an activity.
-     * @param instruction The given invoke instruction.
+     *
+     * @param instruction         The given invoke instruction.
      * @param analyzedInstruction The corresponding analyzed instruction.
-     * @param methodSignature The invocation target method name.
+     * @param methodSignature     The invocation target method name.
      * @return Returns the name of the fragment, otherwise {@code null}.
      */
-    private String isFragmentInvocation(Instruction instruction, AnalyzedInstruction analyzedInstruction,  String methodSignature) {
+    private String isFragmentInvocation(Instruction instruction, AnalyzedInstruction analyzedInstruction, String methodSignature) {
 
         // TODO: check for fragment add transaction
         if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
@@ -513,7 +514,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      * Checks for a call to setContentView() or inflate() respectively and retrieves the layout resource id
      * associated with the layout file.
      *
-     * @param classDef The class defining the invocation.
+     * @param classDef            The class defining the invocation.
      * @param analyzedInstruction The instruction referring to an invocation of setContentView() or inflate().
      * @return Returns the layout resource for the given class (if any).
      */
@@ -719,8 +720,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         // derive for each component the callbacks declared in the component's layout file
         componentResourceID.forEach(
-                (component,resourceID) -> {
-                    componentCallbacks.putAll(component,LayoutFile.findLayoutFile(apk.getDecodingOutputPath(),
+                (component, resourceID) -> {
+                    componentCallbacks.putAll(component, LayoutFile.findLayoutFile(apk.getDecodingOutputPath(),
                             resourceID).parseCallbacks());
                 });
 
@@ -823,45 +824,54 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         String methodName = onCreateCFG.getMethodName();
         String className = Utility.getClassName(methodName);
 
+        // if there are fragments, onCreate invokes onAttach, onCreate and onCreateView
+        for (String fragment : fragments) {
+
+            // TODO: there is a deprecated onAttach using an activity instance as parameter
+            String onAttachFragment = fragment + "->onAttach(Landroid/content/Context;)V";
+            BaseCFG onAttachFragmentCFG = addLifecycle(onAttachFragment, onCreateCFG);
+
+            String onCreateFragment = fragment + "->onCreate(Landroid/os/Bundle;)V";
+            BaseCFG onCreateFragmentCFG = addLifecycle(onCreateFragment, onAttachFragmentCFG);
+
+            String onCreateViewFragment = fragment + "->onCreateView(Landroid/view/LayoutInflater;" +
+                    "Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;";
+            BaseCFG onCreateViewFragmentCFG = addLifecycle(onCreateViewFragment, onCreateFragmentCFG);
+
+            String onActivityCreatedFragment = fragment + "->onActivityCreated(Landroid/os/Bundle;)V";
+            BaseCFG onActivityCreatedFragmentCFG = addLifecycle(onActivityCreatedFragment, onCreateViewFragmentCFG);
+
+            // according to https://developer.android.com/reference/android/app/Fragment -> onViewStateRestored
+            String onViewStateRestoredFragment = fragment + "->onViewStateRestored(Landroid/os/Bundle;)V";
+            BaseCFG onViewStateRestoredFragmentCFG = addLifecycle(onViewStateRestoredFragment, onActivityCreatedFragmentCFG);
+
+            // go back to onCreate() exit
+            addEdge(onViewStateRestoredFragmentCFG.getExit(), onCreateCFG.getExit());
+        }
+
         // onCreate directly invokes onStart()
         String onStart = className + "->onStart()V";
         BaseCFG onStartCFG = addLifecycle(onStart, onCreateCFG);
 
+        // if there are fragments, onStart() is invoked
+        for (String fragment : fragments) {
+            String onStartFragment = fragment + "->onStart()V";
+            BaseCFG onStartFragmentCFG = addLifecycle(onStartFragment, onStartCFG);
+
+            // go back to onStart() exit
+            addEdge(onStartFragmentCFG.getExit(), onStartCFG.getExit());
+        }
+
         String onResume = className + "->onResume()V";
-        BaseCFG onResumeCFG = null;
+        BaseCFG onResumeCFG = addLifecycle(onResume, onStartCFG);
 
-        // add callbacks sub graph
-        BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
-        addSubGraph(callbacksCFG);
+        // if there are fragments, onResume() is invoked
+        for (String fragment : fragments) {
+            String onResumeFragment = fragment + "->onResume()V";
+            BaseCFG onResumeFragmentCFG = addLifecycle(onResumeFragment, onResumeCFG);
 
-        if (!fragments.isEmpty()) {
-            // if the activity hosts some fragments, the invocations onAttach, onCreate, onCreateView, ... comes now
-            for (String fragment : fragments) {
-                // TODO: there is a deprecated onAttach using an activity instance as parameter
-                String onAttachFragment = fragment + "->onAttach(Landroid/content/Context;)V";
-                BaseCFG onAttachFragmentCFG = addLifecycle(onAttachFragment, onCreateCFG);
-
-                String onCreateFragment = fragment + "->onCreate(Landroid/os/Bundle;)V";
-                BaseCFG onCreateFragmentCFG = addLifecycle(onCreateFragment, onAttachFragmentCFG);
-
-                String onCreateViewFragment = fragment + "->onCreateView(Landroid/view/LayoutInflater;" +
-                        "Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;";
-                BaseCFG onCreateViewFragmentCFG = addLifecycle(onCreateViewFragment, onCreateFragmentCFG);
-
-                String onStartFragment = fragment + "->onStart()V";
-                BaseCFG onStartFragmentCFG = addLifecycle(onStartFragment, onCreateViewFragmentCFG);
-
-                onResumeCFG = addLifecycle(onResume, onStartFragmentCFG);
-
-                String onResumeFragment = fragment + "->onResume()V";
-                BaseCFG onResumeFragmentCFG = addLifecycle(onResumeFragment, onResumeCFG);
-
-                // we assume that all callbacks are handled by a central handler
-                addEdge(onResumeFragmentCFG.getExit(), callbacksCFG.getEntry());
-            }
-        } else {
-            // onStart directly invokes onResume()
-            onResumeCFG = addLifecycle(onResume, onStartCFG);
+            // go back to onResume() exit
+            addEdge(onResumeFragmentCFG.getExit(), onResumeCFG.getExit());
         }
 
         /*
@@ -874,8 +884,12 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
          * points back to the 'callbacks' entry node.
          */
 
-        // TODO: should there be a direct edge from onResume() to callbackEntry when fragments are present
-        // if(fragments.isEmpty()) {... next line ... }
+        // TODO: right now all callbacks are handled central, no distinction between callbacks from activities and fragments
+
+        // add callbacks sub graph
+        BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
+        addSubGraph(callbacksCFG);
+
         // callbacks can be invoked after onResume() has finished
         addEdge(onResumeCFG.getExit(), callbacksCFG.getEntry());
 
@@ -886,51 +900,63 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         String onPause = className + "->onPause()V";
         BaseCFG onPauseCFG = addLifecycle(onPause, callbacksCFG);
 
-        // TODO: onPause() invokes onPause of fragments
-        if (!fragments.isEmpty()) {
-            // if the activity hosts some fragments, the invocations onAttach, onCreate, onCreateView, ... comes now
-            for (String fragment : fragments) {
+        // if there are fragments, onPause() is invoked
+        for (String fragment : fragments) {
 
-                // TODO: add missing multi edges, e.g. onPause() -> onStop(),onResume() for both activities and
-                // fragments
+            String onPauseFragment = fragment + "->onPause()V";
+            BaseCFG onPauseFragmentCFG = addLifecycle(onPauseFragment, onPauseCFG);
 
-                String onPauseFragment = fragment + "->onPause()V";
-                BaseCFG onPauseFragmentCFG = addLifecycle(onPauseFragment, onPauseCFG);
-
-                String onStop = className + "->onStop()V";
-                BaseCFG onStopCFG = addLifecycle(onStop, onPauseFragmentCFG);
-
-                String onStopFragment = fragment + "->onStop()V";
-                BaseCFG onStopFragmentCFG = addLifecycle(onStopFragment, onStopCFG);
-
-                String onDestroy = className + "->onDestroy()V";
-                BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopFragmentCFG);
-
-                String onDestroyViewFragment = fragment + "->onDestroyView()V";
-                BaseCFG onDestroyViewFragmentCFG = addLifecycle(onDestroyViewFragment, onDestroyCFG);
-
-                String onDestroyFragment = fragment + "->onDestroy()V";
-                BaseCFG onDestroyFragmentCFG = addLifecycle(onDestroyFragment, onDestroyViewFragmentCFG);
-
-                String onDetachFragment = fragment + "->onDetach()V";
-                BaseCFG onDetachFragmentCFG = addLifecycle(onDetachFragment, onDestroyFragmentCFG);
-            }
-        } else {
-
-            // onPause can either invoke onStop() or onResume()
-            addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
-            String onStop = className + "->onStop()V";
-            BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
-
-            // onStop can either invoke onRestart() or onDestroy()
-            String onRestart = className + "->onRestart()V";
-            String onDestroy = className + "->onDestroy()V";
-            BaseCFG onRestartCFG = addLifecycle(onRestart, onStopCFG);
-            BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
-
-            // onRestart invokes onStart()
-            addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
+            // go back to onPause() exit
+            addEdge(onPauseFragmentCFG.getExit(), onPauseCFG.getExit());
         }
+
+        String onStop = className + "->onStop()V";
+        BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
+
+        // if there are fragments, onStop() is invoked
+        for (String fragment : fragments) {
+
+            String onStopFragment = fragment + "->onStop()V";
+            BaseCFG onStopFragmentCFG = addLifecycle(onStopFragment, onStopCFG);
+
+            // go back to onStop() exit
+            addEdge(onStopFragmentCFG.getExit(), onStopCFG.getExit());
+        }
+
+        String onDestroy = className + "->onDestroy()V";
+        BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
+
+        // if there are fragments, onDestroy, onDestroyView and onDetach are invoked
+        for (String fragment : fragments) {
+
+            String onDestroyViewFragment = fragment + "->onDestroyView()V";
+            BaseCFG onDestroyViewFragmentCFG = addLifecycle(onDestroyViewFragment, onDestroyCFG);
+
+            // onDestroyView() can also invoke onCreateView()
+            String onCreateViewFragment = fragment + "->onCreateView(Landroid/view/LayoutInflater;" +
+                    "Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;";
+            BaseCFG onCreateViewFragmentCFG = intraCFGs.get(onCreateViewFragment);
+            addEdge(onDestroyViewFragmentCFG.getExit(), onCreateViewFragmentCFG.getEntry());
+
+            String onDestroyFragment = fragment + "->onDestroy()V";
+            BaseCFG onDestroyFragmentCFG = addLifecycle(onDestroyFragment, onDestroyViewFragmentCFG);
+
+            String onDetachFragment = fragment + "->onDetach()V";
+            BaseCFG onDetachFragmentCFG = addLifecycle(onDetachFragment, onDestroyFragmentCFG);
+
+            // go back to onDestroy() exit
+            addEdge(onDetachFragmentCFG.getExit(), onDestroyCFG.getExit());
+        }
+
+        // onPause can also invoke onResume()
+        addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
+
+        // onStop can also invoke onRestart()
+        String onRestart = className + "->onRestart()V";
+        BaseCFG onRestartCFG = addLifecycle(onRestart, onStopCFG);
+
+        // onRestart invokes onStart()
+        addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
 
         return callbacksCFG;
     }
