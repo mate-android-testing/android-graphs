@@ -10,6 +10,7 @@ import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import de.uni_passau.fim.auermich.statement.BasicStatement;
+import de.uni_passau.fim.auermich.statement.BlockStatement;
 import de.uni_passau.fim.auermich.statement.ReturnStatement;
 import de.uni_passau.fim.auermich.statement.Statement;
 import de.uni_passau.fim.auermich.utility.Utility;
@@ -73,6 +74,183 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
     }
 
     private void constructCFGWithBasicBlocks(APK apk) {
+
+        // avoid concurrent modification exception
+        Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
+
+        // store graphs already inserted into inter-procedural CFG
+        Set<BaseCFG> coveredGraphs = new HashSet<>();
+
+        // store the cloned intra CFGs
+        Map<String, BaseCFG> intraCFGsClone = new HashMap<>();
+
+        // collect all activities by its onCreate CFG
+        Map<String, BaseCFG> onCreateCFGs = new HashMap<>();
+
+        // collect all fragments of an activity
+        Multimap<String, String> activityFragments = TreeMultimap.create();
+
+        // collect the callback entry points
+        Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
+
+        // exclude certain methods/classes
+        Pattern exclusionPattern = Utility.readExcludePatterns();
+
+        // compute inter-procedural CFG by connecting intra CFGs
+        for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
+
+            // performs a deep copy of the intra CFG for possible later usage
+            intraCFGsClone.put(entry.getKey(), entry.getValue().copy());
+
+            BaseCFG cfg = entry.getValue();
+            IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
+            LOGGER.debug("Integrating CFG: " + intraCFG.getMethodName());
+
+            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+                if (!coveredGraphs.contains(intraCFG)) {
+                    // add first source graph
+                    addSubGraph(intraCFG);
+                    coveredGraphs.add(intraCFG);
+                }
+            }
+
+            // the method signature (className->methodName->params->returnType)
+            String method = intraCFG.getMethodName();
+            String className = Utility.dottedClassName(Utility.getClassName(method));
+            LOGGER.debug("ClassName: " + className);
+
+            // we need to model the android lifecycle as well -> collect onCreate methods
+            if (method.contains("onCreate(Landroid/os/Bundle;)V") && !exclusionPattern.matcher(className).matches()) {
+                // copy necessary, otherwise the sub graph misses some vertices
+                onCreateCFGs.put(Utility.getClassName(method), intraCFG.copy());
+            }
+
+            LOGGER.debug("Searching for invoke instructions!");
+
+            for (Vertex vertex : intraCFG.getVertices()) {
+
+                if (vertex.isEntryVertex() || vertex.isExitVertex()) {
+                    // entry and exit vertices do not have instructions attached, skip
+                    continue;
+                }
+
+                // operate on cloned vertex
+                // Vertex cloneVertex = vertex.clone();
+
+                // all vertices are represented by block statements
+                BlockStatement blockStatement = (BlockStatement) vertex.getStatement();
+
+                // invoke instructions can only be the first instruction of a block statement
+                BasicStatement statement = ((BasicStatement) blockStatement.getFirstStatement());
+                Instruction instruction = statement.getInstruction().getInstruction();
+
+                // check for invoke/invoke-range instruction
+                if (instruction instanceof ReferenceInstruction
+                        && (instruction instanceof Instruction3rc
+                        || instruction instanceof Instruction35c)) {
+
+                    Set<Edge> incomingEdges = intraCFG.getIncomingEdges(vertex);
+                    Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
+                    LOGGER.debug("Incoming edges: " + incomingEdges.stream().map(e -> e.getSource().toString()).collect(Collectors.joining(",")));
+                    LOGGER.debug("Outgoing edges: " + outgoingEdges.stream().map(e -> e.getTarget().toString()).collect(Collectors.joining(",")));
+
+                    // search for target CFG by reference of invoke instruction (target method)
+                    String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+
+                    // check if invocation refers to adding a fragment
+                    String fragment = isFragmentInvocation(instruction, statement.getInstruction(), methodSignature);
+
+                    if (fragment != null) {
+                        activityFragments.put(Utility.getClassName(method), fragment);
+                    }
+
+                    // the CFG that corresponds to the invoke call
+                    BaseCFG targetCFG;
+
+                    if (intraCFGs.containsKey(methodSignature)) {
+                        targetCFG = intraCFGs.get(methodSignature);
+                        LOGGER.debug("Target CFG: " + ((IntraProceduralCFG) targetCFG).getMethodName());
+                    } else {
+
+                        /*
+                         * There are some Android specific classes, e.g. android/view/View, which are
+                         * not included in the classes.dex file for yet unknown reasons. Basically,
+                         * these classes should be just treated like other classes from the ART.
+                         */
+                        LOGGER.warn("Target CFG for method: " + methodSignature + " not found!");
+                        targetCFG = dummyIntraProceduralCFG(methodSignature);
+                        intraCFGs.put(methodSignature, targetCFG);
+                    }
+
+                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+
+                        if (!coveredGraphs.contains(targetCFG)) {
+                            // add target graph to inter CFG
+                            addSubGraph(targetCFG);
+                            coveredGraphs.add(targetCFG);
+                        }
+
+                        /*
+                         * We need to remove the vertex, modify it offline and re-insert it.
+                         * Directly modifying the vertex without removing/adding doesn't
+                         * work, since the graph doesn't recognize anymore the vertex in
+                         * the graph due to yet unknown reasons, probably equals() fails.
+                         * Or stated differently, the vertex reference is no longer valid.
+                         */
+
+                        // remove the vertex from the graph -> removes edges as well inherently
+                        removeVertex(vertex);
+
+                        // remove invoke from basic block
+                        blockStatement.removeStatement(statement);
+
+                        // add virtual return at front of basic block
+                        Statement returnStmt = new ReturnStatement(vertex.getMethod(), targetCFG.getMethodName());
+                        blockStatement.addStatement(0, returnStmt);
+
+                        // add modified vertex to graph
+                        addVertex(vertex);
+
+                        // add edge from exit to virtual return vertex
+                        addEdge(targetCFG.getExit(), vertex);
+
+                        // the invoke statement is split off the basic block and represented as an own vertex
+                        List<Statement> invokeStmt = new ArrayList<>();
+                        invokeStmt.add(statement);
+                        Vertex invokeVertex = new Vertex(new BlockStatement(intraCFG.getMethodName(), invokeStmt));
+                        addVertex(invokeVertex);
+
+                        LOGGER.debug("Incoming edges of vertex " + vertex + ": " + incomingEdges);
+                        LOGGER.debug("Outgoing edges of vertex " + vertex + ":" + outgoingEdges);
+
+                        // add from each predecessor an edge to the invoke statement
+                        for (Edge edge : incomingEdges) {
+                            addEdge(edge.getSource(), invokeVertex);
+                        }
+
+                        // add again each successor now to the return vertex
+                        for (Edge edge : outgoingEdges) {
+                            addEdge(vertex, edge.getTarget());
+                        }
+
+                        // add edge from invoke instruction to entry vertex of target CFG
+                        addEdge(invokeVertex, targetCFG.getEntry());
+                    }
+                }
+            }
+            LOGGER.debug(System.lineSeparator());
+        }
+
+        // add activity and fragment lifecycle as well as global entry point for activities
+        onCreateCFGs.forEach((activity, onCreateCFG) -> {
+            BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
+            callbackEntryPoints.put(activity, callbackEntryPoint);
+            // TODO: check whether copy is here as well necessary
+            addGlobalEntryPoint(onCreateCFG);
+        });
+
+        // add the callbacks specified either through XML or directly in code
+        addCallbacks(callbackEntryPoints, apk);
 
     }
 
@@ -150,49 +328,11 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                     LOGGER.debug("Invoke: " + methodSignature);
 
-                    // TODO: check for fragment add transaction
-                    if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
-                        Instruction35c invokeVirtual = (Instruction35c) instruction;
+                    // check if invocation refers to adding a fragment
+                    String fragment = isFragmentInvocation(instruction, statement.getInstruction(), methodSignature);
 
-                        if (methodSignature.contains("Landroid/support/v4/app/FragmentTransaction;->" +
-                                "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")) {
-                            // a fragment is added to the current component (class)
-
-                            // typical call: v0 (Reg C), v1 (Reg D), v2 (Reg E)
-                            //     invoke-virtual {v0, v1, v2}, Landroid/support/v4/app/FragmentTransaction;->
-                            // add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;
-
-                            LOGGER.debug("Add Fragment Invocation found!");
-                            LOGGER.debug("Register Count: " + invokeVirtual.getRegisterCount());
-                            LOGGER.debug("Using Register v"+invokeVirtual.getRegisterC());
-                            LOGGER.debug("Using Register v"+invokeVirtual.getRegisterD());
-                            LOGGER.debug("Using Register v"+invokeVirtual.getRegisterE());
-
-                            // we are interested in register E (refers to the fragment)
-                            int fragmentRegisterID = invokeVirtual.getRegisterE();
-
-                            boolean foundFragmentConstructor = false;
-                            AnalyzedInstruction pred = statement.getInstruction().getPredecessors().first();
-
-                            // iterate backwards
-                            while (!foundFragmentConstructor) {
-
-                                // invoke direct refers to constructor calls
-                                if (pred.getInstruction().getOpcode() == Opcode.INVOKE_DIRECT) {
-                                    // invoke-direct {v2}, Lcom/zola/bmi/BMIMain$PlaceholderFragment;-><init>()V
-                                    Instruction35c constructor = (Instruction35c) pred.getInstruction();
-                                    if (constructor.getRegisterC() == fragmentRegisterID) {
-                                        String constructorInvocation = constructor.getReference().toString();
-                                        LOGGER.debug("Fragment: " + constructorInvocation);
-                                        // save for each activity the name of the fragment it hosts
-                                        activityFragments.put(Utility.getClassName(method),
-                                                Utility.getClassName(constructorInvocation));
-                                        foundFragmentConstructor = true;
-                                    }
-                                }
-                                pred = pred.getPredecessors().first();
-                            }
-                        }
+                    if (fragment != null) {
+                        activityFragments.put(Utility.getClassName(method), fragment);
                     }
 
                     BaseCFG targetCFG;
@@ -267,6 +407,60 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // add the callbacks specified either through XML or directly in code
         addCallbacks(callbackEntryPoints, apk);
 
+    }
+
+    /**
+     * Checks whether the given invoke instruction refers to adding a fragment to an activity.
+     * @param instruction The given invoke instruction.
+     * @param analyzedInstruction The corresponding analyzed instruction.
+     * @param methodSignature The invocation target method name.
+     * @return Returns the name of the fragment, otherwise {@code null}.
+     */
+    private String isFragmentInvocation(Instruction instruction, AnalyzedInstruction analyzedInstruction,  String methodSignature) {
+
+        // TODO: check for fragment add transaction
+        if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+            Instruction35c invokeVirtual = (Instruction35c) instruction;
+
+            if (methodSignature.contains("Landroid/support/v4/app/FragmentTransaction;->" +
+                    "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")) {
+                // a fragment is added to the current component (class)
+
+                // typical call: v0 (Reg C), v1 (Reg D), v2 (Reg E)
+                //     invoke-virtual {v0, v1, v2}, Landroid/support/v4/app/FragmentTransaction;->
+                // add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;
+
+                LOGGER.debug("Add Fragment Invocation found!");
+                LOGGER.debug("Register Count: " + invokeVirtual.getRegisterCount());
+                LOGGER.debug("Using Register v" + invokeVirtual.getRegisterC());
+                LOGGER.debug("Using Register v" + invokeVirtual.getRegisterD());
+                LOGGER.debug("Using Register v" + invokeVirtual.getRegisterE());
+
+                // we are interested in register E (refers to the fragment)
+                int fragmentRegisterID = invokeVirtual.getRegisterE();
+
+                boolean foundFragmentConstructor = false;
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                // iterate backwards
+                while (!foundFragmentConstructor) {
+
+                    // invoke direct refers to constructor calls
+                    if (pred.getInstruction().getOpcode() == Opcode.INVOKE_DIRECT) {
+                        // invoke-direct {v2}, Lcom/zola/bmi/BMIMain$PlaceholderFragment;-><init>()V
+                        Instruction35c constructor = (Instruction35c) pred.getInstruction();
+                        if (constructor.getRegisterC() == fragmentRegisterID) {
+                            String constructorInvocation = constructor.getReference().toString();
+                            LOGGER.debug("Fragment: " + constructorInvocation);
+                            // save for each activity the name of the fragment it hosts
+                            return Utility.getClassName(constructorInvocation);
+                        }
+                    }
+                    pred = pred.getPredecessors().first();
+                }
+            }
+        }
+        return null;
     }
 
     /**

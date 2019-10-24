@@ -117,4 +117,32 @@ public class BaseGraphBuilderTest {
 
         baseGraph.drawGraph();
     }
+
+    @Test
+    public void constructInterCFGWithBasicBlocksLinux() throws IOException {
+
+        File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .build();
+
+        baseGraph.drawGraph();
+    }
 }
