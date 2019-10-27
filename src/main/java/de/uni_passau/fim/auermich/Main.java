@@ -11,9 +11,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import com.rits.cloning.Cloner;
-import de.uni_passau.fim.auermich.graphs.Edge;
-import de.uni_passau.fim.auermich.graphs.GraphType;
-import de.uni_passau.fim.auermich.graphs.Vertex;
+import de.uni_passau.fim.auermich.graphs.*;
 import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.graphs.cfg.InterProceduralCFG;
 import de.uni_passau.fim.auermich.graphs.cfg.IntraProceduralCFG;
@@ -164,6 +162,33 @@ public final class Main {
         assert cmd.getGraphType() == GraphType.INTERCFG;
         // Objects.requireNonNull(cmd.getMetric());
         return true;
+    }
+
+    public static BaseCFG computerInterCFGWithBB(String apkPath) throws IOException {
+
+        File apkFile = new File(apkPath);
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .build();
+
+        return (BaseCFG) baseGraph;
     }
 
     public static BaseCFG computeInterCFGWithBasicBlocks(String apkfile) throws IOException {

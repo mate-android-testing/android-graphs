@@ -56,6 +56,11 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
         constructCFG(dexFile, targetMethod.get(), useBasicBlocks);
     }
 
+    @Override
+    public GraphType getGraphType() {
+        return GRAPH_TYPE;
+    }
+
     public IntraProceduralCFG clone() {
         IntraProceduralCFG cloneCFG = (IntraProceduralCFG) super.clone();
         return cloneCFG;

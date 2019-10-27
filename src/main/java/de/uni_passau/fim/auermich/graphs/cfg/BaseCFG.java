@@ -10,10 +10,9 @@ import com.mxgraph.util.mxConstants;
 import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.graphs.Edge;
+import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
-import de.uni_passau.fim.auermich.statement.EntryStatement;
-import de.uni_passau.fim.auermich.statement.ExitStatement;
-import de.uni_passau.fim.auermich.statement.Statement;
+import de.uni_passau.fim.auermich.statement.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.DexFile;
@@ -32,19 +31,23 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCFG> {
 
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
     protected Graph<Vertex, Edge> graph = GraphTypeBuilder
-            .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+            .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
             .edgeClass(Edge.class).buildGraph();
 
     // protected AbstractGraph graph = new DirectedMultigraph(DefaultEdge.class);
@@ -77,7 +80,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         return shortestPathsAlgorithm.getPath(source, target).getLength();
         */
         GraphPath<Vertex, Edge> path = DijkstraShortestPath.findPathBetween(graph, source, target);
-        if (path != null ) {
+        if (path != null) {
             return path.getLength();
         } else {
             return -1;
@@ -116,7 +119,9 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         return exit;
     }
 
-    public Set<Edge> getEdges() { return graph.edgeSet(); }
+    public Set<Edge> getEdges() {
+        return graph.edgeSet();
+    }
 
     public Set<Vertex> getVertices() {
         return graph.vertexSet();
@@ -141,7 +146,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     public void addSubGraph(BaseCFG subGraph) {
 
         // add all vertices
-        for (Vertex vertex: subGraph.getVertices()) {
+        for (Vertex vertex : subGraph.getVertices()) {
             addVertex(vertex);
         }
 
@@ -162,6 +167,8 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
                 .filter(v -> v.isBranchVertex()).collect(Collectors.toList());
     }
 
+    public abstract GraphType getGraphType();
+
     @Override
     public String toString() {
         return graph.toString();
@@ -170,6 +177,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     /**
      * Draws the cFG where vertices are encoded as (instruction id, instruction opcode).
      */
+    @Override
     public void drawGraph() {
 
         JGraphXAdapter<Vertex, Edge> graphXAdapter
@@ -187,7 +195,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         BufferedImage image =
                 mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
 
-        Path resourceDirectory = Paths.get("src","test","resources");
+        Path resourceDirectory = Paths.get("src", "test", "resources");
         File file = new File(resourceDirectory.toFile(), "graph.png");
         LOGGER.debug(file.getPath());
 
@@ -220,7 +228,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
             BaseCFG cloneCFG = (BaseCFG) super.clone();
 
             Graph<Vertex, Edge> graphClone = GraphTypeBuilder
-                    .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                    .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
                     .edgeClass(Edge.class).buildGraph();
 
             Set<Vertex> vertices = graph.vertexSet();
