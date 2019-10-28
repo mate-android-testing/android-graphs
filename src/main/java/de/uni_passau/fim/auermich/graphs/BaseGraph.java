@@ -7,4 +7,6 @@ public interface BaseGraph {
     String toString();
 
     void drawGraph();
+
+    GraphType getGraphType();
 }

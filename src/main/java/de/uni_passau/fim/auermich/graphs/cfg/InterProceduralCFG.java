@@ -16,11 +16,6 @@ import de.uni_passau.fim.auermich.statement.Statement;
 import de.uni_passau.fim.auermich.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.dom4j.Document;
-import org.dom4j.DocumentException;
-import org.dom4j.Element;
-import org.dom4j.Node;
-import org.dom4j.io.SAXReader;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
@@ -62,6 +57,11 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         super(methodName);
         intraCFGs = constructIntraCFGs(apk.getDexFiles(), useBasicBlocks);
         constructCFG(apk, useBasicBlocks);
+    }
+
+    @Override
+    public GraphType getGraphType() {
+        return GRAPH_TYPE;
     }
 
 
