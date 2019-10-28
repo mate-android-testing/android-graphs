@@ -19,7 +19,7 @@ public class BaseGraphBuilderTest {
     public void constructIntraCFG() throws IOException {
 
         MultiDexContainer<? extends DexBackedDexFile> apk
-                = DexFileFactory.loadDexContainer(new File("/home/auermich/smali/ws.xsoh.etar_15.apk"), API_OPCODE);
+                = DexFileFactory.loadDexContainer(new File("/home/auermich/smali/ws.xsoh.etar_17.apk"), API_OPCODE);
 
         List<DexFile> dexFiles = new ArrayList<>();
 
@@ -33,7 +33,7 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")
+                .withName("Lcom/android/calendar/AboutPreferences;->onCreate(Landroid/os/Bundle;)V")
                 .build();
 
         baseGraph.drawGraph();
@@ -43,7 +43,7 @@ public class BaseGraphBuilderTest {
     public void constructIntraCFGWithBasicBlocks() throws IOException {
 
         MultiDexContainer<? extends DexBackedDexFile> apk
-                = DexFileFactory.loadDexContainer(new File("/home/auermich/smali/ws.xsoh.etar_15.apk"), API_OPCODE);
+                = DexFileFactory.loadDexContainer(new File("/home/auermich/smali/ws.xsoh.etar_17.apk"), API_OPCODE);
 
         List<DexFile> dexFiles = new ArrayList<>();
 
@@ -57,7 +57,7 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/AllInOneActivity;->checkAppPermissions()V")
+                .withName("Lcom/android/calendar/AboutPreferences;->onCreate(Landroid/os/Bundle;)V")
                 .withBasicBlocks()
                 .build();
 
@@ -121,7 +121,7 @@ public class BaseGraphBuilderTest {
     @Test
     public void constructInterCFGWithBasicBlocksLinux() throws IOException {
 
-        File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
+        File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -143,6 +143,6 @@ public class BaseGraphBuilderTest {
                 .withAPKFile(apkFile)
                 .build();
 
-        baseGraph.drawGraph();
+        // baseGraph.drawGraph();
     }
 }

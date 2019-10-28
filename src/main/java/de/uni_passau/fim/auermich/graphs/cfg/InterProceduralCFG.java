@@ -284,13 +284,13 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug(intraCFG.getMethodName());
 
-            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+            // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
                 if (!coveredGraphs.contains(cfg)) {
                     // add first source graph
                     addSubGraph(intraCFG);
                     coveredGraphs.add(cfg);
                 }
-            }
+            // }
 
             // the method signature (className->methodName->params->returnType)
             String method = intraCFG.getMethodName();
@@ -352,7 +352,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         intraCFGs.put(methodSignature, targetCFG);
                     }
 
-                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+                    // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
 
                         /*
                          * Store the original outgoing edges first, since we add further
@@ -391,7 +391,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         for (Edge edge : outgoingEdges) {
                             addEdge(returnVertex, edge.getTarget());
                         }
-                    }
+                    // }
                 }
             }
         }

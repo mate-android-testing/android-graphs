@@ -86,6 +86,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      */
     private void constructCFGWithBasicBlocks(DexFile dexFile, Method targetMethod) {
 
+        LOGGER.debug("Method: " + targetMethod.toString());
+
         MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
                 true, ClassPath.NOT_ART), targetMethod,
                 null, false);
@@ -192,6 +194,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                 // add for each predecessor an incoming edge to the current vertex
                 while (iterator.hasNext()) {
                     AnalyzedInstruction predecessor = iterator.next();
+                    LOGGER.debug("Predecessor Instruction: " + predecessor.getInstruction().getOpcode() + "(" + predecessor.getInstructionIndex() + ")");
 
                     if (predecessor.getInstructionIndex() != -1) {
                         // not entry vertex
@@ -210,6 +213,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                 } else {
                     // add for each successor an outgoing each from the current vertex
                     for (AnalyzedInstruction successor : successors) {
+                        LOGGER.debug("Successor Instruction: " + successor.getInstruction().getOpcode() + "(" + successor.getInstructionIndex() + ")");
+
                         Vertex dest = vertices.get(successor.getInstructionIndex());
                         // Vertex dest = new Vertex(successor.getInstructionIndex(), successor.getInstruction());
                         LOGGER.debug("Successor: " + dest);
@@ -298,6 +303,19 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                     List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
                     leaderInstructions.addAll(successors);
 
+                    // the goto is itself a leader instruction (makes implementation easier)
+                    leaderInstructions.add(analyzedInstruction);
+
+                    // each predecessor should be the last statement of a basic block
+                    Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+
+                    for (AnalyzedInstruction predecessor : predecessors) {
+                        if (predecessor.getInstructionIndex() != -1) {
+                            // there is a dummy instruction located at pos -1 which is the predecessor of the first instruction
+                            basicBlockEdges.put(predecessor.getInstructionIndex(), analyzedInstruction.getInstructionIndex());
+                        }
+                    }
+
                     // there is an edge from the jump instruction to each successor (there should be only one)
                     for (AnalyzedInstruction successor : successors) {
                         basicBlockEdges.put(analyzedInstruction.getInstructionIndex(), successor.getInstructionIndex());
@@ -327,6 +345,32 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                                                                        String methodName) {
         // stores all the basic blocks
         Set<List<AnalyzedInstruction>> basicBlocks = new HashSet<>();
+
+        // special treatment if there is only a single leader (first instruction)
+        if (leaders.size() == 1) {
+
+            LOGGER.debug("Only single leader -> basic block for entire method body!");
+
+            List<AnalyzedInstruction> instructionsOfBasicBlock = new ArrayList<>(analyzedInstructions);
+            basicBlocks.add(instructionsOfBasicBlock);
+
+            // construct a basic statement for each instruction
+            List<Statement> stmts = instructionsOfBasicBlock.stream().map(i -> new BasicStatement(methodName, i)).collect(Collectors.toList());
+
+            // construct the block statement
+            Statement blockStmt = new BlockStatement(methodName, stmts);
+
+            // each basic block is represented by a vertex
+            Vertex vertex = new Vertex(blockStmt);
+
+            int firstStmtIndex = instructionsOfBasicBlock.get(0).getInstructionIndex();
+            int lastStmtIndex = instructionsOfBasicBlock.get(instructionsOfBasicBlock.size() - 1).getInstructionIndex();
+            vertexMap.put(firstStmtIndex, vertex);
+            vertexMap.put(lastStmtIndex, vertex);
+
+            addVertex(vertex);
+            return basicBlocks;
+        }
 
         // the next leader index, not the leader at the first instruction!
         int nextLeaderIndex = 1;
