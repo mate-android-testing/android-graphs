@@ -157,6 +157,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      */
     private void constructCFG(DexFile dexFile, Method targetMethod) {
 
+        LOGGER.debug("Target Method: " + targetMethod.toString());
+
         MethodImplementation methodImplementation = targetMethod.getImplementation();
 
         if (methodImplementation != null) {
@@ -181,9 +183,22 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
             for (int index = 0; index < instructions.size(); index++) {
 
-                LOGGER.debug("Instruction: " + vertices.get(index));
+                // LOGGER.debug("Instruction: " + vertices.get(index));
+                LOGGER.debug(System.lineSeparator());
+
+                Instruction instruction = instructions.get(index);
+                LOGGER.debug("Instruction: " + instruction.getOpcode() + "(" + index + ")");
 
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
+                LOGGER.debug("AnalyzedInstruction: " + analyzedInstruction.getInstruction().getOpcode() + "(" + index + ")");
+
+                for (AnalyzedInstruction s : analyzedInstruction.getSuccessors()) {
+                    LOGGER.debug("Successor: " + s.getInstruction().getOpcode() + "(" + s.getInstructionIndex() + ")");
+                }
+
+                for (AnalyzedInstruction p : analyzedInstruction.getPredecessors()) {
+                    LOGGER.debug("Predecessor: " + p.getInstruction().getOpcode() + "(" + p.getInstructionIndex() + ")");
+                }
 
                 // the current instruction represented as vertex
                 Vertex vertex = vertices.get(index);
@@ -244,6 +259,81 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @return Returns a sorted list of leader instructions.
      */
     private List<AnalyzedInstruction> computeLeaders(List<AnalyzedInstruction> analyzedInstructions,
+                                                     Multimap<Integer, Integer> basicBlockEdges,
+                                                     List<Integer> returnStmtIndices) {
+
+        Set<AnalyzedInstruction> leaderInstructions = new HashSet<>();
+
+        // the first instruction is also a leader
+        leaderInstructions.add(analyzedInstructions.get(0));
+
+        for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+
+            Instruction instruction = analyzedInstruction.getInstruction();
+
+             if (instruction.getOpcode() == Opcode.RETURN
+                    || instruction.getOpcode() == Opcode.RETURN_OBJECT
+                    || instruction.getOpcode() == Opcode.RETURN_VOID
+                    || instruction.getOpcode() == Opcode.RETURN_VOID_BARRIER
+                    || instruction.getOpcode() == Opcode.RETURN_VOID_NO_BARRIER
+                    || instruction.getOpcode() == Opcode.RETURN_WIDE) {
+                // return instruction
+                leaderInstructions.add(analyzedInstruction);
+
+                // save instruction index
+                returnStmtIndices.add(analyzedInstruction.getInstructionIndex());
+
+                // each predecessor should be the last statement of a basic block
+                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+
+                for (AnalyzedInstruction predecessor : predecessors) {
+                    if (predecessor.getInstructionIndex() != -1) {
+                        // there is a dummy instruction located at pos -1 which is the predecessor of the first instruction
+                        basicBlockEdges.put(predecessor.getInstructionIndex(), analyzedInstruction.getInstructionIndex());
+                    }
+                }
+            } else if (instruction instanceof OffsetInstruction) {
+
+                if (instruction instanceof Instruction21t
+                        || instruction instanceof Instruction22t) {
+                    // if instruction
+                    List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
+                    leaderInstructions.addAll(successors);
+
+                    // there is an edge from the if instruction to each successor
+                    for (AnalyzedInstruction successor : successors) {
+                        basicBlockEdges.put(analyzedInstruction.getInstructionIndex(), successor.getInstructionIndex());
+                    }
+                } else {
+                    // some jump instruction, goto packed-switch, sparse-switch
+                    List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
+                    leaderInstructions.addAll(successors);
+
+                    // there is an edge from the jump instruction to each successor (there should be only one)
+                    for (AnalyzedInstruction successor : successors) {
+                        basicBlockEdges.put(analyzedInstruction.getInstructionIndex(), successor.getInstructionIndex());
+                    }
+                }
+            }
+        }
+
+        List<AnalyzedInstruction> leaders = leaderInstructions.stream()
+                .sorted((i1, i2) -> Integer.compare(i1.getInstructionIndex(), i2.getInstructionIndex())).collect(Collectors.toList());
+
+        return leaders;
+    }
+
+    /**
+     * Computes the leader instructions. We consider branch targets, return statements, jump targets and invoke
+     * instructions as leaders. As a side product, the indices of return instructions are tracked as well as
+     * the edges between basic blocks are computed.
+     *
+     * @param analyzedInstructions The set of instructions for a given method.
+     * @param basicBlockEdges      Contains the edges between basic blocks. Initially empty.
+     * @param returnStmtIndices    Contains the instruction indices of return statements. Initially empty.
+     * @return Returns a sorted list of leader instructions.
+     */
+    private List<AnalyzedInstruction> computeLeaders2(List<AnalyzedInstruction> analyzedInstructions,
                                                             Multimap<Integer, Integer> basicBlockEdges,
                                                             List<Integer> returnStmtIndices) {
 
