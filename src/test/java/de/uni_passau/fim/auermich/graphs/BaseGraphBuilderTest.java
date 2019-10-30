@@ -19,6 +19,30 @@ public class BaseGraphBuilderTest {
     public void constructIntraCFG() throws IOException {
 
         MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk"), API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
+                .withName("Lcom/android/calendar/AboutPreferences;->onCreate(Landroid/os/Bundle;)V")
+                .build();
+
+        baseGraph.drawGraph();
+    }
+
+    @Test
+    public void constructIntraCFGLinux() throws IOException {
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(new File("/home/auermich/smali/ws.xsoh.etar_17.apk"), API_OPCODE);
 
         List<DexFile> dexFiles = new ArrayList<>();
