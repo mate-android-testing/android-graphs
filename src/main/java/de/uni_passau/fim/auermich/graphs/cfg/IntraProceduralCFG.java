@@ -236,15 +236,15 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
     /**
      * We consider the following two types of instructions also as leader instructions:
-     *
+     * <p>
      * 1) Any instruction within a try block that comes before an instruction potentially throwing an exception. These
-     *    instructions define as successor the beginning of the catch block.
-     *
+     * instructions define as successor the beginning of the catch block.
+     * <p>
      * 2) The first instruction of a catch block.
-     *
+     * <p>
      * Both types basically represent borders of basic blocks.
      *
-     * @param method The given method potentially containing try-catch blocks.
+     * @param method               The given method potentially containing try-catch blocks.
      * @param analyzedInstructions The set of instructions contained within the given method.
      * @return Returns the set of identified leader instructions within try-catch blocks.
      */
@@ -279,13 +279,16 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                     // we are somewhere inside the try block
                     if (analyzedInstruction.getInstruction().getOpcode().canThrow()) {
                         // the instruction can potentially throw an exception -> direct predecessor can jump to catch block
-                        analyzedInstruction.getPredecessors().forEach(pred -> leaderInstructions.add(pred));
+                        analyzedInstruction.getPredecessors().forEach(pred ->
+                                leaderInstructions.addAll(pred.getSuccessors()));
                     }
                     // move on
                     consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
                 }
             }
 
+            /*
+            // TODO: we can avoid iterating over catch blocks as we can directly query the successor of the canThrow() instruction
             // TODO: verify that catch block come always after try blocks -> corrupted consumedCodeunits
             int saveConsumedCodeUnits = consumedCodeUnits;
 
@@ -310,6 +313,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
             // reset consumed code units counter
             consumedCodeUnits = saveConsumedCodeUnits;
+           */
         }
         return leaderInstructions;
     }
