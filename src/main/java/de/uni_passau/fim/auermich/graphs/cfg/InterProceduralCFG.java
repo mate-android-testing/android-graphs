@@ -256,9 +256,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
     private void constructCFG(APK apk) {
 
-        // stores the relevant onCreate methods
-        List<BaseCFG> onCreateMethods = new ArrayList<>();
-
         // avoid concurrent modification exception
         Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
 
@@ -301,7 +298,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             if (method.contains("onCreate(Landroid/os/Bundle;)V") &&
                     exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                 // copy necessary, otherwise the sub graph misses some vertices
-                onCreateCFGs.put(Utility.getClassName(method), intraCFG.copy());
+                onCreateCFGs.put(Utility.getClassName(method), intraCFG);
             }
 
             LOGGER.debug("Searching for invoke instructions!");
@@ -590,7 +587,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             // we need to resolve the layout ID of the given View object parameter
 
 
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(")) {
+        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z")) {
             // TODO: there are multiple overloaded inflate() implementations
             // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
             // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
@@ -629,6 +626,14 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                 predecessor = predecessor.getPredecessors().first();
             }
+        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;")) {
+
+        } else if (methodReference.contains("Landroid/view/LayoutInflater;->" +
+                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;")) {
+
+        } else if (methodReference.contains("Landroid/view/LayoutInflater;->" +
+                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;Z")) {
+
         }
         return null;
     }

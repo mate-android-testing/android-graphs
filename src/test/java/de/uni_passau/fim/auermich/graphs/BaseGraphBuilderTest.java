@@ -118,7 +118,7 @@ public class BaseGraphBuilderTest {
     @Test
     public void constructInterCFG() throws IOException {
 
-        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\com.zola.bmi_400.apk");
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -139,7 +139,7 @@ public class BaseGraphBuilderTest {
                 .withAPKFile(apkFile)
                 .build();
 
-        baseGraph.drawGraph();
+        // baseGraph.drawGraph();
     }
 
     @Test

@@ -88,7 +88,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     public void addEdge(Vertex src, Vertex dest) {
-        LOGGER.debug("Add Edge: " + graph.addEdge(src, dest));
+        graph.addEdge(src, dest);
     }
 
     public Set<Edge> getOutgoingEdges(Vertex vertex) {
@@ -100,7 +100,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     public void addVertex(Vertex vertex) {
-        LOGGER.debug("Adding Vertex: " + graph.addVertex(vertex));
+        graph.addVertex(vertex);
     }
 
     public void removeEdge(Edge edge) {
@@ -108,7 +108,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     public void removeEdges(Collection<Edge> edges) {
-        LOGGER.debug("Removing Edges: " + graph.removeAllEdges(edges));
+        graph.removeAllEdges(edges);
     }
 
     public Vertex getEntry() {
