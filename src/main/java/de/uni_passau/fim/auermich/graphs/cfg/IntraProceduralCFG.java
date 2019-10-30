@@ -18,9 +18,7 @@ import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MethodImplementation;
+import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.OffsetInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21t;
@@ -33,6 +31,7 @@ import org.jgrapht.graph.builder.GraphTypeBuilder;
 
 import java.nio.file.LinkOption;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class IntraProceduralCFG extends BaseCFG implements Cloneable {
@@ -93,59 +92,65 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
         LOGGER.debug("Method: " + targetMethod.toString());
 
-        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
-                true, ClassPath.NOT_ART), targetMethod,
-                null, false);
-        List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
+        if (targetMethod.getImplementation() != null) {
 
-        // stores the edge mapping between basic blocks based on the instruction id
-        Multimap<Integer, Integer> basicBlockEdges = TreeMultimap.create();
+            MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                    true, ClassPath.NOT_ART), targetMethod,
+                    null, false);
+            List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
 
-        // keeps track of the instruction indices of return statements
-        List<Integer> returnStmtIndices = new ArrayList<>();
+            // stores the edge mapping between basic blocks based on the instruction id
+            Multimap<Integer, Integer> basicBlockEdges = TreeMultimap.create();
 
-        // computes the leader instructions, as a byproduct also computes the edges between the basic blocks + return indices
-        List<AnalyzedInstruction> leaders = computeLeaders(analyzedInstructions, basicBlockEdges, returnStmtIndices);
+            // keeps track of the instruction indices of return statements
+            List<Integer> returnStmtIndices = new ArrayList<>();
 
-        LOGGER.debug("Leaders: " + leaders.stream().map(instruction -> instruction.getInstructionIndex()).collect(Collectors.toList()));
-        LOGGER.debug("Basic Block Edges: " + basicBlockEdges);
+            // computes the leader instructions, as a byproduct also computes the edges between the basic blocks + return indices
+            List<AnalyzedInstruction> leaders = computeLeaders(analyzedInstructions, targetMethod, basicBlockEdges, returnStmtIndices);
 
-        // maps to each vertex the instruction id of the first and last statement
-        Map<Integer, Vertex> vertexMap = new HashMap<>();
+            LOGGER.debug("Leaders: " + leaders.stream().map(instruction -> instruction.getInstructionIndex()).collect(Collectors.toList()));
+            LOGGER.debug("Basic Block Edges: " + basicBlockEdges);
 
-        // construct the basic blocks
-        Set<List<AnalyzedInstruction>> basicBlocks = constructBasicBlocks(analyzedInstructions,
-                leaders, vertexMap, getMethodName());
+            // maps to each vertex the instruction id of the first and last statement
+            Map<Integer, Vertex> vertexMap = new HashMap<>();
 
-        LOGGER.debug("Number of BasicBlocks: " + basicBlocks.size());
-        LOGGER.debug("Basic Blocks: " + basicBlocks.stream()
-                .sorted((b1, b2) -> Integer.compare(b1.get(0).getInstructionIndex(), b2.get(0).getInstructionIndex()))
-                .map(list -> list.stream()
-                        .map(elem -> String.valueOf(elem.getInstructionIndex())).collect(Collectors.joining("-", "[", "]")))
-                .collect(Collectors.joining(", ")));
+            // construct the basic blocks
+            Set<List<AnalyzedInstruction>> basicBlocks = constructBasicBlocks(analyzedInstructions,
+                    leaders, vertexMap, getMethodName());
 
-        // connect the basic blocks
-        for (Integer srcIndex : basicBlockEdges.keySet()) {
+            LOGGER.debug("Number of BasicBlocks: " + basicBlocks.size());
+            LOGGER.debug("Basic Blocks: " + basicBlocks.stream()
+                    .sorted((b1, b2) -> Integer.compare(b1.get(0).getInstructionIndex(), b2.get(0).getInstructionIndex()))
+                    .map(list -> list.stream()
+                            .map(elem -> String.valueOf(elem.getInstructionIndex())).collect(Collectors.joining("-", "[", "]")))
+                    .collect(Collectors.joining(", ")));
 
-            LOGGER.debug("Source: " + srcIndex);
-            Vertex src = vertexMap.get(srcIndex);
+            // connect the basic blocks
+            for (Integer srcIndex : basicBlockEdges.keySet()) {
 
-            Collection<Integer> targets = basicBlockEdges.get(srcIndex);
+                LOGGER.debug("Source: " + srcIndex);
+                Vertex src = vertexMap.get(srcIndex);
 
-            for (Integer target : targets) {
-                Vertex dest = vertexMap.get(target);
-                LOGGER.debug("Target: " + target);
-                graph.addEdge(src, dest);
+                Collection<Integer> targets = basicBlockEdges.get(srcIndex);
+
+                for (Integer target : targets) {
+                    Vertex dest = vertexMap.get(target);
+                    LOGGER.debug("Target: " + target);
+                    graph.addEdge(src, dest);
+                }
+                LOGGER.debug(System.lineSeparator());
             }
-            LOGGER.debug(System.lineSeparator());
-        }
 
-        // connect entry vertex with first basic block
-        addEdge(getEntry(), vertexMap.get(0));
+            // connect entry vertex with first basic block
+            addEdge(getEntry(), vertexMap.get(0));
 
-        // connect each return statement with exit vertex
-        for (Integer returnIndex : returnStmtIndices) {
-            addEdge(vertexMap.get(returnIndex), getExit());
+            // connect each return statement with exit vertex
+            for (Integer returnIndex : returnStmtIndices) {
+                addEdge(vertexMap.get(returnIndex), getExit());
+            }
+        } else {
+            // no method implementation found -> dummy CFG
+            addEdge(getEntry(), getExit());
         }
     }
 
@@ -183,22 +188,9 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
             for (int index = 0; index < instructions.size(); index++) {
 
-                // LOGGER.debug("Instruction: " + vertices.get(index));
-                LOGGER.debug(System.lineSeparator());
-
-                Instruction instruction = instructions.get(index);
-                LOGGER.debug("Instruction: " + instruction.getOpcode() + "(" + index + ")");
+                LOGGER.debug("Instruction: " + vertices.get(index));
 
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
-                LOGGER.debug("AnalyzedInstruction: " + analyzedInstruction.getInstruction().getOpcode() + "(" + index + ")");
-
-                for (AnalyzedInstruction s : analyzedInstruction.getSuccessors()) {
-                    LOGGER.debug("Successor: " + s.getInstruction().getOpcode() + "(" + s.getInstructionIndex() + ")");
-                }
-
-                for (AnalyzedInstruction p : analyzedInstruction.getPredecessors()) {
-                    LOGGER.debug("Predecessor: " + p.getInstruction().getOpcode() + "(" + p.getInstructionIndex() + ")");
-                }
 
                 // the current instruction represented as vertex
                 Vertex vertex = vertices.get(index);
@@ -249,6 +241,99 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
     }
 
     /**
+     * We consider the following two types of instructions also as leader instructions:
+     * <p>
+     * 1) Any instruction within a try block that comes before an instruction potentially throwing an exception. These
+     * instructions define as successor the beginning of the catch block.
+     * <p>
+     * 2) The first instruction of a catch block.
+     * <p>
+     * Both types basically represent borders of basic blocks.
+     *
+     * @param method               The given method potentially containing try-catch blocks.
+     * @param analyzedInstructions The set of instructions contained within the given method.
+     * @return Returns the set of identified leader instructions within try-catch blocks.
+     */
+    private List<AnalyzedInstruction> computeLeadersInTryCatchBlocks(Method method,
+                                                                     List<AnalyzedInstruction> analyzedInstructions,
+                                                                     Multimap<Integer, Integer> basicBlockEdges) {
+
+        List<AnalyzedInstruction> leaderInstructions = new LinkedList<>();
+
+        MethodImplementation implementation = method.getImplementation();
+
+        int consumedCodeUnits = 0;
+
+        for (TryBlock<? extends ExceptionHandler> tryBlock : implementation.getTryBlocks()) {
+            // we assume that try blocks are ordered from top to bottom (the way they appear in the code)
+
+            // start address is expressed in terms of code units (absolute)
+            LOGGER.debug("TryBlock Starting Address: " + tryBlock.getStartCodeAddress());
+
+            // the number of code units contained within the try block -> the length of the try block
+            LOGGER.debug("TryBlock Code Unit Count: " + tryBlock.getCodeUnitCount());
+
+            int tryBlockEnd = tryBlock.getStartCodeAddress() + tryBlock.getCodeUnitCount();
+
+            for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+
+                if (consumedCodeUnits < tryBlock.getStartCodeAddress()) {
+                    // we haven't reached the try block yet
+                    consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
+                } else if (consumedCodeUnits > tryBlockEnd) {
+                    // we reached the end of the try block
+                    break;
+                } else {
+                    // we are somewhere inside the try block
+                    if (analyzedInstruction.getInstruction().getOpcode().canThrow()) {
+                        // the instruction can potentially throw an exception -> direct predecessor can jump to catch block
+                        analyzedInstruction.getPredecessors().forEach(pred -> {
+                            // there is this stupid dummy instruction at pos -1
+                            if (pred.getInstructionIndex() != -1) {
+                                leaderInstructions.addAll(pred.getSuccessors());
+                                pred.getSuccessors().forEach(suc ->
+                                        basicBlockEdges.put(pred.getInstructionIndex(), suc.getInstructionIndex()));
+                            }
+                        });
+
+                    }
+                    // move on
+                    consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
+                }
+            }
+
+            /*
+            // TODO: we can avoid iterating over catch blocks as we can directly query the successor of the canThrow() instruction
+            // TODO: verify that catch block come always after try blocks -> corrupted consumedCodeunits
+            int saveConsumedCodeUnits = consumedCodeUnits;
+
+            // go over catch blocks
+            for (ExceptionHandler catchBlock : tryBlock.getExceptionHandlers()) {
+                // assume that catch blocks are ordered in the way they appear in the code
+
+                LOGGER.debug("Starting of catch block: " + catchBlock.getHandlerCodeAddress());
+
+                for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+
+                    if (consumedCodeUnits < catchBlock.getHandlerCodeAddress()) {
+                        // we haven't reached the catch block yet
+                        consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
+                    } else {
+                        // we are at the beginning of the catch block
+                        leaderInstructions.add(analyzedInstruction);
+                        break;
+                    }
+                }
+            }
+
+            // reset consumed code units counter
+            consumedCodeUnits = saveConsumedCodeUnits;
+           */
+        }
+        return leaderInstructions;
+    }
+
+    /**
      * Computes the leader instructions. We consider branch targets, return statements, jump targets and invoke
      * instructions as leaders. As a side product, the indices of return instructions are tracked as well as
      * the edges between basic blocks are computed.
@@ -259,6 +344,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @return Returns a sorted list of leader instructions.
      */
     private List<AnalyzedInstruction> computeLeaders(List<AnalyzedInstruction> analyzedInstructions,
+                                                     Method targetMethod,
                                                      Multimap<Integer, Integer> basicBlockEdges,
                                                      List<Integer> returnStmtIndices) {
 
@@ -271,7 +357,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
             Instruction instruction = analyzedInstruction.getInstruction();
 
-             if (instruction.getOpcode() == Opcode.RETURN
+            if (instruction.getOpcode() == Opcode.RETURN
                     || instruction.getOpcode() == Opcode.RETURN_OBJECT
                     || instruction.getOpcode() == Opcode.RETURN_VOID
                     || instruction.getOpcode() == Opcode.RETURN_VOID_BARRIER
@@ -317,6 +403,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
             }
         }
 
+        leaderInstructions.addAll(computeLeadersInTryCatchBlocks(targetMethod, analyzedInstructions, basicBlockEdges));
+
         List<AnalyzedInstruction> leaders = leaderInstructions.stream()
                 .sorted((i1, i2) -> Integer.compare(i1.getInstructionIndex(), i2.getInstructionIndex())).collect(Collectors.toList());
 
@@ -334,8 +422,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @return Returns a sorted list of leader instructions.
      */
     private List<AnalyzedInstruction> computeLeaders2(List<AnalyzedInstruction> analyzedInstructions,
-                                                            Multimap<Integer, Integer> basicBlockEdges,
-                                                            List<Integer> returnStmtIndices) {
+                                                      Multimap<Integer, Integer> basicBlockEdges,
+                                                      List<Integer> returnStmtIndices) {
 
         Set<AnalyzedInstruction> leaderInstructions = new HashSet<>();
 
@@ -436,8 +524,169 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @return Returns the basic blocks each as a list of instructions.
      */
     private Set<List<AnalyzedInstruction>> constructBasicBlocks(List<AnalyzedInstruction> analyzedInstructions,
-                                                                       List<AnalyzedInstruction> leaders, Map<Integer, Vertex> vertexMap,
-                                                                       String methodName) {
+                                                                List<AnalyzedInstruction> leaders, Map<Integer, Vertex> vertexMap,
+                                                                String methodName) {
+
+        // stores all the basic blocks
+        Set<List<AnalyzedInstruction>> basicBlocks = new HashSet<>();
+
+        // special treatment if there is only a single leader (first instruction)
+        if (leaders.size() == 1) {
+
+            LOGGER.debug("Only single leader -> basic block for entire method body!");
+
+            List<AnalyzedInstruction> instructionsOfBasicBlock = new ArrayList<>(analyzedInstructions);
+            basicBlocks.add(instructionsOfBasicBlock);
+
+            // construct a basic statement for each instruction
+            List<Statement> stmts = instructionsOfBasicBlock.stream().map(i -> new BasicStatement(methodName, i)).collect(Collectors.toList());
+
+            // construct the block statement
+            Statement blockStmt = new BlockStatement(methodName, stmts);
+
+            // each basic block is represented by a vertex
+            Vertex vertex = new Vertex(blockStmt);
+
+            int firstStmtIndex = instructionsOfBasicBlock.get(0).getInstructionIndex();
+            int lastStmtIndex = instructionsOfBasicBlock.get(instructionsOfBasicBlock.size() - 1).getInstructionIndex();
+            vertexMap.put(firstStmtIndex, vertex);
+            vertexMap.put(lastStmtIndex, vertex);
+
+            addVertex(vertex);
+            return basicBlocks;
+        }
+
+        int lastInstructionIndex = analyzedInstructions.size() - 1;
+
+        int nextLeaderIndex = 1;
+
+        // the next leader
+        AnalyzedInstruction nextLeader = leaders.get(nextLeaderIndex);
+
+        // a single basic block
+        List<AnalyzedInstruction> basicBlock = new LinkedList<>();
+
+        for (AnalyzedInstruction instruction : analyzedInstructions) {
+
+            if (instruction.getInstructionIndex() != nextLeader.getInstructionIndex()
+                    && instruction.getInstructionIndex() != lastInstructionIndex) {
+                // until we reach the next leader add instructions to current basic block
+                basicBlock.add(instruction);
+            } else {
+                // we reached the next leader or the last instruction
+
+                // update basic blocks
+                List<AnalyzedInstruction> instructionsOfBasicBlock = new ArrayList<>(basicBlock);
+                basicBlocks.add(instructionsOfBasicBlock);
+
+                // construct a basic statement for each instruction
+                List<Statement> stmts = instructionsOfBasicBlock.stream().map(i -> new BasicStatement(methodName, i)).collect(Collectors.toList());
+
+                // construct the block statement
+                Statement blockStmt = new BlockStatement(methodName, stmts);
+
+                // each basic block is represented by a vertex
+                Vertex vertex = new Vertex(blockStmt);
+
+                int firstStmtIndex = basicBlock.get(0).getInstructionIndex();
+                int lastStmtIndex = basicBlock.get(basicBlock.size() - 1).getInstructionIndex();
+                vertexMap.put(firstStmtIndex, vertex);
+                vertexMap.put(lastStmtIndex, vertex);
+
+                addVertex(vertex);
+
+                // reset basic block
+                basicBlock.clear();
+
+                // the leader we reached belongs to the next basic block
+                basicBlock.add(nextLeader);
+
+
+            }
+
+        }
+
+        // construct basic blocks and build graph
+        for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+
+            // while we haven't found the next leader
+            if (analyzedInstruction.getInstructionIndex() != nextLeader.getInstructionIndex()) {
+                basicBlock.add(analyzedInstruction);
+            } else {
+                // we reached the next leader
+
+                // update basic blocks
+                List<AnalyzedInstruction> instructionsOfBasicBlock = new ArrayList<>(basicBlock);
+                basicBlocks.add(instructionsOfBasicBlock);
+
+                // construct a basic statement for each instruction
+                List<Statement> stmts = instructionsOfBasicBlock.stream().map(i -> new BasicStatement(methodName, i)).collect(Collectors.toList());
+
+                // construct the block statement
+                Statement blockStmt = new BlockStatement(methodName, stmts);
+
+                // each basic block is represented by a vertex
+                Vertex vertex = new Vertex(blockStmt);
+
+                int firstStmtIndex = basicBlock.get(0).getInstructionIndex();
+                int lastStmtIndex = basicBlock.get(basicBlock.size() - 1).getInstructionIndex();
+                vertexMap.put(firstStmtIndex, vertex);
+                vertexMap.put(lastStmtIndex, vertex);
+
+                addVertex(vertex);
+
+                // reset basic block
+                basicBlock.clear();
+
+                // the leader we reached belongs to the next basic block
+                basicBlock.add(nextLeader);
+
+                // update the next leader
+                nextLeaderIndex++;
+                if (nextLeaderIndex >= leaders.size()) {
+
+                    // add the last leader as basic block
+                    basicBlocks.add(basicBlock);
+
+                    // construct a basic statement for each instruction
+                    stmts = basicBlock.stream().map(i -> new BasicStatement(methodName, i)).collect(Collectors.toList());
+
+                    // construct the block statement
+                    blockStmt = new BlockStatement(methodName, stmts);
+
+                    // each basic block is represented by a vertex
+                    vertex = new Vertex(blockStmt);
+
+                    // identify each basic block by its first and last statement
+                    firstStmtIndex = basicBlock.get(0).getInstructionIndex();
+                    lastStmtIndex = basicBlock.get(basicBlock.size() - 1).getInstructionIndex();
+                    vertexMap.put(firstStmtIndex, vertex);
+                    vertexMap.put(lastStmtIndex, vertex);
+
+                    addVertex(vertex);
+
+                    break;
+                } else {
+                    nextLeader = leaders.get(nextLeaderIndex);
+                }
+            }
+        }
+        return basicBlocks;
+    }
+
+    /**
+     * Constructs the basic blocks for a given method and adds them to the given CFG.
+     *
+     * @param analyzedInstructions The set of instructions of a given method.
+     * @param leaders              The set of leader instructions previously identified.
+     * @param vertexMap            A map that stores for each basic block (a vertex) the instruction id of
+     *                             the first and last statement. So we have two entries per vertex.
+     * @param methodName           The name of the method for which we want to construct the basic blocks.
+     * @return Returns the basic blocks each as a list of instructions.
+     */
+    private Set<List<AnalyzedInstruction>> constructBasicBlocks2(List<AnalyzedInstruction> analyzedInstructions,
+                                                                List<AnalyzedInstruction> leaders, Map<Integer, Vertex> vertexMap,
+                                                                String methodName) {
         // stores all the basic blocks
         Set<List<AnalyzedInstruction>> basicBlocks = new HashSet<>();
 
@@ -514,6 +763,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                 // update the next leader
                 nextLeaderIndex++;
                 if (nextLeaderIndex >= leaders.size()) {
+
                     // add the last leader as basic block
                     basicBlocks.add(basicBlock);
 
@@ -549,7 +799,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
         BaseCFG clone = new IntraProceduralCFG(getMethodName());
 
         Graph<Vertex, Edge> graphClone = GraphTypeBuilder
-                .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
                 .edgeClass(Edge.class).buildGraph();
 
         Set<Vertex> vertices = graph.vertexSet();
