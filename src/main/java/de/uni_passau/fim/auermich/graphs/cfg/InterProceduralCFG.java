@@ -82,7 +82,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         Set<BaseCFG> coveredGraphs = new HashSet<>();
 
         // store the cloned intra CFGs
-        Map<String, BaseCFG> intraCFGsClone = new HashMap<>();
+        // Map<String, BaseCFG> intraCFGsClone = new HashMap<>();
 
         // collect all activities by its onCreate CFG
         Map<String, BaseCFG> onCreateCFGs = new HashMap<>();
@@ -100,19 +100,19 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
 
             // performs a deep copy of the intra CFG for possible later usage
-            intraCFGsClone.put(entry.getKey(), entry.getValue().copy());
+            // intraCFGsClone.put(entry.getKey(), entry.getValue().copy());
 
             BaseCFG cfg = entry.getValue();
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug("Integrating CFG: " + intraCFG.getMethodName());
 
-            if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
-                if (!coveredGraphs.contains(intraCFG)) {
-                    // add first source graph
-                    addSubGraph(intraCFG);
-                    coveredGraphs.add(intraCFG);
-                }
+            // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+            if (!coveredGraphs.contains(intraCFG)) {
+                // add first source graph
+                addSubGraph(intraCFG);
+                coveredGraphs.add(intraCFG);
             }
+            // }
 
             // the method signature (className->methodName->params->returnType)
             String method = intraCFG.getMethodName();
@@ -122,7 +122,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             // we need to model the android lifecycle as well -> collect onCreate methods
             if (method.contains("onCreate(Landroid/os/Bundle;)V") && !exclusionPattern.matcher(className).matches()) {
                 // copy necessary, otherwise the sub graph misses some vertices
-                onCreateCFGs.put(Utility.getClassName(method), intraCFG.copy());
+                onCreateCFGs.put(Utility.getClassName(method), intraCFGs.get(method));
             }
 
             LOGGER.debug("Searching for invoke instructions!");
@@ -140,49 +140,57 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 // all vertices are represented by block statements
                 BlockStatement blockStatement = (BlockStatement) vertex.getStatement();
 
-                // invoke instructions can only be the first instruction of a block statement
-                BasicStatement statement = ((BasicStatement) blockStatement.getFirstStatement());
-                Instruction instruction = statement.getInstruction().getInstruction();
+                // avoid concurrent modification exception
+                List<Statement> blockStatementCopy = new LinkedList<>(blockStatement.getStatements());
 
-                // check for invoke/invoke-range instruction
-                if (instruction instanceof ReferenceInstruction
-                        && (instruction instanceof Instruction3rc
-                        || instruction instanceof Instruction35c)) {
+                // TODO: we need to modify the whole block statement at once which can contain several invoke instructions
+                int invokeInstructionIndex = 0;
 
-                    Set<Edge> incomingEdges = intraCFG.getIncomingEdges(vertex);
-                    Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
-                    LOGGER.debug("Incoming edges: " + incomingEdges.stream().map(e -> e.getSource().toString()).collect(Collectors.joining(",")));
-                    LOGGER.debug("Outgoing edges: " + outgoingEdges.stream().map(e -> e.getTarget().toString()).collect(Collectors.joining(",")));
+                for (Statement stmt : blockStatementCopy) {
+                    BasicStatement statement = (BasicStatement) stmt;
+                    Instruction instruction = statement.getInstruction().getInstruction();
 
-                    // search for target CFG by reference of invoke instruction (target method)
-                    String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+                    // check for invoke/invoke-range instruction
+                    if (instruction instanceof ReferenceInstruction
+                            && (instruction instanceof Instruction3rc
+                            || instruction instanceof Instruction35c)) {
 
-                    // check if invocation refers to adding a fragment
-                    String fragment = isFragmentInvocation(instruction, statement.getInstruction(), methodSignature);
+                        Set<Edge> incomingEdges = intraCFG.getIncomingEdges(vertex);
+                        Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
+                        LOGGER.debug("Incoming edges: " + incomingEdges.stream().map(e
+                                -> e.getSource().toString()).collect(Collectors.joining(",")));
+                        LOGGER.debug("Outgoing edges: " + outgoingEdges.stream().map(e
+                                -> e.getTarget().toString()).collect(Collectors.joining(",")));
 
-                    if (fragment != null) {
-                        activityFragments.put(Utility.getClassName(method), fragment);
-                    }
+                        // search for target CFG by reference of invoke instruction (target method)
+                        String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
 
-                    // the CFG that corresponds to the invoke call
-                    BaseCFG targetCFG;
+                        // check if invocation refers to adding a fragment
+                        String fragment = isFragmentInvocation(instruction, statement.getInstruction(), methodSignature);
 
-                    if (intraCFGs.containsKey(methodSignature)) {
-                        targetCFG = intraCFGs.get(methodSignature);
-                        LOGGER.debug("Target CFG: " + ((IntraProceduralCFG) targetCFG).getMethodName());
-                    } else {
+                        if (fragment != null) {
+                            activityFragments.put(Utility.getClassName(method), fragment);
+                        }
 
-                        /*
-                         * There are some Android specific classes, e.g. android/view/View, which are
-                         * not included in the classes.dex file for yet unknown reasons. Basically,
-                         * these classes should be just treated like other classes from the ART.
-                         */
-                        LOGGER.warn("Target CFG for method: " + methodSignature + " not found!");
-                        targetCFG = dummyIntraProceduralCFG(methodSignature);
-                        intraCFGs.put(methodSignature, targetCFG);
-                    }
+                        // the CFG that corresponds to the invoke call
+                        BaseCFG targetCFG;
 
-                    if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+                        if (intraCFGs.containsKey(methodSignature)) {
+                            targetCFG = intraCFGs.get(methodSignature);
+                            LOGGER.debug("Target CFG: " + ((IntraProceduralCFG) targetCFG).getMethodName());
+                        } else {
+
+                            /*
+                             * There are some Android specific classes, e.g. android/view/View, which are
+                             * not included in the classes.dex file for yet unknown reasons. Basically,
+                             * these classes should be just treated like other classes from the ART.
+                             */
+                            LOGGER.warn("Target CFG for method: " + methodSignature + " not found!");
+                            targetCFG = dummyIntraProceduralCFG(methodSignature);
+                            intraCFGs.put(methodSignature, targetCFG);
+                        }
+
+                        // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
 
                         if (!coveredGraphs.contains(targetCFG)) {
                             // add target graph to inter CFG
@@ -235,7 +243,9 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                         // add edge from invoke instruction to entry vertex of target CFG
                         addEdge(invokeVertex, targetCFG.getEntry());
+                        // }
                     }
+                    invokeInstructionIndex++;
                 }
             }
             LOGGER.debug(System.lineSeparator());
@@ -282,11 +292,11 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             LOGGER.debug(intraCFG.getMethodName());
 
             // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
-                if (!coveredGraphs.contains(cfg)) {
-                    // add first source graph
-                    addSubGraph(intraCFG);
-                    coveredGraphs.add(cfg);
-                }
+            if (!coveredGraphs.contains(cfg)) {
+                // add first source graph
+                addSubGraph(intraCFG);
+                coveredGraphs.add(cfg);
+            }
             // }
 
             // the method signature (className->methodName->params->returnType)
@@ -351,43 +361,43 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                     // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
 
-                        /*
-                         * Store the original outgoing edges first, since we add further
-                         * edges later.
-                         *
-                         */
-                        Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
-                        LOGGER.debug("Outgoing edges of vertex " + vertex + ": " + outgoingEdges);
+                    /*
+                     * Store the original outgoing edges first, since we add further
+                     * edges later.
+                     *
+                     */
+                    Set<Edge> outgoingEdges = intraCFG.getOutgoingEdges(vertex);
+                    LOGGER.debug("Outgoing edges of vertex " + vertex + ": " + outgoingEdges);
 
-                        if (!coveredGraphs.contains(targetCFG)) {
-                            // add target graph to inter CFG
-                            addSubGraph(targetCFG);
-                            coveredGraphs.add(targetCFG);
-                        }
+                    if (!coveredGraphs.contains(targetCFG)) {
+                        // add target graph to inter CFG
+                        addSubGraph(targetCFG);
+                        coveredGraphs.add(targetCFG);
+                    }
 
-                        if (containsVertex(vertex) && containsVertex(targetCFG.getEntry())) {
-                            // add edge from invoke instruction to entry vertex of target CFG
-                            LOGGER.debug("Source: " + vertex);
-                            LOGGER.debug("Target: " + targetCFG.getEntry());
-                            addEdge(vertex, targetCFG.getEntry());
-                        }
+                    if (containsVertex(vertex) && containsVertex(targetCFG.getEntry())) {
+                        // add edge from invoke instruction to entry vertex of target CFG
+                        LOGGER.debug("Source: " + vertex);
+                        LOGGER.debug("Target: " + targetCFG.getEntry());
+                        addEdge(vertex, targetCFG.getEntry());
+                    }
 
-                        // TODO: need unique return vertices (multiple call within method to same target method)
-                        // insert dummy return vertex
-                        Statement returnStmt = new ReturnStatement(vertex.getMethod(), targetCFG.getMethodName());
-                        Vertex returnVertex = new Vertex(returnStmt);
-                        addVertex(returnVertex);
+                    // TODO: need unique return vertices (multiple call within method to same target method)
+                    // insert dummy return vertex
+                    Statement returnStmt = new ReturnStatement(vertex.getMethod(), targetCFG.getMethodName());
+                    Vertex returnVertex = new Vertex(returnStmt);
+                    addVertex(returnVertex);
 
-                        // remove edge from invoke to its successor instruction(s)
-                        removeEdges(outgoingEdges);
+                    // remove edge from invoke to its successor instruction(s)
+                    removeEdges(outgoingEdges);
 
-                        // add edge from exit of target CFG to dummy return vertex
-                        addEdge(targetCFG.getExit(), returnVertex);
+                    // add edge from exit of target CFG to dummy return vertex
+                    addEdge(targetCFG.getExit(), returnVertex);
 
-                        // add edge from dummy return vertex to the original successor(s) of the invoke instruction
-                        for (Edge edge : outgoingEdges) {
-                            addEdge(returnVertex, edge.getTarget());
-                        }
+                    // add edge from dummy return vertex to the original successor(s) of the invoke instruction
+                    for (Edge edge : outgoingEdges) {
+                        addEdge(returnVertex, edge.getTarget());
+                    }
                     // }
                 }
             }
