@@ -266,10 +266,10 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
         MethodImplementation implementation = method.getImplementation();
 
-        int consumedCodeUnits = 0;
-
         for (TryBlock<? extends ExceptionHandler> tryBlock : implementation.getTryBlocks()) {
             // we assume that try blocks are ordered from top to bottom (the way they appear in the code)
+
+            int consumedCodeUnits = 0;
 
             // start address is expressed in terms of code units (absolute)
             LOGGER.debug("TryBlock Starting Address: " + tryBlock.getStartCodeAddress());
@@ -289,6 +289,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                     break;
                 } else {
                     // we are somewhere inside the try block
+                    LOGGER.debug("Instruction within try block: " +
+                            analyzedInstruction.getInstruction().getOpcode() + "(" + analyzedInstruction.getInstructionIndex() + ")");
                     if (analyzedInstruction.getInstruction().getOpcode().canThrow()) {
                         // the instruction can potentially throw an exception -> direct predecessor can jump to catch block
                         analyzedInstruction.getPredecessors().forEach(pred -> {
@@ -362,18 +364,28 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                     List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
                     leaderInstructions.addAll(successors);
 
-                    // there is an edge from the if instruction to each successor
+                    // the jump target is a new leader thus the start of a new basic block
                     for (AnalyzedInstruction successor : successors) {
-                        basicBlockEdges.put(analyzedInstruction.getInstructionIndex(), successor.getInstructionIndex());
+                        // so there is from each predecessor of the jump target an edge connecting two basic blocks
+                        successor.getPredecessors().forEach(predecessor -> {
+                            if (predecessor.getInstructionIndex() != -1) {
+                                basicBlockEdges.put(predecessor.getInstructionIndex(), successor.getInstructionIndex());
+                            }
+                        });
                     }
                 } else {
                     // some jump instruction, goto packed-switch, sparse-switch
                     List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
                     leaderInstructions.addAll(successors);
 
-                    // there is an edge from the jump instruction to each successor (there should be only one)
+                    // the jump target is a new leader thus the start of a new basic block
                     for (AnalyzedInstruction successor : successors) {
-                        basicBlockEdges.put(analyzedInstruction.getInstructionIndex(), successor.getInstructionIndex());
+                        // so there is from each predecessor of the jump target an edge connecting two basic blocks
+                        successor.getPredecessors().forEach(predecessor -> {
+                            if (predecessor.getInstructionIndex() != -1) {
+                                basicBlockEdges.put(predecessor.getInstructionIndex(), successor.getInstructionIndex());
+                            }
+                        });
                     }
                 }
             }

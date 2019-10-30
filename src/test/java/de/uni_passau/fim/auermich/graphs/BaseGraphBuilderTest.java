@@ -19,7 +19,9 @@ public class BaseGraphBuilderTest {
     public void constructIntraCFG() throws IOException {
 
         MultiDexContainer<? extends DexBackedDexFile> apk
-                = DexFileFactory.loadDexContainer(new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk"), API_OPCODE);
+                = DexFileFactory.loadDexContainer(
+                        new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk"),
+                API_OPCODE);
 
         List<DexFile> dexFiles = new ArrayList<>();
 
@@ -33,7 +35,8 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/EventLoader$LoaderThread;->run()V")
+                .withName("Lcom/android/calendar/icalendar/IcalendarUtils;->" +
+                        "getStringArrayFromFile(Landroid/content/Context;Landroid/net/Uri;)Ljava/util/ArrayList;")
                 .build();
 
         baseGraph.drawGraph();
@@ -83,7 +86,8 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/EventLoader$LoaderThread;->run()V")
+                .withName("Lcom/android/calendar/icalendar/IcalendarUtils;->" +
+                        "getStringArrayFromFile(Landroid/content/Context;Landroid/net/Uri;)Ljava/util/ArrayList;")
                 .withBasicBlocks()
                 .build();
 
@@ -167,6 +171,34 @@ public class BaseGraphBuilderTest {
                 .build();
 
         baseGraph.drawGraph();
+    }
+
+    @Test
+    public void constructInterCFGWithBasicBlocks() throws IOException {
+
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .build();
+
+        // baseGraph.drawGraph();
     }
 
     @Test
