@@ -248,7 +248,9 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @param analyzedInstructions The set of instructions contained within the given method.
      * @return Returns the set of identified leader instructions within try-catch blocks.
      */
-    private List<AnalyzedInstruction> computeLeadersInTryCatchBlocks(Method method, List<AnalyzedInstruction> analyzedInstructions) {
+    private List<AnalyzedInstruction> computeLeadersInTryCatchBlocks(Method method,
+                                                                     List<AnalyzedInstruction> analyzedInstructions,
+                                                                     Multimap<Integer, Integer> basicBlockEdges) {
 
         List<AnalyzedInstruction> leaderInstructions = new LinkedList<>();
 
@@ -279,8 +281,15 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                     // we are somewhere inside the try block
                     if (analyzedInstruction.getInstruction().getOpcode().canThrow()) {
                         // the instruction can potentially throw an exception -> direct predecessor can jump to catch block
-                        analyzedInstruction.getPredecessors().forEach(pred ->
-                                leaderInstructions.addAll(pred.getSuccessors()));
+                        analyzedInstruction.getPredecessors().forEach(pred -> {
+                            // there is this stupid dummy instruction at pos -1
+                            if (pred.getInstructionIndex() != -1) {
+                                leaderInstructions.addAll(pred.getSuccessors());
+                                pred.getSuccessors().forEach(suc ->
+                                        basicBlockEdges.put(pred.getInstructionIndex(), suc.getInstructionIndex()));
+                            }
+                        });
+
                     }
                     // move on
                     consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
@@ -388,7 +397,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
             }
         }
 
-        leaderInstructions.addAll(computeLeadersInTryCatchBlocks(targetMethod, analyzedInstructions));
+        leaderInstructions.addAll(computeLeadersInTryCatchBlocks(targetMethod, analyzedInstructions, basicBlockEdges));
 
         List<AnalyzedInstruction> leaders = leaderInstructions.stream()
                 .sorted((i1, i2) -> Integer.compare(i1.getInstructionIndex(), i2.getInstructionIndex())).collect(Collectors.toList());
