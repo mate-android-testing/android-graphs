@@ -92,59 +92,65 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
         LOGGER.debug("Method: " + targetMethod.toString());
 
-        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
-                true, ClassPath.NOT_ART), targetMethod,
-                null, false);
-        List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
+        if (targetMethod.getImplementation() != null) {
 
-        // stores the edge mapping between basic blocks based on the instruction id
-        Multimap<Integer, Integer> basicBlockEdges = TreeMultimap.create();
+            MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                    true, ClassPath.NOT_ART), targetMethod,
+                    null, false);
+            List<AnalyzedInstruction> analyzedInstructions = analyzer.getAnalyzedInstructions();
 
-        // keeps track of the instruction indices of return statements
-        List<Integer> returnStmtIndices = new ArrayList<>();
+            // stores the edge mapping between basic blocks based on the instruction id
+            Multimap<Integer, Integer> basicBlockEdges = TreeMultimap.create();
 
-        // computes the leader instructions, as a byproduct also computes the edges between the basic blocks + return indices
-        List<AnalyzedInstruction> leaders = computeLeaders(analyzedInstructions, targetMethod, basicBlockEdges, returnStmtIndices);
+            // keeps track of the instruction indices of return statements
+            List<Integer> returnStmtIndices = new ArrayList<>();
 
-        LOGGER.debug("Leaders: " + leaders.stream().map(instruction -> instruction.getInstructionIndex()).collect(Collectors.toList()));
-        LOGGER.debug("Basic Block Edges: " + basicBlockEdges);
+            // computes the leader instructions, as a byproduct also computes the edges between the basic blocks + return indices
+            List<AnalyzedInstruction> leaders = computeLeaders(analyzedInstructions, targetMethod, basicBlockEdges, returnStmtIndices);
 
-        // maps to each vertex the instruction id of the first and last statement
-        Map<Integer, Vertex> vertexMap = new HashMap<>();
+            LOGGER.debug("Leaders: " + leaders.stream().map(instruction -> instruction.getInstructionIndex()).collect(Collectors.toList()));
+            LOGGER.debug("Basic Block Edges: " + basicBlockEdges);
 
-        // construct the basic blocks
-        Set<List<AnalyzedInstruction>> basicBlocks = constructBasicBlocks(analyzedInstructions,
-                leaders, vertexMap, getMethodName());
+            // maps to each vertex the instruction id of the first and last statement
+            Map<Integer, Vertex> vertexMap = new HashMap<>();
 
-        LOGGER.debug("Number of BasicBlocks: " + basicBlocks.size());
-        LOGGER.debug("Basic Blocks: " + basicBlocks.stream()
-                .sorted((b1, b2) -> Integer.compare(b1.get(0).getInstructionIndex(), b2.get(0).getInstructionIndex()))
-                .map(list -> list.stream()
-                        .map(elem -> String.valueOf(elem.getInstructionIndex())).collect(Collectors.joining("-", "[", "]")))
-                .collect(Collectors.joining(", ")));
+            // construct the basic blocks
+            Set<List<AnalyzedInstruction>> basicBlocks = constructBasicBlocks(analyzedInstructions,
+                    leaders, vertexMap, getMethodName());
 
-        // connect the basic blocks
-        for (Integer srcIndex : basicBlockEdges.keySet()) {
+            LOGGER.debug("Number of BasicBlocks: " + basicBlocks.size());
+            LOGGER.debug("Basic Blocks: " + basicBlocks.stream()
+                    .sorted((b1, b2) -> Integer.compare(b1.get(0).getInstructionIndex(), b2.get(0).getInstructionIndex()))
+                    .map(list -> list.stream()
+                            .map(elem -> String.valueOf(elem.getInstructionIndex())).collect(Collectors.joining("-", "[", "]")))
+                    .collect(Collectors.joining(", ")));
 
-            LOGGER.debug("Source: " + srcIndex);
-            Vertex src = vertexMap.get(srcIndex);
+            // connect the basic blocks
+            for (Integer srcIndex : basicBlockEdges.keySet()) {
 
-            Collection<Integer> targets = basicBlockEdges.get(srcIndex);
+                LOGGER.debug("Source: " + srcIndex);
+                Vertex src = vertexMap.get(srcIndex);
 
-            for (Integer target : targets) {
-                Vertex dest = vertexMap.get(target);
-                LOGGER.debug("Target: " + target);
-                graph.addEdge(src, dest);
+                Collection<Integer> targets = basicBlockEdges.get(srcIndex);
+
+                for (Integer target : targets) {
+                    Vertex dest = vertexMap.get(target);
+                    LOGGER.debug("Target: " + target);
+                    graph.addEdge(src, dest);
+                }
+                LOGGER.debug(System.lineSeparator());
             }
-            LOGGER.debug(System.lineSeparator());
-        }
 
-        // connect entry vertex with first basic block
-        addEdge(getEntry(), vertexMap.get(0));
+            // connect entry vertex with first basic block
+            addEdge(getEntry(), vertexMap.get(0));
 
-        // connect each return statement with exit vertex
-        for (Integer returnIndex : returnStmtIndices) {
-            addEdge(vertexMap.get(returnIndex), getExit());
+            // connect each return statement with exit vertex
+            for (Integer returnIndex : returnStmtIndices) {
+                addEdge(vertexMap.get(returnIndex), getExit());
+            }
+        } else {
+            // no method implementation found -> dummy CFG
+            addEdge(getEntry(), getExit());
         }
     }
 
