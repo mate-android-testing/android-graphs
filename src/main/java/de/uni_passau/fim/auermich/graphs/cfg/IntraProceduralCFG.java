@@ -18,9 +18,7 @@ import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MethodImplementation;
+import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.OffsetInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21t;
@@ -33,6 +31,7 @@ import org.jgrapht.graph.builder.GraphTypeBuilder;
 
 import java.nio.file.LinkOption;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class IntraProceduralCFG extends BaseCFG implements Cloneable {
@@ -105,7 +104,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
         List<Integer> returnStmtIndices = new ArrayList<>();
 
         // computes the leader instructions, as a byproduct also computes the edges between the basic blocks + return indices
-        List<AnalyzedInstruction> leaders = computeLeaders(analyzedInstructions, basicBlockEdges, returnStmtIndices);
+        List<AnalyzedInstruction> leaders = computeLeaders(analyzedInstructions, targetMethod, basicBlockEdges, returnStmtIndices);
 
         LOGGER.debug("Leaders: " + leaders.stream().map(instruction -> instruction.getInstructionIndex()).collect(Collectors.toList()));
         LOGGER.debug("Basic Block Edges: " + basicBlockEdges);
@@ -183,22 +182,9 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
             for (int index = 0; index < instructions.size(); index++) {
 
-                // LOGGER.debug("Instruction: " + vertices.get(index));
-                LOGGER.debug(System.lineSeparator());
-
-                Instruction instruction = instructions.get(index);
-                LOGGER.debug("Instruction: " + instruction.getOpcode() + "(" + index + ")");
+                LOGGER.debug("Instruction: " + vertices.get(index));
 
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
-                LOGGER.debug("AnalyzedInstruction: " + analyzedInstruction.getInstruction().getOpcode() + "(" + index + ")");
-
-                for (AnalyzedInstruction s : analyzedInstruction.getSuccessors()) {
-                    LOGGER.debug("Successor: " + s.getInstruction().getOpcode() + "(" + s.getInstructionIndex() + ")");
-                }
-
-                for (AnalyzedInstruction p : analyzedInstruction.getPredecessors()) {
-                    LOGGER.debug("Predecessor: " + p.getInstruction().getOpcode() + "(" + p.getInstructionIndex() + ")");
-                }
 
                 // the current instruction represented as vertex
                 Vertex vertex = vertices.get(index);
@@ -249,6 +235,86 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
     }
 
     /**
+     * We consider the following two types of instructions also as leader instructions:
+     *
+     * 1) Any instruction within a try block that comes before an instruction potentially throwing an exception. These
+     *    instructions define as successor the beginning of the catch block.
+     *
+     * 2) The first instruction of a catch block.
+     *
+     * Both types basically represent borders of basic blocks.
+     *
+     * @param method The given method potentially containing try-catch blocks.
+     * @param analyzedInstructions The set of instructions contained within the given method.
+     * @return Returns the set of identified leader instructions within try-catch blocks.
+     */
+    private List<AnalyzedInstruction> computeLeadersInTryCatchBlocks(Method method, List<AnalyzedInstruction> analyzedInstructions) {
+
+        List<AnalyzedInstruction> leaderInstructions = new LinkedList<>();
+
+        MethodImplementation implementation = method.getImplementation();
+
+        int consumedCodeUnits = 0;
+
+        for (TryBlock<? extends ExceptionHandler> tryBlock : implementation.getTryBlocks()) {
+            // we assume that try blocks are ordered from top to bottom (the way they appear in the code)
+
+            // start address is expressed in terms of code units (absolute)
+            LOGGER.debug("TryBlock Starting Address: " + tryBlock.getStartCodeAddress());
+
+            // the number of code units contained within the try block -> the length of the try block
+            LOGGER.debug("TryBlock Code Unit Count: " + tryBlock.getCodeUnitCount());
+
+            int tryBlockEnd = tryBlock.getStartCodeAddress() + tryBlock.getCodeUnitCount();
+
+            for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+
+                if (consumedCodeUnits < tryBlock.getStartCodeAddress()) {
+                    // we haven't reached the try block yet
+                    consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
+                } else if (consumedCodeUnits > tryBlockEnd) {
+                    // we reached the end of the try block
+                    break;
+                } else {
+                    // we are somewhere inside the try block
+                    if (analyzedInstruction.getInstruction().getOpcode().canThrow()) {
+                        // the instruction can potentially throw an exception -> direct predecessor can jump to catch block
+                        analyzedInstruction.getPredecessors().forEach(pred -> leaderInstructions.add(pred));
+                    }
+                    // move on
+                    consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
+                }
+            }
+
+            // TODO: verify that catch block come always after try blocks -> corrupted consumedCodeunits
+            int saveConsumedCodeUnits = consumedCodeUnits;
+
+            // go over catch blocks
+            for (ExceptionHandler catchBlock : tryBlock.getExceptionHandlers()) {
+                // assume that catch blocks are ordered in the way they appear in the code
+
+                LOGGER.debug("Starting of catch block: " + catchBlock.getHandlerCodeAddress());
+
+                for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+
+                    if (consumedCodeUnits < catchBlock.getHandlerCodeAddress()) {
+                        // we haven't reached the catch block yet
+                        consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
+                    } else {
+                        // we are at the beginning of the catch block
+                        leaderInstructions.add(analyzedInstruction);
+                        break;
+                    }
+                }
+            }
+
+            // reset consumed code units counter
+            consumedCodeUnits = saveConsumedCodeUnits;
+        }
+        return leaderInstructions;
+    }
+
+    /**
      * Computes the leader instructions. We consider branch targets, return statements, jump targets and invoke
      * instructions as leaders. As a side product, the indices of return instructions are tracked as well as
      * the edges between basic blocks are computed.
@@ -259,6 +325,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @return Returns a sorted list of leader instructions.
      */
     private List<AnalyzedInstruction> computeLeaders(List<AnalyzedInstruction> analyzedInstructions,
+                                                     Method targetMethod,
                                                      Multimap<Integer, Integer> basicBlockEdges,
                                                      List<Integer> returnStmtIndices) {
 
@@ -271,7 +338,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
             Instruction instruction = analyzedInstruction.getInstruction();
 
-             if (instruction.getOpcode() == Opcode.RETURN
+            if (instruction.getOpcode() == Opcode.RETURN
                     || instruction.getOpcode() == Opcode.RETURN_OBJECT
                     || instruction.getOpcode() == Opcode.RETURN_VOID
                     || instruction.getOpcode() == Opcode.RETURN_VOID_BARRIER
@@ -317,6 +384,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
             }
         }
 
+        leaderInstructions.addAll(computeLeadersInTryCatchBlocks(targetMethod, analyzedInstructions));
+
         List<AnalyzedInstruction> leaders = leaderInstructions.stream()
                 .sorted((i1, i2) -> Integer.compare(i1.getInstructionIndex(), i2.getInstructionIndex())).collect(Collectors.toList());
 
@@ -334,8 +403,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @return Returns a sorted list of leader instructions.
      */
     private List<AnalyzedInstruction> computeLeaders2(List<AnalyzedInstruction> analyzedInstructions,
-                                                            Multimap<Integer, Integer> basicBlockEdges,
-                                                            List<Integer> returnStmtIndices) {
+                                                      Multimap<Integer, Integer> basicBlockEdges,
+                                                      List<Integer> returnStmtIndices) {
 
         Set<AnalyzedInstruction> leaderInstructions = new HashSet<>();
 
@@ -436,8 +505,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @return Returns the basic blocks each as a list of instructions.
      */
     private Set<List<AnalyzedInstruction>> constructBasicBlocks(List<AnalyzedInstruction> analyzedInstructions,
-                                                                       List<AnalyzedInstruction> leaders, Map<Integer, Vertex> vertexMap,
-                                                                       String methodName) {
+                                                                List<AnalyzedInstruction> leaders, Map<Integer, Vertex> vertexMap,
+                                                                String methodName) {
         // stores all the basic blocks
         Set<List<AnalyzedInstruction>> basicBlocks = new HashSet<>();
 
@@ -549,7 +618,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
         BaseCFG clone = new IntraProceduralCFG(getMethodName());
 
         Graph<Vertex, Edge> graphClone = GraphTypeBuilder
-                .<Vertex, DefaultEdge> directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
                 .edgeClass(Edge.class).buildGraph();
 
         Set<Vertex> vertices = graph.vertexSet();
