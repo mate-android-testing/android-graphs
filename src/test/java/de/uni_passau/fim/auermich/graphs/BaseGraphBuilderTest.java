@@ -33,7 +33,7 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/AboutPreferences;->onCreate(Landroid/os/Bundle;)V")
+                .withName("Lcom/android/calendar/EventLoader$LoaderThread;->run()V")
                 .build();
 
         baseGraph.drawGraph();

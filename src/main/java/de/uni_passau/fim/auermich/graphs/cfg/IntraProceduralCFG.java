@@ -524,7 +524,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
      * @return Returns the basic blocks each as a list of instructions.
      */
     private Set<List<AnalyzedInstruction>> constructBasicBlocks(List<AnalyzedInstruction> analyzedInstructions,
-                                                                List<AnalyzedInstruction> leaders, Map<Integer, Vertex> vertexMap,
+                                                                List<AnalyzedInstruction> leaders, Map<Integer,
+                                                                Vertex> vertexMap,
                                                                 String methodName) {
 
         // stores all the basic blocks
@@ -539,7 +540,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
             basicBlocks.add(instructionsOfBasicBlock);
 
             // construct a basic statement for each instruction
-            List<Statement> stmts = instructionsOfBasicBlock.stream().map(i -> new BasicStatement(methodName, i)).collect(Collectors.toList());
+            List<Statement> stmts = instructionsOfBasicBlock.stream().map(i ->
+                    new BasicStatement(methodName, i)).collect(Collectors.toList());
 
             // construct the block statement
             Statement blockStmt = new BlockStatement(methodName, stmts);
@@ -556,11 +558,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
             return basicBlocks;
         }
 
-        int lastInstructionIndex = analyzedInstructions.size() - 1;
-
+        // the next leader starting from second leader instruction
         int nextLeaderIndex = 1;
-
-        // the next leader
         AnalyzedInstruction nextLeader = leaders.get(nextLeaderIndex);
 
         // a single basic block
@@ -568,8 +567,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
         for (AnalyzedInstruction instruction : analyzedInstructions) {
 
-            if (instruction.getInstructionIndex() != nextLeader.getInstructionIndex()
-                    && instruction.getInstructionIndex() != lastInstructionIndex) {
+            if (instruction.getInstructionIndex() != nextLeader.getInstructionIndex()) {
                 // until we reach the next leader add instructions to current basic block
                 basicBlock.add(instruction);
             } else {
@@ -601,49 +599,16 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                 // the leader we reached belongs to the next basic block
                 basicBlock.add(nextLeader);
 
-
-            }
-
-        }
-
-        // construct basic blocks and build graph
-        for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
-
-            // while we haven't found the next leader
-            if (analyzedInstruction.getInstructionIndex() != nextLeader.getInstructionIndex()) {
-                basicBlock.add(analyzedInstruction);
-            } else {
-                // we reached the next leader
-
-                // update basic blocks
-                List<AnalyzedInstruction> instructionsOfBasicBlock = new ArrayList<>(basicBlock);
-                basicBlocks.add(instructionsOfBasicBlock);
-
-                // construct a basic statement for each instruction
-                List<Statement> stmts = instructionsOfBasicBlock.stream().map(i -> new BasicStatement(methodName, i)).collect(Collectors.toList());
-
-                // construct the block statement
-                Statement blockStmt = new BlockStatement(methodName, stmts);
-
-                // each basic block is represented by a vertex
-                Vertex vertex = new Vertex(blockStmt);
-
-                int firstStmtIndex = basicBlock.get(0).getInstructionIndex();
-                int lastStmtIndex = basicBlock.get(basicBlock.size() - 1).getInstructionIndex();
-                vertexMap.put(firstStmtIndex, vertex);
-                vertexMap.put(lastStmtIndex, vertex);
-
-                addVertex(vertex);
-
-                // reset basic block
-                basicBlock.clear();
-
-                // the leader we reached belongs to the next basic block
-                basicBlock.add(nextLeader);
-
                 // update the next leader
                 nextLeaderIndex++;
+
                 if (nextLeaderIndex >= leaders.size()) {
+                    // last basic block reached
+
+                    // we need to add the remaining instructions to the last basic block
+                    basicBlock.addAll(analyzedInstructions.subList(
+                            // the last leader has been already added to the basic block before -> + 1 to the end
+                            nextLeader.getInstructionIndex()+1, analyzedInstructions.size()));
 
                     // add the last leader as basic block
                     basicBlocks.add(basicBlock);
