@@ -461,11 +461,10 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
                 // we reached the next leader or the last instruction
 
                 // update basic blocks
-                List<AnalyzedInstruction> instructionsOfBasicBlock = new ArrayList<>(basicBlock);
-                basicBlocks.add(instructionsOfBasicBlock);
+                basicBlocks.add(basicBlock);
 
                 // construct a basic statement for each instruction
-                List<Statement> stmts = instructionsOfBasicBlock.stream().map(i ->
+                List<Statement> stmts = basicBlock.stream().map(i ->
                         new BasicStatement(methodName, i)).collect(Collectors.toList());
 
                 // construct the block statement
@@ -481,8 +480,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
                 addVertex(vertex);
 
-                // reset basic block
-                basicBlock.clear();
+                // reset basic block -> don't use clear() -> reference issue
+                basicBlock = new LinkedList<>();
 
                 // the leader we reached belongs to the next basic block
                 basicBlock.add(nextLeader);
