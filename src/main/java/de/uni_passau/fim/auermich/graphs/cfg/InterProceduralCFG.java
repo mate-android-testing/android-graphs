@@ -172,6 +172,13 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         List<Statement> blockStmts = new ArrayList<>();
 
         for (Statement s : reversedStmts) {
+
+            // TODO: can this really happen???
+            if (s.getType() != Statement.StatementType.BASIC_STATEMENT) {
+                blockStmts.add(0,s);
+                continue;
+            }
+
             BasicStatement basicStmt = (BasicStatement) s;
             Instruction instruction = basicStmt.getInstruction().getInstruction();
 
@@ -187,6 +194,48 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 break;
             } else {
                 blockStmts.add(0, basicStmt);
+            }
+        }
+        LOGGER.debug("Updated Block Statement: " + blockStmts);
+        return new Vertex(new BlockStatement(src.getMethod(), blockStmts));
+    }
+
+    /**
+     * A modified successor must contain an invoke instruction
+     * at the end. So we split the original successor vertex
+     * after the first invoke instruction.
+     *
+     * @param src The original successor vertex.
+     * @return Returns the modified (updated) successor vertex.
+     */
+    private Vertex reconstructSuccessorVertex(Vertex src) {
+
+        Statement stmt = src.getStatement();
+        BlockStatement blockStmt = (BlockStatement) stmt;
+        List<Statement> stmts = blockStmt.getStatements();
+
+        List<Statement> blockStmts = new ArrayList<>();
+
+        for (Statement s : stmts) {
+
+            // TODO: can this really happen???
+            if (s.getType() != Statement.StatementType.BASIC_STATEMENT) {
+                blockStmts.add(s);
+                continue;
+            }
+
+            BasicStatement basicStmt = (BasicStatement) s;
+            Instruction instruction = basicStmt.getInstruction().getInstruction();
+
+            // check for invoke/invoke-range instruction
+            if (instruction instanceof ReferenceInstruction
+                    && (instruction instanceof Instruction3rc
+                    || instruction instanceof Instruction35c)) {
+
+                blockStmts.add(basicStmt);
+                break;
+            } else {
+                blockStmts.add(basicStmt);
             }
         }
         LOGGER.debug("Updated Block Statement: " + blockStmts);
@@ -289,8 +338,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         -> e.getTarget().toString()).collect(Collectors.joining(",")));
 
                 // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
-
-
+                
                     // first remove vertex -> this removes its predecessors and successors inherently
                     removeVertex(vertex);
 
@@ -345,7 +393,13 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                                 if (containsVertex(edge.getTarget())) {
                                     addEdge(blockVertex, edge.getTarget());
                                 } else {
-                                    LOGGER.debug("Missed Outgoing Edge from: " + edge.getTarget());
+                                    Vertex succ = reconstructSuccessorVertex(edge.getTarget());
+                                    if (containsVertex(succ)) {
+                                        addEdge(blockVertex, succ);
+                                    } else {
+                                        // certain block vertices are inserted at same later point in time
+                                        missingEdges.put(blockVertex, succ);
+                                    }
                                 }
                             }
                             // the last block doesn't contain any invoke instruction
