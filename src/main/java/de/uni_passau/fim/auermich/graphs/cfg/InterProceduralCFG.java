@@ -338,7 +338,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         -> e.getTarget().toString()).collect(Collectors.joining(",")));
 
                 // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
-                
+
                     // first remove vertex -> this removes its predecessors and successors inherently
                     removeVertex(vertex);
 
