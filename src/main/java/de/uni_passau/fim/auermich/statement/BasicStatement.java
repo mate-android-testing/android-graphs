@@ -3,6 +3,7 @@ package de.uni_passau.fim.auermich.statement;
 import com.rits.cloning.Cloner;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 
+import java.nio.file.LinkOption;
 import java.util.Objects;
 
 public class BasicStatement extends Statement implements Cloneable {
@@ -42,6 +43,12 @@ public class BasicStatement extends Statement implements Cloneable {
         return this.method.equals(other.method)
                 && this.instruction.getInstruction().getOpcode().equals(other.instruction.getInstruction().getOpcode())
                 && this.instruction.getInstructionIndex() == other.instruction.getInstructionIndex();
+                /*
+                && this.instruction.getInstruction().getCodeUnits() == other.instruction.getInstruction().getCodeUnits()
+                && this.instruction.getInstruction().getOpcode().format == other.instruction.getInstruction().getOpcode().format
+                && this.instruction.getPredecessors().equals(other.instruction.getPredecessors())
+                && this.instruction.getSuccessors().equals(other.instruction.getSuccessors());
+                */
     }
 
     @Override
