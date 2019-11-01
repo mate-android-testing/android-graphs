@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-public class Vertex implements Cloneable {
+public class Vertex implements Cloneable, Comparable<Vertex> {
 
     private static final Logger LOGGER = LogManager.getLogger(Vertex.class);
 
@@ -35,6 +35,12 @@ public class Vertex implements Cloneable {
         } else {
             return statement.toString();
         }
+    }
+
+    @Override
+    public int compareTo(Vertex other) {
+        // TODO: find better comparison, only implemented to be usable with MultiMap
+        return Integer.compare(this.hashCode(), other.hashCode());
     }
 
     /**

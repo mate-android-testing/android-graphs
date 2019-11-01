@@ -216,6 +216,9 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // exclude certain methods/classes
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
+        // missing edges, which are inserted afterwards
+        Multimap<Vertex, Vertex> missingEdges = TreeMultimap.create();
+
         Iterator<Map.Entry<String, BaseCFG>> it = intraCFGs.entrySet().iterator();
 
         // compute inter-procedural CFG by connecting intra CFGs
@@ -315,7 +318,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                                 if (containsVertex(edge.getSource())) {
                                     addEdge(edge.getSource(), blockVertex);
                                 } else {
-
+                                    LOGGER.debug("Source: " + edge.getSource());
                                     /*
                                     * Unfortunately, the reference to certain predecessors is no longer valid
                                     * if we modified (that is split vertex into blocks) those predecessors earlier.
@@ -324,7 +327,13 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                                     * which in turn leads to outdated information. To solve this issue, we simply
                                     * re-construct the vertex to match the vertex in the interCFG.
                                      */
-                                    addEdge(reconstructPredecessorVertex(edge.getSource()), blockVertex);
+                                    Vertex pred = reconstructPredecessorVertex(edge.getSource());
+                                    if (containsVertex(pred)) {
+                                        addEdge(pred, blockVertex);
+                                    } else {
+                                        // certain block vertices are inserted at same later point in time
+                                        missingEdges.put(pred, blockVertex);
+                                    }
                                 }
                             }
                         }
@@ -395,6 +404,12 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 // }
             }
             LOGGER.debug(System.lineSeparator());
+        }
+
+        // add missing edges, requires src and dest vertex to be present already
+        LOGGER.debug("Missing Edges Size: " + missingEdges.size());
+        for (Map.Entry<Vertex, Vertex> edge : missingEdges.entries()) {
+            addEdge(edge.getKey(), edge.getValue());
         }
 
         // TODO: instead of using reference for whole onCreate method, it should be sufficient to save only entry vertex
