@@ -34,8 +34,6 @@ import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
@@ -268,8 +266,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // missing edges, which are inserted afterwards
         Multimap<Vertex, Vertex> missingEdges = TreeMultimap.create();
 
-        Iterator<Map.Entry<String, BaseCFG>> it = intraCFGs.entrySet().iterator();
-
         // compute inter-procedural CFG by connecting intra CFGs
         for (Map.Entry<String, BaseCFG> entry : intraCFGsCopy.entrySet()) {
 
@@ -281,7 +277,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug("Integrating CFG: " + intraCFG.getMethodName());
 
-            // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+            // if (intraCFG.getMethodName().startsWith("Lcom/android/calendar/EventInfoActivity")) {
             if (!coveredGraphs.contains(intraCFG)) {
                 // add first source graph
                 addSubGraph(intraCFG);
@@ -309,9 +305,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     continue;
                 }
 
-                // operate on cloned vertex
-                // Vertex cloneVertex = vertex.clone();
-
                 // all vertices are represented by block statements
                 BlockStatement blockStatement = (BlockStatement) vertex.getStatement();
 
@@ -337,7 +330,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 LOGGER.debug("Outgoing edges: " + outgoingEdges.stream().map(e
                         -> e.getTarget().toString()).collect(Collectors.joining(",")));
 
-                // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+                // if (intraCFG.getMethodName().startsWith("Lcom/android/calendar/EventInfoActivity")) {
 
                     // first remove vertex -> this removes its predecessors and successors inherently
                     removeVertex(vertex);
@@ -958,7 +951,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                             resourceID).parseCallbacks());
                 });
 
-        LOGGER.debug(componentCallbacks);
+        LOGGER.debug("Declared Callbacks via XML: " + componentCallbacks);
 
         // associate each component with its intraCFGs representing callbacks
         for (String component : componentCallbacks.keySet()) {
