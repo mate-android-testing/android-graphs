@@ -97,8 +97,11 @@ public class BaseGraphBuilderTest {
     @Test
     public void constructIntraCFGWithBasicBlocksLinux() throws IOException {
 
+        File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
+        // File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
+
         MultiDexContainer<? extends DexBackedDexFile> apk
-                = DexFileFactory.loadDexContainer(new File("/home/auermich/smali/ws.xsoh.etar_17.apk"), API_OPCODE);
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
 
         List<DexFile> dexFiles = new ArrayList<>();
 
@@ -112,7 +115,8 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/EventLoader$LoaderThread;->run()V")
+                .withName("Landroid/support/v7/widget/ToolbarWidgetWrapper;->setMenu(Landroid/view/Menu;Landroid/support/v7/view/menu/MenuPresenter$Callback;)V")
+                 // .withName("Lcom/android/calendar/EventLoader$LoaderThread;->run()V")
                 .withBasicBlocks()
                 .build();
 
