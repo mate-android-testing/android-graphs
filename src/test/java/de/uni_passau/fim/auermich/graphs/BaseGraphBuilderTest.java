@@ -44,6 +44,8 @@ public class BaseGraphBuilderTest {
 
         BaseCFG interCFG = (BaseCFG) baseGraph;
 
+        System.out.println("Total number of Branches: " + interCFG.getBranches().size());
+
         Vertex targetVertex = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
                 && v.getMethod().equals("Landroid/support/v7/widget/ToolbarWidgetWrapper" +
                 ";->setMenu(Landroid/view/Menu;Landroid/support/v7/view/menu/MenuPresenter$Callback;)V"))
@@ -217,14 +219,18 @@ public class BaseGraphBuilderTest {
                 .withAPKFile(apkFile)
                 .build();
 
+        BaseCFG baseCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Number of Vertices: " + baseCFG.getVertices().size());
+        System.out.println("Number of Branches: " + baseCFG.getBranches().size());
         // baseGraph.drawGraph();
     }
 
     @Test
     public void constructInterCFGWithBasicBlocks() throws IOException {
 
-        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
-        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
+        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
 
 
         MultiDexContainer<? extends DexBackedDexFile> apk
@@ -247,7 +253,14 @@ public class BaseGraphBuilderTest {
                 .withAPKFile(apkFile)
                 .build();
 
-        // baseGraph.drawGraph();
+        BaseCFG baseCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Number of Vertices: " + baseCFG.getVertices().size());
+        System.out.println("Number of Branches: " + baseCFG.getBranches().size());
+
+        if (baseCFG.getVertices().size() < 500) {
+            baseGraph.drawGraph();
+        }
     }
 
     @Test

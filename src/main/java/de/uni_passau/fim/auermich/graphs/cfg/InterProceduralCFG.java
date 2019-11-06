@@ -108,6 +108,16 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 // the invoke instruction belongs to the current block
                 block.add(basicStmt);
 
+                // TODO: add flag 'modelARTClasses'
+                String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+                String classNameTarget = Utility.dottedClassName(Utility.getClassName(methodSignature));
+                Pattern exclusionPattern = Utility.readExcludePatterns();
+                if (exclusionPattern != null && exclusionPattern.matcher(classNameTarget).matches()) {
+                    // we simply avoid splitting if the invoke refers to some ART class
+                    System.out.println("Skip ART method invocation");
+                    continue;
+                }
+
                 blockStmts.add(block);
 
                 LOGGER.debug("Block Statement:");
@@ -185,6 +195,16 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     && (instruction instanceof Instruction3rc
                     || instruction instanceof Instruction35c)) {
 
+                // TODO: add flag 'modelARTClasses'
+                String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+                String classNameTarget = Utility.dottedClassName(Utility.getClassName(methodSignature));
+                Pattern exclusionPattern = Utility.readExcludePatterns();
+                if (exclusionPattern != null && exclusionPattern.matcher(classNameTarget).matches()) {
+                    // we simply avoid splitting if the invoke refers to some ART class
+                    blockStmts.add(0, basicStmt);
+                    continue;
+                }
+
                 // add return statement as first statement
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
                 Statement returnStmt = new ReturnStatement(src.getMethod(), targetMethod);
@@ -229,6 +249,16 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             if (instruction instanceof ReferenceInstruction
                     && (instruction instanceof Instruction3rc
                     || instruction instanceof Instruction35c)) {
+
+                // TODO: add flag 'modelARTClasses'
+                String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+                String classNameTarget = Utility.dottedClassName(Utility.getClassName(methodSignature));
+                Pattern exclusionPattern = Utility.readExcludePatterns();
+                if (exclusionPattern != null && exclusionPattern.matcher(classNameTarget).matches()) {
+                    // we simply avoid splitting if the invoke refers to some ART class
+                    blockStmts.add(basicStmt);
+                    continue;
+                }
 
                 blockStmts.add(basicStmt);
                 break;
@@ -277,18 +307,22 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug("Integrating CFG: " + intraCFG.getMethodName());
 
-            // if (intraCFG.getMethodName().startsWith("Lcom/android/calendar/EventInfoActivity")) {
-            if (!coveredGraphs.contains(intraCFG)) {
-                // add first source graph
-                addSubGraph(intraCFG);
-                coveredGraphs.add(intraCFG);
-            }
-            // }
-
             // the method signature (className->methodName->params->returnType)
             String method = intraCFG.getMethodName();
             String className = Utility.dottedClassName(Utility.getClassName(method));
             LOGGER.debug("ClassName: " + className);
+
+            // if (intraCFG.getMethodName().startsWith("Lcom/android/calendar/EventInfoActivity")) {
+            // TODO: might be redundant, the set of intraCFGs shouldn't contain any ART classes
+            // TODO: add flag 'modelARTClasses'
+            if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
+                if (!coveredGraphs.contains(intraCFG)) {
+                    // add first source graph
+                    addSubGraph(intraCFG);
+                    coveredGraphs.add(intraCFG);
+                }
+                // }
+            }
 
             // we need to model the android lifecycle as well -> collect onCreate methods
             if (method.contains("onCreate(Landroid/os/Bundle;)V") && !exclusionPattern.matcher(className).matches()) {
@@ -315,6 +349,41 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                 if (blocks.size() == 1) {
                     // there is no invoke instruction included in the block stmt -> leave the vertex unchanged
+
+                    // TODO: add 'modelARTClasses' flag (entire for loop)
+                    List<Statement> block = blocks.get(0);
+                    Statement blockStmt = new BlockStatement(method, block);
+
+                    List<Statement> stmts = ((BlockStatement) blockStmt).getStatements();
+
+                    for (Statement stmt : stmts) {
+
+                        if (stmt.getType() != Statement.StatementType.BASIC_STATEMENT) {
+                            continue;
+                        }
+
+                        // the last stmt of the block contains the invoke instruction
+                        BasicStatement invokeStmt = (BasicStatement) stmt;
+                        Instruction instruction = invokeStmt.getInstruction().getInstruction();
+
+                        // check for invoke/invoke-range instruction
+                        if (instruction instanceof ReferenceInstruction
+                                && (instruction instanceof Instruction3rc
+                                || instruction instanceof Instruction35c)) {
+
+                            LOGGER.debug("Check for fragment invocation!");
+
+                            // search for target CFG by reference of invoke instruction (target method)
+                            String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+
+                            // check if invocation refers to adding a fragment
+                            String fragment = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
+
+                            if (fragment != null) {
+                                activityFragments.put(Utility.getClassName(method), fragment);
+                            }
+                        }
+                    }
                     continue;
                 }
 
@@ -379,6 +448,42 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                             }
                         }
 
+                        // TODO: add 'modelARTClasses' flag (entire for loop)
+                        // needs to before check of last block, since now last block may contain invoke instructions
+                        List<Statement> stmts = ((BlockStatement) blockStmt).getStatements();
+
+                        for (Statement stmt : stmts) {
+
+                            if (stmt.getType() != Statement.StatementType.BASIC_STATEMENT) {
+                                continue;
+                            }
+
+                            // the last stmt of the block contains the invoke instruction
+                            // BasicStatement invokeStmt = (BasicStatement) ((BlockStatement) blockStmt).getLastStatement();
+                            BasicStatement invokeStmt = (BasicStatement) stmt;
+                            Instruction instruction = invokeStmt.getInstruction().getInstruction();
+
+                            // check for invoke/invoke-range instruction
+                            if (instruction instanceof ReferenceInstruction
+                                    && (instruction instanceof Instruction3rc
+                                    || instruction instanceof Instruction35c)) {
+
+                                // search for target CFG by reference of invoke instruction (target method)
+                                String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+
+                                if (methodSignature.contains("Landroid/support/v4/app/FragmentTransaction;->add")) {
+                                    LOGGER.debug("HELP ME OUT");
+                                }
+
+                                // check if invocation refers to adding a fragment
+                                String fragment = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
+
+                                if (fragment != null) {
+                                    activityFragments.put(Utility.getClassName(method), fragment);
+                                }
+                            }
+                        }
+
                         // last block, add original successors to the last block
                         if (i == blocks.size() - 1) {
                             LOGGER.debug("Last Block reached! - Special treatment!");
@@ -399,19 +504,11 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                             break;
                         }
 
-                        // the last stmt of the block contains the invoke instruction
                         BasicStatement invokeStmt = (BasicStatement) ((BlockStatement) blockStmt).getLastStatement();
                         Instruction instruction = invokeStmt.getInstruction().getInstruction();
 
                         // search for target CFG by reference of invoke instruction (target method)
                         String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
-
-                        // check if invocation refers to adding a fragment
-                        String fragment = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
-
-                        if (fragment != null) {
-                            activityFragments.put(Utility.getClassName(method), fragment);
-                        }
 
                         // the CFG that corresponds to the invoke call
                         BaseCFG targetCFG;
@@ -500,18 +597,21 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             IntraProceduralCFG intraCFG = (IntraProceduralCFG) cfg;
             LOGGER.debug(intraCFG.getMethodName());
 
-            // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
-            if (!coveredGraphs.contains(cfg)) {
-                // add first source graph
-                addSubGraph(intraCFG);
-                coveredGraphs.add(cfg);
-            }
-            // }
-
             // the method signature (className->methodName->params->returnType)
             String method = intraCFG.getMethodName();
             String className = Utility.dottedClassName(Utility.getClassName(method));
             LOGGER.debug("ClassName: " + className);
+
+            // if (intraCFG.getMethodName().startsWith("Lcom/zola/bmi/BMIMain")) {
+            // TODO: add flag 'modelARTClasses'
+            if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
+                if (!coveredGraphs.contains(cfg)) {
+                    // add first source graph
+                    addSubGraph(intraCFG);
+                    coveredGraphs.add(cfg);
+                }
+                // }
+            }
 
             // we need to model the android lifecycle as well -> collect onCreate methods
             if (method.contains("onCreate(Landroid/os/Bundle;)V") &&
@@ -551,7 +651,14 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         activityFragments.put(Utility.getClassName(method), fragment);
                     }
 
-                    BaseCFG targetCFG;
+                    String classNameTarget = Utility.dottedClassName(Utility.getClassName(methodSignature));
+                    // TODO: add flag 'modelARTClasses'
+                    if (exclusionPattern != null && exclusionPattern.matcher(classNameTarget).matches()) {
+                        continue;
+                    }
+
+
+                        BaseCFG targetCFG;
 
                     if (intraCFGs.containsKey(methodSignature)) {
                         targetCFG = intraCFGs.get(methodSignature);
@@ -1231,8 +1338,9 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         String className = Utility.dottedClassName(classDef.toString());
 
                         if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
+                            // TODO: add boolean flag 'modelARTClasses'
                             // dummy CFG consisting only of entry, exit vertex and edge between
-                            intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
+                            // intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
                         } else {
                             intraCFGs.put(methodSignature, new IntraProceduralCFG(methodSignature, dexFile, useBasicBlocks));
                             realMethods.incrementAndGet();
