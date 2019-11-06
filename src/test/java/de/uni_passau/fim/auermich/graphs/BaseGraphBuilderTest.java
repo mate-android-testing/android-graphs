@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.graphs;
 
+import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.DexFile;
@@ -14,6 +15,46 @@ import java.util.List;
 import static de.uni_passau.fim.auermich.Main.API_OPCODE;
 
 public class BaseGraphBuilderTest {
+
+    @Test
+    public void checkReachAbility() throws IOException {
+
+        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .build();
+
+        BaseCFG interCFG = (BaseCFG) baseGraph;
+
+        Vertex targetVertex = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
+                && v.getMethod().equals("Landroid/support/v7/widget/ToolbarWidgetWrapper" +
+                ";->setMenu(Landroid/view/Menu;Landroid/support/v7/view/menu/MenuPresenter$Callback;)V"))
+                .findFirst().get();
+
+        interCFG.getIncomingEdges(targetVertex).forEach(edge -> System.out.println("Predecessor: " + edge.getSource()));
+
+        int distance = interCFG.getShortestDistance(interCFG.getEntry(), targetVertex);
+        boolean reachable = distance != -1;
+        System.out.println("Target Vertex reachable " + reachable);
+    }
 
     @Test
     public void constructIntraCFG() throws IOException {
