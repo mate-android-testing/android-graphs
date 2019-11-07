@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.graphs;
 
+import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.DexFile;
@@ -14,6 +15,48 @@ import java.util.List;
 import static de.uni_passau.fim.auermich.Main.API_OPCODE;
 
 public class BaseGraphBuilderTest {
+
+    @Test
+    public void checkReachAbility() throws IOException {
+
+        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .build();
+
+        BaseCFG interCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Total number of Branches: " + interCFG.getBranches().size());
+
+        Vertex targetVertex = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
+                && v.getMethod().equals("Landroid/support/v7/widget/ToolbarWidgetWrapper" +
+                ";->setMenu(Landroid/view/Menu;Landroid/support/v7/view/menu/MenuPresenter$Callback;)V"))
+                .findFirst().get();
+
+        interCFG.getIncomingEdges(targetVertex).forEach(edge -> System.out.println("Predecessor: " + edge.getSource()));
+
+        int distance = interCFG.getShortestDistance(interCFG.getEntry(), targetVertex);
+        boolean reachable = distance != -1;
+        System.out.println("Target Vertex reachable " + reachable);
+    }
 
     @Test
     public void constructIntraCFG() throws IOException {
@@ -153,8 +196,8 @@ public class BaseGraphBuilderTest {
     @Test
     public void constructInterCFG() throws IOException {
 
-        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
-        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
+        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
 
 
         MultiDexContainer<? extends DexBackedDexFile> apk
@@ -176,6 +219,44 @@ public class BaseGraphBuilderTest {
                 .withAPKFile(apkFile)
                 .build();
 
+        BaseCFG baseCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Number of Vertices: " + baseCFG.getVertices().size());
+        System.out.println("Number of Branches: " + baseCFG.getBranches().size());
+        // baseGraph.drawGraph();
+    }
+
+    @Test
+    public void constructInterCFGExcludeARTClasses() throws IOException {
+
+        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
+
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withAPKFile(apkFile)
+                .withExcludeARTClasses()
+                .build();
+
+        BaseCFG baseCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Number of Vertices: " + baseCFG.getVertices().size());
+        System.out.println("Number of Branches: " + baseCFG.getBranches().size());
         // baseGraph.drawGraph();
     }
 
@@ -206,7 +287,51 @@ public class BaseGraphBuilderTest {
                 .withAPKFile(apkFile)
                 .build();
 
-        // baseGraph.drawGraph();
+        BaseCFG baseCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Number of Vertices: " + baseCFG.getVertices().size());
+        System.out.println("Number of Branches: " + baseCFG.getBranches().size());
+
+        if (baseCFG.getVertices().size() < 500) {
+            baseGraph.drawGraph();
+        }
+    }
+
+    @Test
+    public void constructInterCFGWithBasicBlocksAndExcludeARTClasses() throws IOException {
+
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
+        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .withExcludeARTClasses()
+                .build();
+
+        BaseCFG baseCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Number of Vertices: " + baseCFG.getVertices().size());
+        System.out.println("Number of Branches: " + baseCFG.getBranches().size());
+
+        if (baseCFG.getVertices().size() < 500) {
+            baseGraph.drawGraph();
+        }
     }
 
     @Test
@@ -233,6 +358,11 @@ public class BaseGraphBuilderTest {
                 .withBasicBlocks()
                 .withAPKFile(apkFile)
                 .build();
+
+        BaseCFG baseCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Number of Vertices: " + baseCFG.getVertices().size());
+        System.out.println("Number of Branches: " + baseCFG.getBranches().size());
 
         // baseGraph.drawGraph();
     }

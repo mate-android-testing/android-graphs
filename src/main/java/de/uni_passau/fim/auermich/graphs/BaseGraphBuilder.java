@@ -32,6 +32,8 @@ public class BaseGraphBuilder {
 
     private File apkFile;
 
+    private boolean excludeARTClasses = false;
+
     /* END OPTIONAL FIELDS */
 
     public BaseGraphBuilder(GraphType type, List<DexFile> dexFiles) {
@@ -54,6 +56,11 @@ public class BaseGraphBuilder {
         return this;
     }
 
+    public BaseGraphBuilder withExcludeARTClasses() {
+        this.excludeARTClasses = true;
+        return this;
+    }
+
     public BaseGraph build() {
         switch (type) {
             case INTRACFG:
@@ -70,7 +77,7 @@ public class BaseGraphBuilder {
                 Objects.requireNonNull(name, "CFG name is mandatory!");
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
                 APK apk = new APK(apkFile, dexFiles);
-                return new InterProceduralCFG(name, apk, useBasicBlocks);
+                return new InterProceduralCFG(name, apk, useBasicBlocks, excludeARTClasses);
             default:
                 throw new UnsupportedOperationException("Graph type not yet supported!");
         }
