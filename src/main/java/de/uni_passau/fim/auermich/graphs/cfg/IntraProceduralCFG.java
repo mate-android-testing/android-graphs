@@ -224,6 +224,8 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
                 if (successors.isEmpty()) {
                     // must be a return statement, thus we need to insert an edge to the exit vertex
+                    // TODO: this is not necessarily true, e.g. throw doesn't define any successor
+                    // there can be (unreachable) instructions after the return statement, dunno how to treat them
                     addEdge(vertex, getExit());
                 } else {
                     // add for each successor an outgoing each from the current vertex
@@ -491,6 +493,9 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
                 if (nextLeaderIndex >= leaders.size()) {
                     // last basic block reached
+
+                    // TODO: there can be sort of isolated instructions, e.g. an instruction after some return stmt
+                    // likewise these packed-switch-payload instructions/labels behave strange
 
                     // we need to add the remaining instructions to the last basic block
                     basicBlock.addAll(analyzedInstructions.subList(

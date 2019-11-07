@@ -200,8 +200,7 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/icalendar/IcalendarUtils;->" +
-                        "getStringArrayFromFile(Landroid/content/Context;Landroid/net/Uri;)Ljava/util/ArrayList;")
+                .withName("Lcom/android/calendar/DynamicTheme;->getSuffix(Ljava/lang/String;)Ljava/lang/String;")
                 .build();
 
         baseGraph.drawGraph();
@@ -251,8 +250,7 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/icalendar/IcalendarUtils;->" +
-                        "getStringArrayFromFile(Landroid/content/Context;Landroid/net/Uri;)Ljava/util/ArrayList;")
+                .withName("Lcom/android/calendar/DynamicTheme;->getSuffix(Ljava/lang/String;)Ljava/lang/String;")
                 .withBasicBlocks()
                 .build();
 
