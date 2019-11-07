@@ -164,7 +164,7 @@ public final class Main {
         return true;
     }
 
-    public static BaseCFG computerInterCFGWithBB(String apkPath) throws IOException {
+    public static BaseCFG computerInterCFGWithBB(String apkPath, boolean excludeARTClasses) throws IOException {
 
         File apkFile = new File(apkPath);
 
@@ -182,11 +182,16 @@ public final class Main {
             }
         });
 
-        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
                 .withName("global")
                 .withBasicBlocks()
-                .withAPKFile(apkFile)
-                .build();
+                .withAPKFile(apkFile);
+
+        if (excludeARTClasses) {
+            builder = builder.withExcludeARTClasses();
+        }
+
+        BaseGraph baseGraph = builder.build();
 
         return (BaseCFG) baseGraph;
     }
