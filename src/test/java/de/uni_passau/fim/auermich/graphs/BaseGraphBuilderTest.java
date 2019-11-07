@@ -121,6 +121,66 @@ public class BaseGraphBuilderTest {
     }
 
     @Test
+    public void countUnreachableVerticesWindows() throws IOException {
+
+        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
+        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .withExcludeARTClasses()
+                .build();
+
+        // baseGraph.drawGraph();
+
+        BaseCFG interCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Total number of Vertices: " + interCFG.getVertices().size());
+        System.out.println("Total number of Branches: " + interCFG.getBranches().size());
+
+        int unreachableVertices = 0;
+        int unreachableARTVertices = 0;
+        Pattern exclusionPattern = Utility.readExcludePatterns();
+
+        for (Vertex vertex : interCFG.getVertices()) {
+
+            if (vertex.equals(interCFG.getEntry()) || vertex.equals(interCFG.getExit())) {
+                continue;
+            }
+
+            if (interCFG.getShortestDistance(interCFG.getEntry(), vertex) == -1) {
+                unreachableVertices++;
+
+                String className = Utility.dottedClassName(Utility.getClassName(vertex.getMethod()));
+                if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
+                    unreachableARTVertices++;
+                } else {
+                    System.out.println("Unreachable Vertex: " + vertex.getMethod() + " -> " + vertex);
+                }
+            }
+        }
+
+        System.out.println("Total Number of unreachable Vertices: " + unreachableVertices);
+        System.out.println("Total Number of unreachable ART Vertices: " + unreachableARTVertices);
+    }
+
+    @Test
     public void constructIntraCFG() throws IOException {
 
         MultiDexContainer<? extends DexBackedDexFile> apk

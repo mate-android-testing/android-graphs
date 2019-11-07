@@ -519,6 +519,13 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     // search for target CFG by reference of invoke instruction (target method)
                     String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
 
+                    // check if invocation refers to adding a fragment
+                    String fragment = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
+
+                    if (fragment != null) {
+                        activityFragments.put(Utility.getClassName(method), fragment);
+                    }
+
                     // the CFG that corresponds to the invoke call
                     BaseCFG targetCFG;
 
