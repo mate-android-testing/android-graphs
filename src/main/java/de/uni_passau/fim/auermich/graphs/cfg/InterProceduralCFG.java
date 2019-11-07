@@ -569,6 +569,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         // add activity and fragment lifecycle as well as global entry point for activities
         onCreateCFGs.forEach((activity, onCreateCFG) -> {
+            LOGGER.debug("Activity " + activity + " defines the following fragments: " + activityFragments.get(activity));
             BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
             callbackEntryPoints.put(activity, callbackEntryPoint);
             // TODO: check whether copy is here as well necessary

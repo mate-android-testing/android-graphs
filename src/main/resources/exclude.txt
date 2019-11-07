@@ -5,6 +5,7 @@ android.arch.*
 androidx.*
 android.widget.*
 java.lang.*
+java.io.*
 com.android.common.*
 com.facebook.android.*
 com.android.calendar.Utils.*
