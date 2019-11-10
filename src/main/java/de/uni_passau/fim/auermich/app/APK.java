@@ -47,6 +47,7 @@ public class APK {
             // overwrites existing dir: -f
             decoder.setForceDelete(true);
 
+            // FIXME: the APKDecoder has some issue with the file path length on Windows!
             decoder.decode();
         } catch (BrutException | IOException e) {
             LOGGER.warn("Failed to decode APK file!");

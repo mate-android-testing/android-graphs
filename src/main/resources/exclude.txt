@@ -2,6 +2,7 @@ android.support.annotation.*
 android.support.v.*
 android.support.*
 android.arch.*
+android.content.*
 androidx.*
 android.widget.*
 java.lang.*

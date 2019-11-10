@@ -28,6 +28,7 @@ import org.jf.dexlib2.iface.MethodImplementation;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.NarrowLiteralInstruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
+import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
 import org.jgrapht.Graph;
@@ -379,6 +380,85 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         }
     }
 
+    /**
+     * Checks whether the given block stmt contains invocations of another component, e.g. activity.
+     * This method should be only called when {@code excludeARTClasses} is activated due to perform
+     * reasons. As a side effect, adds an edge between the block stmt and the constructor of the
+     * target component if there was a component invocation.
+     *
+     * @param blockStmt The block stmt to be inspected.
+     * @param missingEdges A set of edges that are added later to the graph.
+     */
+    private void checkComponentInvocation(Statement blockStmt, Multimap<Vertex, Vertex> missingEdges) {
+
+        assert blockStmt.getType() == Statement.StatementType.BLOCK_STATEMENT && excludeARTClasses;
+
+        List<Statement> stmts = ((BlockStatement) blockStmt).getStatements();
+
+        for (Statement stmt : stmts) {
+
+            if (stmt.getType() != Statement.StatementType.BASIC_STATEMENT) {
+                continue;
+            }
+
+            BasicStatement invokeStmt = (BasicStatement) stmt;
+            AnalyzedInstruction instruction = invokeStmt.getInstruction();
+
+            String targetComponent = isComponentInvocation(instruction);
+
+            if (targetComponent != null) {
+
+                // the source vertex is the block stmt
+                Vertex sourceVertex = new Vertex(blockStmt);
+
+                // entry vertex of constructor
+                Vertex targetVertex = intraCFGs.get(targetComponent).getEntry();
+
+                missingEdges.put(sourceVertex, targetVertex);
+            }
+        }
+    }
+
+    /**
+     * Checks whether the given instruction refers to the invocation of a component.
+     *
+     * @param analyzedInstruction The given instruction.
+     * @return Returns the constructor name of the target component if the instruction
+     *          refers to a component invocation, otherwise {@code null}.
+     */
+    private String isComponentInvocation(AnalyzedInstruction analyzedInstruction) {
+
+        LOGGER.debug("Check for component invocation!");
+
+        Instruction instruction = analyzedInstruction.getInstruction();
+
+        // check for invoke/invoke-range instruction
+        if (instruction instanceof ReferenceInstruction
+                && (instruction instanceof Instruction3rc
+                || instruction instanceof Instruction35c)) {
+
+            String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+
+            if (methodSignature.endsWith("startActivity(Landroid/content/Intent;)V")) {
+
+                // go back until we find const-class instruction which holds the activity name
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                while (true) {
+                    Instruction predecessor = pred.getInstruction();
+                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+                        String targetActivity = ((Instruction21c) predecessor).getReference().toString();
+                        // return the full-qualified name of the constructor
+                        return targetActivity + "-><init>()V";
+                    }else {
+                        pred = pred.getPredecessors().first();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private void constructCFGWithBasicBlocks(APK apk) {
 
         // avoid concurrent modification exception
@@ -430,6 +510,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             // }
 
             // we need to model the android lifecycle as well -> collect onCreate methods
+            // TODO: fragments also define a onCreate method, we should exclude them here, e.g. check for super class
             if (method.contains("onCreate(Landroid/os/Bundle;)V") && !exclusionPattern.matcher(className).matches()) {
                 // copy necessary, otherwise the sub graph misses some vertices
                 onCreateCFGs.put(Utility.getClassName(method), intraCFGs.get(method));
@@ -455,6 +536,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 if (blocks.size() == 1) {
                     if (excludeARTClasses) {
                         checkFragmentInvocation(new BlockStatement(method, blocks.get(0)), activityFragments);
+                        checkComponentInvocation(new BlockStatement(method, blocks.get(0)), missingEdges);
                     }
                     // there is no invoke instruction included in the block stmt -> leave the vertex unchanged
                     continue;
@@ -503,13 +585,14 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     // needs to be before check of last block, since now last block may contain invoke instructions
                     if (excludeARTClasses) {
                         checkFragmentInvocation(blockStmt, activityFragments);
+                        checkComponentInvocation(blockStmt, missingEdges);
                     }
 
                     // last block, add original successors to the last block
                     if (i == blocks.size() - 1) {
                         LOGGER.debug("Last Block reached! - Special treatment!");
                         handleLastBlock(blockVertex, outgoingEdges, missingEdges);
-                        // the last block doesn't contain any invoke instruction
+                        // the last block doesn't contain any invoke instruction if !excludeARTClasses
                         break;
                     }
 
@@ -519,11 +602,28 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     // search for target CFG by reference of invoke instruction (target method)
                     String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
 
-                    // check if invocation refers to adding a fragment
-                    String fragment = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
+                    // redundant code if excludeARTClasses is turned on
+                    if (!excludeARTClasses) {
 
-                    if (fragment != null) {
-                        activityFragments.put(Utility.getClassName(method), fragment);
+                        // TODO: treat inherited ART calls, e.g. startActivity(), as ART class methods
+
+                        // check if invocation refers to adding a fragment
+                        String fragment = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
+
+                        if (fragment != null) {
+                            activityFragments.put(Utility.getClassName(method), fragment);
+                        }
+
+                        // check if the invocation refers to the activation of another component
+                        String targetComponent = isComponentInvocation(invokeStmt.getInstruction());
+
+                        if (targetComponent != null) {
+
+                            // the source vertex is the exit vertex of the start component invocation
+                            Vertex sourceVertex = intraCFGs.get(methodSignature).getExit();
+                            Vertex targetVertex = intraCFGs.get(targetComponent).getEntry();
+                            missingEdges.put(sourceVertex, targetVertex);
+                        }
                     }
 
                     // the CFG that corresponds to the invoke call
@@ -663,6 +763,13 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                     if (fragment != null) {
                         activityFragments.put(Utility.getClassName(method), fragment);
+                    }
+
+                    // check if invocation refers to activation of component
+                    String component = isComponentInvocation(statement.getInstruction());
+
+                    if (component != null) {
+                        // TODO: use a set where add an edge between the invoke stmt and the target component and add it later
                     }
 
                     if (excludeARTClasses) {
