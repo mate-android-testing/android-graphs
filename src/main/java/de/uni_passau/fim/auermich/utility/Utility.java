@@ -245,4 +245,21 @@ public final class Utility {
         return className;
     }
 
+    /**
+     * Checks whether the given method is an (inherited) ART method, e.g. startActivity().
+     *
+     * @param method The method signature.
+     * @return Returns {@code true} if the given method is an ART method,
+     *          otherwise {@code false}.
+     */
+    public static boolean isARTMethod(String method) {
+
+        if (method.endsWith("startActivity(Landroid/content/Intent;)V")
+            || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle)V")) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
 }

@@ -123,7 +123,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
                     String className = Utility.dottedClassName(Utility.getClassName(methodSignature));
                     Pattern exclusionPattern = Utility.readExcludePatterns();
-                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
+                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                            || Utility.isARTMethod(methodSignature)) {
                         // we simply avoid splitting if the invoke refers to some ART class
                         LOGGER.debug("Ignoring ART method invocation");
                         continue;
@@ -1459,7 +1460,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         String methodSignature = Utility.deriveMethodSignature(method);
                         String className = Utility.dottedClassName(classDef.toString());
 
-                        if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
+                        if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                                || Utility.isARTMethod(methodSignature)) {
                             if (!excludeARTClasses) {
                                 // dummy CFG consisting only of entry, exit vertex and edge between
                                 intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
