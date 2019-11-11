@@ -521,7 +521,7 @@ public class BaseGraphBuilderTest {
         System.out.println("Number of Vertices: " + baseCFG.getVertices().size());
         System.out.println("Number of Branches: " + baseCFG.getBranches().size());
 
-        if (baseCFG.getVertices().size() < 500) {
+        if (baseCFG.getVertices().size() < 800) {
             baseGraph.drawGraph();
         }
     }

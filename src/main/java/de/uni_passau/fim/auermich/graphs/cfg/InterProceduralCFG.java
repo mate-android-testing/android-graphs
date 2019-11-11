@@ -48,6 +48,9 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
     private Map<String, BaseCFG> intraCFGs = new HashMap<>();
 
+    // track the set of activities
+    private Set<String> activities = new HashSet<>();
+
     // whether to represent ART methods as explicit intra CFGs
     private boolean excludeARTClasses = false;
 
@@ -387,7 +390,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      * reasons. As a side effect, adds an edge between the block stmt and the constructor of the
      * target component if there was a component invocation.
      *
-     * @param blockStmt The block stmt to be inspected.
+     * @param blockStmt    The block stmt to be inspected.
      * @param missingEdges A set of edges that are added later to the graph.
      */
     private void checkComponentInvocation(Statement blockStmt, Multimap<Vertex, Vertex> missingEdges) {
@@ -425,7 +428,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      *
      * @param analyzedInstruction The given instruction.
      * @return Returns the constructor name of the target component if the instruction
-     *          refers to a component invocation, otherwise {@code null}.
+     * refers to a component invocation, otherwise {@code null}.
      */
     private String isComponentInvocation(AnalyzedInstruction analyzedInstruction) {
 
@@ -451,7 +454,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         String targetActivity = ((Instruction21c) predecessor).getReference().toString();
                         // return the full-qualified name of the constructor
                         return targetActivity + "-><init>()V";
-                    }else {
+                    } else {
                         pred = pred.getPredecessors().first();
                     }
                 }
@@ -509,13 +512,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 coveredGraphs.add(intraCFG);
             }
             // }
-
-            // we need to model the android lifecycle as well -> collect onCreate methods
-            // TODO: fragments also define a onCreate method, we should exclude them here, e.g. check for super class
-            if (method.contains("onCreate(Landroid/os/Bundle;)V") && !exclusionPattern.matcher(className).matches()) {
-                // copy necessary, otherwise the sub graph misses some vertices
-                onCreateCFGs.put(Utility.getClassName(method), intraCFGs.get(method));
-            }
 
             LOGGER.debug("Searching for invoke instructions!");
 
@@ -676,7 +672,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // TODO: instead of using reference for whole onCreate method, it should be sufficient to save only entry vertex
 
         // add activity and fragment lifecycle as well as global entry point for activities
-        onCreateCFGs.forEach((activity, onCreateCFG) -> {
+        activities.forEach(activity -> {
+            BaseCFG onCreateCFG = intraCFGs.get(activity + "->onCreate(Landroid/os/Bundle;)V");
             LOGGER.debug("Activity " + activity + " defines the following fragments: " + activityFragments.get(activity));
             BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
             callbackEntryPoints.put(activity, callbackEntryPoint);
@@ -728,13 +725,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             }
             // }
 
-            // we need to model the android lifecycle as well -> collect onCreate methods
-            if (method.contains("onCreate(Landroid/os/Bundle;)V") &&
-                    exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
-                // copy necessary, otherwise the sub graph misses some vertices
-                onCreateCFGs.put(Utility.getClassName(method), intraCFGs.get(method));
-            }
-
             LOGGER.debug("Searching for invoke instructions!");
 
             // TODO: may track previously all call instructions when computing intraCFG
@@ -776,7 +766,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     if (excludeARTClasses) {
                         // leave the vertex unchanged -> no edge to target CFG
                         String targetClassName = Utility.dottedClassName(Utility.getClassName(methodSignature));
-                        if (exclusionPattern != null && exclusionPattern.matcher(targetClassName).matches()) {
+                        if (exclusionPattern != null && exclusionPattern.matcher(targetClassName).matches()
+                                || Utility.isARTMethod(methodSignature)) {
                             continue;
                         }
                     }
@@ -845,7 +836,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // TODO: instead of using reference for whole onCreate method, it should be sufficient to save only entry vertex
 
         // add activity and fragment lifecycle as well as global entry point for activities
-        onCreateCFGs.forEach((activity, onCreateCFG) -> {
+        activities.forEach(activity -> {
+            BaseCFG onCreateCFG = intraCFGs.get(activity + "->onCreate(Landroid/os/Bundle;)V");
             BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
             callbackEntryPoints.put(activity, callbackEntryPoint);
             // TODO: check whether copy is here as well necessary
@@ -1454,24 +1446,35 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         for (DexFile dexFile : dexFiles) {
 
             // construct for ART classes only a dummy CFG consisting of virtual start and end vertex
-            dexFile.getClasses().forEach(classDef ->
-                    classDef.getMethods().forEach(method -> {
+            dexFile.getClasses().forEach(classDef -> {
 
-                        String methodSignature = Utility.deriveMethodSignature(method);
-                        String className = Utility.dottedClassName(classDef.toString());
+                String className = Utility.dottedClassName(classDef.toString());
 
-                        if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
-                                || Utility.isARTMethod(methodSignature)) {
-                            if (!excludeARTClasses) {
-                                // dummy CFG consisting only of entry, exit vertex and edge between
-                                intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
-                            }
-                        } else {
-                            intraCFGs.put(methodSignature, new IntraProceduralCFG(methodSignature, dexFile, useBasicBlocks));
-                            realMethods.incrementAndGet();
+                // as a side effect track whether the given class represents an activity
+                if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
+                    if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                        activities.add(classDef.toString());
+                    }
+                }
+
+                classDef.getMethods().forEach(method -> {
+
+                    String methodSignature = Utility.deriveMethodSignature(method);
+
+                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                            || Utility.isARTMethod(methodSignature)) {
+                        if (!excludeARTClasses) {
+                            // dummy CFG consisting only of entry, exit vertex and edge between
+                            intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
                         }
-                    }));
+                    } else {
+                        intraCFGs.put(methodSignature, new IntraProceduralCFG(methodSignature, dexFile, useBasicBlocks));
+                        realMethods.incrementAndGet();
+                    }
+                });
+            });
         }
+        LOGGER.debug("Activities: " + activities);
         LOGGER.debug("Number of completely constructed CFGs: " + realMethods.get());
         return intraCFGs;
     }

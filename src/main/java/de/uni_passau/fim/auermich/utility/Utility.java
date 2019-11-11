@@ -44,10 +44,8 @@ public final class Utility {
      */
     public static File[] getDexFiles(File directory) {
 
-        File[] matches = directory.listFiles(new FilenameFilter()
-        {
-            public boolean accept(File dir, String name)
-            {
+        File[] matches = directory.listFiles(new FilenameFilter() {
+            public boolean accept(File dir, String name) {
                 return name.startsWith("classes") && name.endsWith(".dex");
             }
         });
@@ -119,13 +117,13 @@ public final class Utility {
     }
 
 
-        /**
-         * Searches for a target method in the given {@code dexFile}.
-         *
-         * @param dexFile The dexFile to search in.
-         * @param methodSignature The signature of the target method.
-         * @return Returns an optional containing either the target method or not.
-         */
+    /**
+     * Searches for a target method in the given {@code dexFile}.
+     *
+     * @param dexFile         The dexFile to search in.
+     * @param methodSignature The signature of the target method.
+     * @return Returns an optional containing either the target method or not.
+     */
     public static Optional<Method> searchForTargetMethod(DexFile dexFile, String methodSignature) {
 
         // TODO: search for target method based on className + method signature
@@ -184,7 +182,7 @@ public final class Utility {
     }
 
     public static String getOuterClass(String className) {
-        return className.split("\\$")[0]+";";
+        return className.split("\\$")[0] + ";";
     }
 
     public static MethodAnalyzer getAnalyzer(DexFile dexFile, Method targetMethod) {
@@ -250,16 +248,55 @@ public final class Utility {
      *
      * @param method The method signature.
      * @return Returns {@code true} if the given method is an ART method,
-     *          otherwise {@code false}.
+     * otherwise {@code false}.
      */
     public static boolean isARTMethod(String method) {
 
+        // TODO: add further patterns, e.g.:
+        // getSupportFragmentManager()
+        // setContentView()
+        // startService()
+
         if (method.endsWith("startActivity(Landroid/content/Intent;)V")
-            || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle)V")) {
+                || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle)V")
+                || method.endsWith("findViewById(I)Landroid/view/View;")) {
             return true;
         } else {
             return false;
         }
+    }
+
+    /**
+     * Checks whether the given class represents an activity by checking against the super class.
+     *
+     * @param classes The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is an activity,
+     *          otherwise {@code false}.
+     */
+    public static boolean isActivity(List<ClassDef> classes, ClassDef currentClass) {
+
+        // TODO: this approach might be quite time-consuming, may find a better solution
+
+        String superClass = currentClass.getSuperclass();
+
+        while (superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            if (superClass.equals("Landroid/app/Activity;")
+                    || superClass.equals("Landroid/support/v7/app/AppCompatActivity;")
+                    || superClass.equals("Landroid/support/v7/app/ActionBarActivity;")
+                    || superClass.equals("Landroid/support/v4/app/FragmentActivity;")) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                    }
+                }
+            }
+        }
+        return false;
     }
 
 }

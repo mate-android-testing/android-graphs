@@ -3,6 +3,7 @@ android.support.v.*
 android.support.*
 android.arch.*
 android.content.*
+android.view.*
 androidx.*
 android.widget.*
 java.lang.*
