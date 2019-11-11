@@ -258,7 +258,7 @@ public final class Utility {
         // startService()
 
         if (method.endsWith("startActivity(Landroid/content/Intent;)V")
-                || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle)V")
+                || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")
                 || method.endsWith("findViewById(I)Landroid/view/View;")) {
             return true;
         } else {

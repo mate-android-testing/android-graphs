@@ -432,7 +432,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      */
     private String isComponentInvocation(AnalyzedInstruction analyzedInstruction) {
 
-        LOGGER.debug("Check for component invocation!");
+        // LOGGER.debug("Check for component invocation!");
 
         Instruction instruction = analyzedInstruction.getInstruction();
 
@@ -443,7 +443,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
             String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
 
-            if (methodSignature.endsWith("startActivity(Landroid/content/Intent;)V")) {
+            if (methodSignature.endsWith("startActivity(Landroid/content/Intent;)V")
+                    || methodSignature.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
 
                 // go back until we find const-class instruction which holds the activity name
                 AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
