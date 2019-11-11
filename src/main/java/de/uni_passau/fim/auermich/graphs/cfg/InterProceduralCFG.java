@@ -432,8 +432,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      */
     private String isComponentInvocation(AnalyzedInstruction analyzedInstruction) {
 
-        // LOGGER.debug("Check for component invocation!");
-
         Instruction instruction = analyzedInstruction.getInstruction();
 
         // check for invoke/invoke-range instruction
@@ -446,17 +444,31 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             if (methodSignature.endsWith("startActivity(Landroid/content/Intent;)V")
                     || methodSignature.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
 
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> target activity name might be defined somewhere else or external
+                    return null;
+                }
+
                 // go back until we find const-class instruction which holds the activity name
                 AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
-                while (true) {
+                // TODO: check that we don't miss activities, go back recursively if there are several predecessors
+                // upper bound to avoid resolving external activities or activities defined in a different method
+
+                while (pred.getInstructionIndex() != -1) {
                     Instruction predecessor = pred.getInstruction();
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
                         String targetActivity = ((Instruction21c) predecessor).getReference().toString();
                         // return the full-qualified name of the constructor
                         return targetActivity + "-><init>()V";
                     } else {
-                        pred = pred.getPredecessors().first();
+                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                            // there is no predecessor -> target activity name might be defined somewhere else or external
+                            return null;
+                        } else {
+                            // TODO: may use recursive search over all predecessors
+                            pred = pred.getPredecessors().first();
+                        }
                     }
                 }
             }
