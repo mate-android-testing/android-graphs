@@ -1336,7 +1336,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // TODO: right now all callbacks are handled central, no distinction between callbacks from activities and fragments
 
         // add callbacks sub graph
-        BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks");
+        BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks " + className);
         addSubGraph(callbacksCFG);
 
         // callbacks can be invoked after onResume() has finished
