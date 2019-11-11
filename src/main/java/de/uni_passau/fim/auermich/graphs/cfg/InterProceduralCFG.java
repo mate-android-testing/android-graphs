@@ -215,7 +215,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
                     String className = Utility.dottedClassName(Utility.getClassName(methodSignature));
                     Pattern exclusionPattern = Utility.readExcludePatterns();
-                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
+                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                            || Utility.isARTMethod(methodSignature)) {
                         // we simply avoid splitting if the invoke refers to some ART class
                         blockStmts.add(0, basicStmt);
                         continue;
