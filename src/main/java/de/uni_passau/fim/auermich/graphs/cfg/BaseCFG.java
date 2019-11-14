@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.DexFile;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
+import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 import org.jgrapht.alg.shortestpath.FloydWarshallShortestPaths;
 import org.jgrapht.ext.JGraphXAdapter;
@@ -85,6 +86,10 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         } else {
             return -1;
         }
+    }
+
+    public ShortestPathAlgorithm initDijkstraAlgorithm() {
+        return new DijkstraShortestPath(graph);
     }
 
     public void addEdge(Vertex src, Vertex dest) {
