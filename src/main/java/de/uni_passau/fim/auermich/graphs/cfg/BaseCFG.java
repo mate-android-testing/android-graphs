@@ -88,8 +88,8 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         }
     }
 
-    public ShortestPathAlgorithm initDijkstraAlgorithm() {
-        return new DijkstraShortestPath(graph);
+    public ShortestPathAlgorithm<Vertex, Edge> initDijkstraAlgorithm() {
+        return new DijkstraShortestPath<Vertex, Edge>(graph);
     }
 
     public void addEdge(Vertex src, Vertex dest) {
