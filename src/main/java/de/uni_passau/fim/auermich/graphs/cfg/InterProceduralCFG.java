@@ -215,7 +215,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
                     String className = Utility.dottedClassName(Utility.getClassName(methodSignature));
                     Pattern exclusionPattern = Utility.readExcludePatterns();
-                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
+                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                            || Utility.isARTMethod(methodSignature)) {
                         // we simply avoid splitting if the invoke refers to some ART class
                         blockStmts.add(0, basicStmt);
                         continue;
@@ -432,8 +433,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      */
     private String isComponentInvocation(AnalyzedInstruction analyzedInstruction) {
 
-        // LOGGER.debug("Check for component invocation!");
-
         Instruction instruction = analyzedInstruction.getInstruction();
 
         // check for invoke/invoke-range instruction
@@ -446,17 +445,31 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             if (methodSignature.endsWith("startActivity(Landroid/content/Intent;)V")
                     || methodSignature.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
 
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> target activity name might be defined somewhere else or external
+                    return null;
+                }
+
                 // go back until we find const-class instruction which holds the activity name
                 AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
-                while (true) {
+                // TODO: check that we don't miss activities, go back recursively if there are several predecessors
+                // upper bound to avoid resolving external activities or activities defined in a different method
+
+                while (pred.getInstructionIndex() != -1) {
                     Instruction predecessor = pred.getInstruction();
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
                         String targetActivity = ((Instruction21c) predecessor).getReference().toString();
                         // return the full-qualified name of the constructor
                         return targetActivity + "-><init>()V";
                     } else {
-                        pred = pred.getPredecessors().first();
+                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                            // there is no predecessor -> target activity name might be defined somewhere else or external
+                            return null;
+                        } else {
+                            // TODO: may use recursive search over all predecessors
+                            pred = pred.getPredecessors().first();
+                        }
                     }
                 }
             }
@@ -474,9 +487,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         // store the cloned intra CFGs
         // Map<String, BaseCFG> intraCFGsClone = new HashMap<>();
-
-        // collect all activities by its onCreate CFG
-        Map<String, BaseCFG> onCreateCFGs = new HashMap<>();
 
         // collect all fragments of an activity
         Multimap<String, String> activityFragments = TreeMultimap.create();
@@ -674,7 +684,16 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         // add activity and fragment lifecycle as well as global entry point for activities
         activities.forEach(activity -> {
-            BaseCFG onCreateCFG = intraCFGs.get(activity + "->onCreate(Landroid/os/Bundle;)V");
+            String onCreateMethod = activity + "->onCreate(Landroid/os/Bundle;)V";
+
+            // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
+            if(!intraCFGs.containsKey(onCreateMethod)) {
+                BaseCFG onCreate = dummyIntraProceduralCFG(onCreateMethod);
+                intraCFGs.put(onCreateMethod, onCreate);
+                addSubGraph(onCreate);
+            }
+
+            BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
             LOGGER.debug("Activity " + activity + " defines the following fragments: " + activityFragments.get(activity));
             BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
             callbackEntryPoints.put(activity, callbackEntryPoint);
@@ -693,9 +712,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         // store graphs already inserted into inter-procedural CFG
         Set<BaseCFG> coveredGraphs = new HashSet<>();
-
-        // collect all activities by its onCreate CFG
-        Map<String, BaseCFG> onCreateCFGs = new HashMap<>();
 
         // collect all fragments of an activity
         Multimap<String, String> activityFragments = TreeMultimap.create();
@@ -838,7 +854,17 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         // add activity and fragment lifecycle as well as global entry point for activities
         activities.forEach(activity -> {
-            BaseCFG onCreateCFG = intraCFGs.get(activity + "->onCreate(Landroid/os/Bundle;)V");
+            String onCreateMethod = activity + "->onCreate(Landroid/os/Bundle;)V";
+
+            // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
+            if(!intraCFGs.containsKey(onCreateMethod)) {
+                BaseCFG onCreate = dummyIntraProceduralCFG(onCreateMethod);
+                intraCFGs.put(onCreateMethod, onCreate);
+                addSubGraph(onCreate);
+            }
+
+            BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
+            LOGGER.debug("Activity " + activity + " defines the following fragments: " + activityFragments.get(activity));
             BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
             callbackEntryPoints.put(activity, callbackEntryPoint);
             // TODO: check whether copy is here as well necessary
@@ -847,7 +873,6 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         // add the callbacks specified either through XML or directly in code
         addCallbacks(callbackEntryPoints, apk);
-
     }
 
     /**

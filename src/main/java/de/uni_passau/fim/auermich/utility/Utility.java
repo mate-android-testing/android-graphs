@@ -279,8 +279,11 @@ public final class Utility {
         // TODO: this approach might be quite time-consuming, may find a better solution
 
         String superClass = currentClass.getSuperclass();
+        boolean abort = false;
 
-        while (superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
 
             if (superClass.equals("Landroid/app/Activity;")
                     || superClass.equals("Landroid/support/v7/app/AppCompatActivity;")
@@ -292,6 +295,7 @@ public final class Utility {
                 for (ClassDef classDef : classes) {
                     if (classDef.toString().equals(superClass)) {
                         superClass = classDef.getSuperclass();
+                        abort = false;
                     }
                 }
             }
