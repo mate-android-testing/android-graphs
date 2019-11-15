@@ -61,6 +61,59 @@ public class BaseGraphBuilderTest {
     }
 
     @Test
+    public void checkReachAbilityLinux() throws IOException {
+
+        // File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
+        File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .withExcludeARTClasses()
+                .build();
+
+        BaseCFG interCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Total number of Branches: " + interCFG.getBranches().size());
+
+        /*
+        Vertex targetVertex = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
+                && v.getMethod().equals("Landroid/support/v7/widget/ToolbarWidgetWrapper" +
+                ";->setMenu(Landroid/view/Menu;Landroid/support/v7/view/menu/MenuPresenter$Callback;)V"))
+                .findFirst().get();
+        */
+
+        Vertex targetVertex = interCFG.getVertices().stream().filter(v ->
+                !v.isEntryVertex() &&
+                !v.isExitVertex() &&
+                v.getMethod().equals("Lcom/android/calendar/CalendarEventModel;->equals(Ljava/lang/Object;)Z") &&
+                v.containsInstruction("Lcom/android/calendar/CalendarEventModel;->equals(Ljava/lang/Object;)Z", 76))
+                .findFirst().get();
+
+        interCFG.getIncomingEdges(targetVertex).forEach(edge -> System.out.println("Predecessor: " + edge.getSource()));
+
+        int distance = interCFG.getShortestDistance(interCFG.getEntry(), targetVertex);
+        boolean reachable = distance != -1;
+        System.out.println("Target Vertex reachable " + reachable);
+        System.out.println("Distance: " + distance);
+    }
+
+    @Test
     public void countUnreachableVertices() throws IOException {
 
         File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
