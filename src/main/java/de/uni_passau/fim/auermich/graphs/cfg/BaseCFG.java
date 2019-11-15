@@ -19,6 +19,7 @@ import org.jf.dexlib2.iface.DexFile;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
+import org.jgrapht.alg.shortestpath.BidirectionalDijkstraShortestPath;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 import org.jgrapht.alg.shortestpath.FloydWarshallShortestPaths;
 import org.jgrapht.ext.JGraphXAdapter;
@@ -90,6 +91,10 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
 
     public ShortestPathAlgorithm<Vertex, Edge> initDijkstraAlgorithm() {
         return new DijkstraShortestPath<Vertex, Edge>(graph);
+    }
+
+    public ShortestPathAlgorithm<Vertex, Edge> initBidirectionalDijkstraAlgorithm() {
+        return new BidirectionalDijkstraShortestPath<>(graph);
     }
 
     public void addEdge(Vertex src, Vertex dest) {
