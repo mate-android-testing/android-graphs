@@ -19,6 +19,7 @@ import org.jf.dexlib2.iface.DexFile;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
+import org.jgrapht.alg.shortestpath.BFSShortestPath;
 import org.jgrapht.alg.shortestpath.BidirectionalDijkstraShortestPath;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
 import org.jgrapht.alg.shortestpath.FloydWarshallShortestPaths;
@@ -81,7 +82,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         FloydWarshallShortestPaths shortestPathsAlgorithm = new FloydWarshallShortestPaths(graph);
         return shortestPathsAlgorithm.getPath(source, target).getLength();
         */
-        GraphPath<Vertex, Edge> path = DijkstraShortestPath.findPathBetween(graph, source, target);
+        GraphPath<Vertex, Edge> path = BFSShortestPath.findPathBetween(graph, source, target);
         if (path != null) {
             return path.getLength();
         } else {
@@ -89,8 +90,12 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         }
     }
 
+    public ShortestPathAlgorithm<Vertex, Edge> initBFSAlgorithm() {
+        return new BFSShortestPath<>(graph);
+    }
+
     public ShortestPathAlgorithm<Vertex, Edge> initDijkstraAlgorithm() {
-        return new DijkstraShortestPath<Vertex, Edge>(graph);
+        return new DijkstraShortestPath<>(graph);
     }
 
     public ShortestPathAlgorithm<Vertex, Edge> initBidirectionalDijkstraAlgorithm() {
