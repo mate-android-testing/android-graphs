@@ -51,6 +51,9 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
     // track the set of activities
     private Set<String> activities = new HashSet<>();
 
+    // track the set of fragments
+    private Set<String> fragments = new HashSet<>();
+
     // whether to represent ART methods as explicit intra CFGs
     private boolean excludeARTClasses = false;
 
@@ -1520,15 +1523,19 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         for (DexFile dexFile : dexFiles) {
 
+            // TODO: run the intra CFGs construction in parallel, seems to bring some speed-up
+
             // construct for ART classes only a dummy CFG consisting of virtual start and end vertex
             dexFile.getClasses().forEach(classDef -> {
 
                 String className = Utility.dottedClassName(classDef.toString());
 
-                // as a side effect track whether the given class represents an activity
+                // as a side effect track whether the given class represents an activity or fragment
                 if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                     if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         activities.add(classDef.toString());
+                    } else if (Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                        fragments.add(classDef.toString());
                     }
                 }
 

@@ -307,4 +307,44 @@ public final class Utility {
         return false;
     }
 
+    /**
+     * Checks whether the given class represents a fragment by checking against the super class.
+     *
+     * @param classes The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is a fragment,
+     *          otherwise {@code false}.
+     */
+    public static boolean isFragment(List<ClassDef> classes, ClassDef currentClass) {
+
+        // TODO: this approach might be quite time-consuming, may find a better solution
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            // https://developer.android.com/reference/android/app/Fragment
+            if (superClass.equals("Landroid/app/Fragment;")
+                    || superClass.equals("Landroid/support/v4/app/Fragment;")
+                    || superClass.equals("Landroid/app/DialogFragment;")
+                    || superClass.equals("Landroid/app/ListFragment;")
+                    || superClass.equals("Landroid/preference/PreferenceFragment;")
+                    || superClass.equals("Landroid/webkit/WebViewFragment;")) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
 }
