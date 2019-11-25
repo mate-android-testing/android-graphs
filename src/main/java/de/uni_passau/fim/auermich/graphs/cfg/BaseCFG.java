@@ -1,32 +1,26 @@
 package de.uni_passau.fim.auermich.graphs.cfg;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.mxgraph.layout.*;
 import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
-import com.mxgraph.layout.orthogonal.mxOrthogonalLayout;
+import com.mxgraph.layout.mxIGraphLayout;
+import com.mxgraph.model.mxICell;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxConstants;
-import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
-import de.uni_passau.fim.auermich.statement.*;
+import de.uni_passau.fim.auermich.statement.EntryStatement;
+import de.uni_passau.fim.auermich.statement.ExitStatement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.iface.DexFile;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
 import org.jgrapht.alg.shortestpath.BFSShortestPath;
 import org.jgrapht.alg.shortestpath.BidirectionalDijkstraShortestPath;
 import org.jgrapht.alg.shortestpath.DijkstraShortestPath;
-import org.jgrapht.alg.shortestpath.FloydWarshallShortestPaths;
 import org.jgrapht.ext.JGraphXAdapter;
-import org.jgrapht.graph.AbstractGraph;
 import org.jgrapht.graph.DefaultEdge;
-import org.jgrapht.graph.DirectedMultigraph;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 
 import javax.imageio.ImageIO;
@@ -34,16 +28,11 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.*;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCFG> {
 
@@ -190,7 +179,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     /**
-     * Draws the cFG where vertices are encoded as (instruction id, instruction opcode).
+     * Draws the CFG where vertices are encoded as (instruction id, instruction opcode).
      */
     @Override
     public void drawGraph() {
@@ -217,6 +206,54 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         try {
             file.createNewFile();
             ImageIO.write(image, "PNG", file);
+        } catch (IOException e) {
+            LOGGER.warn(e.getMessage());
+        }
+    }
+
+    /**
+     * Draws the graph and marks the visited vertices in a different color as well
+     * as the selected target vertex.
+     *
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertex The selected target vertex.
+     * @param output The output path of graph.
+     */
+    public void drawGraph(Set<Vertex> visitedVertices, Vertex targetVertex, File output) {
+
+        JGraphXAdapter<Vertex, Edge> graphXAdapter
+                = new JGraphXAdapter<>(graph);
+        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        // retrieve for each vertex the corresponding cell
+        List<Object> cells = new ArrayList<>();
+
+        Map<Vertex, mxICell> vertexToCellMap = graphXAdapter.getVertexToCellMap();
+        visitedVertices.forEach(v -> cells.add(vertexToCellMap.get(v)));
+
+        // mark the cells with a certain color
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "red", cells.toArray());
+
+        // mark the target vertex as well
+        mxICell targetCell = vertexToCellMap.get(targetVertex);
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "green", new Object[]{targetCell});
+
+        graphXAdapter.refresh();
+
+        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
+        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
+
+        // mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
+        // ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
+
+        layout.execute(graphXAdapter.getDefaultParent());
+
+        BufferedImage image =
+                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
+
+        try {
+            output.createNewFile();
+            ImageIO.write(image, "PNG", output);
         } catch (IOException e) {
             LOGGER.warn(e.getMessage());
         }
