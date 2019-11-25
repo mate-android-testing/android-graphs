@@ -889,6 +889,15 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
             Instruction35c invokeVirtual = (Instruction35c) instruction;
 
+            /*
+            * TODO: backtracking has to be improved
+            * The current implementation assumes that there is only a single predecessor
+            * for each instruction. This is wrong and thus we may miss the correct
+            * backward path defining the fragment. We should go through all instructions
+            * check if they can potentially initialise a fragment and add them all.
+            * This leads to an over-approximation but servers our purpose.
+             */
+
             if (methodSignature.contains("Landroid/support/v4/app/FragmentTransaction;->" +
                     "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")) {
                 // a fragment is added to the current component (class)
@@ -910,7 +919,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
                 // iterate backwards
-                while (!foundFragmentConstructor) {
+                while (!foundFragmentConstructor && pred.getInstructionIndex() != -1) {
 
                     // invoke direct refers to constructor calls
                     if (pred.getInstruction().getOpcode() == Opcode.INVOKE_DIRECT) {
@@ -921,6 +930,46 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                             LOGGER.debug("Fragment: " + constructorInvocation);
                             // save for each activity the name of the fragment it hosts
                             return Utility.getClassName(constructorInvocation);
+                        }
+                    }
+                    pred = pred.getPredecessors().first();
+                }
+            } else if (methodSignature.contains("Landroid/app/FragmentTransaction;->" +
+                    "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")) {
+
+                // this is an over-approximation since fragments might be only temporarily active
+
+                // Register C: v8, Register D: p0, Register E: p4
+                // invoke-virtual {v8, p0, p4}, Landroid/app/FragmentTransaction;
+                //              ->replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;
+
+                LOGGER.debug("Add Fragment Invocation found!");
+                LOGGER.debug("Register Count: " + invokeVirtual.getRegisterCount());
+                LOGGER.debug("Using Register v" + invokeVirtual.getRegisterC());
+                LOGGER.debug("Using Register v" + invokeVirtual.getRegisterD());
+                LOGGER.debug("Using Register v" + invokeVirtual.getRegisterE());
+
+                // we are interested in register E (refers to the fragment)
+                int fragmentRegisterID = invokeVirtual.getRegisterE();
+
+                // we are looking for the new instance invocation defining the fragment
+                boolean foundFragmentInit = false;
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                // iterate backwards
+                while (!foundFragmentInit && pred.getInstructionIndex() != -1) {
+
+                    LOGGER.debug("Predecessor: " + pred.getInstructionIndex() + ":" + pred.getInstruction().getOpcode());
+
+                    // invoke direct refers to constructor calls
+                    if (pred.getInstruction().getOpcode() == Opcode.NEW_INSTANCE) {
+                        // new-instance p4, Lcom/android/calendar/DayFragment;
+                        Instruction21c newInstance = (Instruction21c) pred.getInstruction();
+                        if (newInstance.getRegisterA() == fragmentRegisterID) {
+                            String fragment = newInstance.getReference().toString();
+                            LOGGER.debug("Fragment: " + fragment);
+                            // save for each activity the name of the fragment it hosts
+                            return fragment;
                         }
                     }
                     pred = pred.getPredecessors().first();

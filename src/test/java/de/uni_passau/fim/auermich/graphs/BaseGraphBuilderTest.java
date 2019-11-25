@@ -32,7 +32,8 @@ public class BaseGraphBuilderTest {
     public void checkReachAbility() throws IOException {
 
         // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\ws.xsoh.etar_17.apk");
-        File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
+        File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\ws.xsoh.etar_17.apk");
+        // File apkFile = new File("C:\\Users\\Michael\\Documents\\Work\\Android\\apks\\BMI-debug.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -51,6 +52,7 @@ public class BaseGraphBuilderTest {
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
                 .withName("global")
                 .withBasicBlocks()
+                .withExcludeARTClasses()
                 .withAPKFile(apkFile)
                 .build();
 
@@ -58,16 +60,22 @@ public class BaseGraphBuilderTest {
 
         System.out.println("Total number of Branches: " + interCFG.getBranches().size());
 
+        /*
         Vertex targetVertex = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
                 && v.getMethod().equals("Landroid/support/v7/widget/ToolbarWidgetWrapper" +
                 ";->setMenu(Landroid/view/Menu;Landroid/support/v7/view/menu/MenuPresenter$Callback;)V"))
                 .findFirst().get();
+        */
+
+        Vertex targetVertex = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
+            && v.getMethod().equals("Lcom/android/calendar/DayFragment;->onAttach(Landroid/content/Context;)V")).findFirst().get();
 
         interCFG.getIncomingEdges(targetVertex).forEach(edge -> System.out.println("Predecessor: " + edge.getSource()));
 
         int distance = interCFG.getShortestDistance(interCFG.getEntry(), targetVertex);
         boolean reachable = distance != -1;
         System.out.println("Target Vertex reachable " + reachable);
+        System.out.println("Distance: " + distance);
     }
 
     @Test
