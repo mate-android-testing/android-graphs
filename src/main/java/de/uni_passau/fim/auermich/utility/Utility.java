@@ -259,7 +259,11 @@ public final class Utility {
 
         if (method.endsWith("startActivity(Landroid/content/Intent;)V")
                 || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")
-                || method.endsWith("findViewById(I)Landroid/view/View;")) {
+                || method.endsWith("findViewById(I)Landroid/view/View;")
+                || method.endsWith("setContentView(I)V")
+                || method.endsWith("setContentView(Landroid/view/View;)V")
+                || method.endsWith("setContentView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V")
+                || method.endsWith("getSupportFragmentManager()Landroid/support/v4/app/FragmentManager;")) {
             return true;
         } else {
             return false;

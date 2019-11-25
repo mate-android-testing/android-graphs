@@ -9,6 +9,7 @@ androidx.*
 android.widget.*
 java.lang.*
 java.io.*
+java.text.*
 com.android.common.*
 com.facebook.android.*
 com.android.calendar.Utils.*
