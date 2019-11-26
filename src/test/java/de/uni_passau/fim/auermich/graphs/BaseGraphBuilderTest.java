@@ -1,8 +1,10 @@
 package de.uni_passau.fim.auermich.graphs;
 
 import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.graphs.cfg.InterProceduralCFG;
 import de.uni_passau.fim.auermich.statement.BasicStatement;
 import de.uni_passau.fim.auermich.statement.BlockStatement;
+import de.uni_passau.fim.auermich.statement.ExitStatement;
 import de.uni_passau.fim.auermich.statement.Statement;
 import de.uni_passau.fim.auermich.utility.Utility;
 import org.jf.dexlib2.DexFileFactory;
@@ -83,7 +85,8 @@ public class BaseGraphBuilderTest {
 
         // File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
         // File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
-        File apkFile = new File("/home/auermich/tools/mate-commander/BMI-debug.apk");
+        // File apkFile = new File("/home/auermich/tools/mate-commander/BMI-debug.apk");
+        File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\ws.xsoh.etar_17.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -107,20 +110,24 @@ public class BaseGraphBuilderTest {
                 .build();
 
         BaseCFG interCFG = (BaseCFG) baseGraph;
-        interCFG.drawGraph();
+        // interCFG.drawGraph();
 
         System.out.println("Total number of Branches: " + interCFG.getBranches().size());
 
-
         Vertex targetVertex = interCFG.getVertices().stream().filter(v ->
-                v.isEntryVertex() &&
-                        v.getMethod().equals("Lcom/zola/bmi/BMIMain$PlaceholderFragment;->onActivityCreated(Landroid/os/Bundle;)V")).findFirst().get();
+                v.containsInstruction("Lcom/android/calendar/DayView$TodayAnimatorListener;" +
+                        "->onAnimationEnd(Landroid/animation/Animator;)V", 20))
+                .findFirst().get();
 
+        System.out.println("Selected Target Vertex: " + targetVertex);
 
-        String tracesDir = "/home/auermich/tools/mate-commander/";
-        File traces = new File(tracesDir, "traces1.txt");
+        // String tracesDir = "/home/auermich/tools/mate-commander/";
+        String tracesDir = "C:\\Users\\Michael\\git\\mate-commander\\";
+        File traces = new File(tracesDir, "traces.txt");
 
         List<String> executionPath = new ArrayList<>();
+
+        System.out.println("Reading traces from file ...");
 
         try (Stream<String> stream = Files.lines(traces.toPath(), StandardCharsets.UTF_8)) {
             executionPath = stream.collect(Collectors.toList());
@@ -137,6 +144,8 @@ public class BaseGraphBuilderTest {
         Set<Vertex> visitedVertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
 
         Map<String, Vertex> vertexMap = new ConcurrentHashMap<>();
+
+        System.out.println("Constructing vertexMap ...");
 
         interCFG.getVertices().parallelStream().forEach(vertex -> {
             if (vertex.isEntryVertex()) {
@@ -161,6 +170,10 @@ public class BaseGraphBuilderTest {
             }
         });
 
+        Set<Vertex> entryVertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
+
+        System.out.println("Mapping traces to vertices...");
+
         // map trace to vertex
         executionPath.parallelStream().forEach(pathNode -> {
 
@@ -171,9 +184,25 @@ public class BaseGraphBuilderTest {
 
             if (visitedVertex == null) {
                 System.out.println("Couldn't derive vertex for trace entry: " + pathNode);
-            }
+            }  else {
 
-            visitedVertices.add(visitedVertex);
+                visitedVertices.add(visitedVertex);
+
+                if (visitedVertex.isEntryVertex()) {
+                    entryVertices.add(visitedVertex);
+                }
+
+            }
+        });
+
+        System.out.println("Marking intermediate path nodes now...");
+
+        // mark the intermediate path nodes that are between branches we visited
+        entryVertices.forEach(entry -> {
+            Vertex exit = new Vertex(new ExitStatement(entry.getMethod()));
+            if (visitedVertices.contains(entry) && visitedVertices.contains(exit)) {
+                markIntermediatePathVertices(entry, exit, visitedVertices, interCFG);
+            }
         });
 
         // the minimal distance between a execution path and a chosen target vertex
@@ -183,7 +212,7 @@ public class BaseGraphBuilderTest {
         Map<Vertex, Double> branchDistances = new ConcurrentHashMap<>();
 
         // use bidirectional dijkstra
-        ShortestPathAlgorithm<Vertex, Edge> bfs = interCFG.initBFSAlgorithm();
+        ShortestPathAlgorithm<Vertex, Edge> bfs = interCFG.initBidirectionalDijkstraAlgorithm();
 
         visitedVertices.parallelStream().forEach(visitedVertex -> {
 
@@ -227,6 +256,146 @@ public class BaseGraphBuilderTest {
 
         System.out.println("Branch Distance: " + branchDistance);
     }
+
+    private void markIntermediatePathVertices(Vertex entry, Vertex exit, Set<Vertex> visitedVertices,
+                                              BaseCFG interCFG) {
+
+        System.out.println("Entry vertex: " + entry);
+
+        Vertex currentVertex = entry;
+        Vertex previous = currentVertex;
+
+        while (!currentVertex.equals(exit)) {
+
+            System.out.println("Distance to exit: " + interCFG.getShortestDistance(currentVertex, exit));
+
+            Set<Edge> outgoingEdges = interCFG.getOutgoingEdges(currentVertex);
+
+            if (outgoingEdges.size() == 1) {
+                // single successors -> follow the path
+                previous = currentVertex;
+                currentVertex = outgoingEdges.stream().findFirst().get().getTarget();
+                System.out.println("Updated Vertex: " + currentVertex);
+            } else {
+
+                outgoingEdges.parallelStream().forEach(e -> {
+                    Vertex targetVertex = e.getTarget();
+                    if (targetVertex.isBranchVertex()
+                            && visitedVertices.contains(targetVertex)) {
+                        markIntermediatePathVertices(targetVertex, exit, visitedVertices, interCFG);
+                    }
+                });
+                break;
+            }
+
+            if (!entry.getMethod().equals(currentVertex.getMethod())) {
+                // we entered a new method
+
+                System.out.println("Entered method: " + currentVertex.getMethod());
+
+                // search for return vertex, which must be a successor of the method's exit vertex
+                Vertex exitVertex = new Vertex(new ExitStatement(currentVertex.getMethod()));
+                currentVertex = getReturnVertex(previous, exitVertex, visitedVertices, interCFG);
+                System.out.println("Updated Vertex: " + currentVertex);
+            }
+
+            visitedVertices.add(currentVertex);
+        }
+    }
+
+    /**
+     * Searches for the return vertex belonging to the invocation stmt included in the
+     * given vertex.
+     *
+     * @param vertex The vertex including the invocation stmt.
+     * @param exit The exit vertex of the invoked method.
+     * @param visitedVertices The set of currently visited vertices. Needs to be updated
+     *                        as a side effect in case no basic blocks are used.
+     * @return Returns the corresponding return vertex. In case no basic blocks are used,
+     *          the appropriate successor vertex is returned.
+     * @throws IllegalStateException If the return vertex couldn't be found.
+     */
+    private Vertex getReturnVertex(Vertex vertex, Vertex exit, Set<Vertex> visitedVertices,
+                                   BaseCFG interCFG) {
+
+        System.out.println("Get return vertex for: " + vertex + ":" + vertex.getMethod());
+
+        // the vertex contains an invoke instruction as last statement
+        Statement stmt = vertex.getStatement();
+
+        // we need to know instruction index of the invoke stmt
+        int index = -1;
+
+        if (stmt.getType() == Statement.StatementType.BASIC_STATEMENT) {
+            BasicStatement basicStatement = (BasicStatement) stmt;
+            index = basicStatement.getInstructionIndex();
+        } else if (stmt.getType() == Statement.StatementType.BLOCK_STATEMENT) {
+            BlockStatement blockStatement = (BlockStatement) stmt;
+            BasicStatement basicStatement = (BasicStatement) blockStatement.getLastStatement();
+            index = basicStatement.getInstructionIndex();
+        }
+
+        System.out.println("Found Index: " + index);
+
+        // find the return vertices that return to the original method
+        List<Vertex> returnVertices = interCFG.getOutgoingEdges(exit).stream().filter(edge ->
+                edge.getTarget().getMethod().equals(vertex.getMethod())).map(Edge::getTarget)
+                .collect(Collectors.toList());
+
+        System.out.println("Number of return vertices: " + returnVertices.size());
+
+        // the return vertex that has index + 1 as next instruction index is the right one
+        for (Vertex returnVertex : returnVertices) {
+
+            System.out.println("Return Vertex: " + returnVertex);
+
+            // the vertex contains an invoke instruction as last statement
+            Statement returnStmt = returnVertex.getStatement();
+
+            // we need to know instruction index of the invoke stmt
+            int nextIndex = -1;
+
+            if (returnStmt.getType() == Statement.StatementType.BASIC_STATEMENT) {
+
+                // we need to inspect the successor vertices since the return stmt is shared
+                List<Vertex> successors = interCFG.getOutgoingEdges(returnVertex).stream().
+                        map(Edge::getTarget).collect(Collectors.toList());
+
+                for (Vertex successor : successors) {
+                    // each successor is a basic stmt
+                    BasicStatement basicStatement = (BasicStatement) successor.getStatement();
+                    nextIndex = basicStatement.getInstructionIndex();
+
+                    if (nextIndex == index + 1) {
+
+                        // we can't return the return stmt, but we need to mark it as visited as a side effect
+                        visitedVertices.add(returnVertex);
+
+                        // here we return the successor of the return vertex directly
+                        // otherwise we don't know again which is the actual successor
+                        return successor;
+                    }
+                }
+            } else if (returnStmt.getType() == Statement.StatementType.BLOCK_STATEMENT) {
+
+                BlockStatement blockStatement = (BlockStatement) returnStmt;
+
+                System.out.println("Is ReturnStmt: " + blockStatement.getFirstStatement().getType());
+                System.out.println("Block Stmt: " + blockStatement);
+
+                // the stmt after the return stmt is the next actual instruction stmt
+                BasicStatement basicStatement = (BasicStatement) blockStatement.getStatements().get(1);
+                nextIndex = basicStatement.getInstructionIndex();
+
+                if (nextIndex == index + 1) {
+                    return returnVertex;
+                }
+            }
+        }
+        throw new IllegalStateException("Couldn't find corresponding return vertex for " + vertex);
+    }
+
+
 
     @Test
     public void checkReachAbilityLinux() throws IOException {
