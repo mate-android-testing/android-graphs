@@ -416,6 +416,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
             if (targetComponent != null) {
 
+                LOGGER.debug("Component: " + targetComponent + " is invoked by " + invokeStmt.getMethod());
+
                 // the source vertex is the block stmt
                 Vertex sourceVertex = new Vertex(blockStmt);
 
@@ -465,6 +467,34 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         String targetActivity = ((Instruction21c) predecessor).getReference().toString();
                         // return the full-qualified name of the constructor
                         return targetActivity + "-><init>()V";
+                    } else {
+                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                            // there is no predecessor -> target activity name might be defined somewhere else or external
+                            return null;
+                        } else {
+                            // TODO: may use recursive search over all predecessors
+                            pred = pred.getPredecessors().first();
+                        }
+                    }
+                }
+            } else if (methodSignature.equals("Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
+
+                // invoke-virtual {p0, p1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
+
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> target activity name might be defined somewhere else or external
+                    return null;
+                }
+
+                // go back until we find const-class instruction which holds the service name
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                while (pred.getInstructionIndex() != -1) {
+                    Instruction predecessor = pred.getInstruction();
+                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+                        String service = ((Instruction21c) predecessor).getReference().toString();
+                        // return the full-qualified name of the constructor
+                        return service + "-><init>()V";
                     } else {
                         if (analyzedInstruction.getPredecessors().isEmpty()) {
                             // there is no predecessor -> target activity name might be defined somewhere else or external
@@ -629,6 +659,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         String targetComponent = isComponentInvocation(invokeStmt.getInstruction());
 
                         if (targetComponent != null) {
+
+                            LOGGER.debug("Component: " + targetComponent + " is invoked by " + vertex.getMethod());
 
                             // the source vertex is the exit vertex of the start component invocation
                             Vertex sourceVertex = intraCFGs.get(methodSignature).getExit();
@@ -882,11 +914,11 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      * Checks whether the given instruction refers to adding/replacing a fragment to the underlying activity.
      * This is done by backtracking through all predecessors.
      *
-     * @param instruction The current (invoke) instruction.
+     * @param instruction         The current (invoke) instruction.
      * @param analyzedInstruction The corresponding analyzed instruction.
-     * @param methodSignature The invocation target.
+     * @param methodSignature     The invocation target.
      * @return Returns a list of fragments if this instruction adds/replaces fragments,
-     *              otherwise an empty list is returned.
+     * otherwise an empty list is returned.
      */
     private List<String> isFragmentInvocation(Instruction instruction, AnalyzedInstruction analyzedInstruction, String methodSignature) {
 
@@ -932,7 +964,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
     /**
      * Recursively looks up every predecessor for holding a reference to a fragment.
      *
-     * @param pred The current predecessor instruction.
+     * @param pred               The current predecessor instruction.
      * @param fragmentRegisterID The register potentially holding a fragment.
      * @return Returns a list of fragments or an empty list if no fragment was found.
      */
@@ -969,7 +1001,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
     /**
      * Recursively looks up every predecessor for holding a reference to a fragment.
      *
-     * @param pred The current predecessor instruction.
+     * @param pred               The current predecessor instruction.
      * @param fragmentRegisterID The register potentially holding a fragment.
      * @return Returns a list of fragments or an empty list if no fragment was found.
      */
