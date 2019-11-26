@@ -7,7 +7,9 @@ android.view.*
 android.os.*
 androidx.*
 android.widget.*
+java.*
 java.lang.*
+java.util.*
 java.io.*
 java.text.*
 com.android.common.*

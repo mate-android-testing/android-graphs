@@ -537,6 +537,7 @@ public class BaseGraphBuilderTest {
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
                 .withName("global")
                 .withAPKFile(apkFile)
+                .withExcludeARTClasses()
                 .build();
 
         baseGraph.drawGraph();
