@@ -318,10 +318,10 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                 String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
 
                 // check if invocation refers to adding a fragment
-                String fragment = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
+                List<String> fragments = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
 
-                if (fragment != null) {
-                    activityFragments.put(Utility.getClassName(blockStmt.getMethod()), fragment);
+                if (!fragments.isEmpty()) {
+                    activityFragments.putAll(Utility.getClassName(blockStmt.getMethod()), fragments);
                 }
             }
         }
@@ -619,10 +619,10 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         // TODO: treat inherited ART calls, e.g. startActivity(), as ART class methods
 
                         // check if invocation refers to adding a fragment
-                        String fragment = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
+                        List<String> fragments = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
 
-                        if (fragment != null) {
-                            activityFragments.put(Utility.getClassName(method), fragment);
+                        if (!fragments.isEmpty()) {
+                            activityFragments.putAll(Utility.getClassName(method), fragments);
                         }
 
                         // check if the invocation refers to the activation of another component
@@ -690,7 +690,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             String onCreateMethod = activity + "->onCreate(Landroid/os/Bundle;)V";
 
             // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
-            if(!intraCFGs.containsKey(onCreateMethod)) {
+            if (!intraCFGs.containsKey(onCreateMethod)) {
                 BaseCFG onCreate = dummyIntraProceduralCFG(onCreateMethod);
                 intraCFGs.put(onCreateMethod, onCreate);
                 addSubGraph(onCreate);
@@ -770,10 +770,10 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     LOGGER.debug("Invoke: " + methodSignature);
 
                     // check if invocation refers to adding a fragment
-                    String fragment = isFragmentInvocation(instruction, statement.getInstruction(), methodSignature);
+                    List<String> fragments = isFragmentInvocation(instruction, statement.getInstruction(), methodSignature);
 
-                    if (fragment != null) {
-                        activityFragments.put(Utility.getClassName(method), fragment);
+                    if (!fragments.isEmpty()) {
+                        activityFragments.putAll(Utility.getClassName(method), fragments);
                     }
 
                     // check if invocation refers to activation of component
@@ -860,7 +860,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             String onCreateMethod = activity + "->onCreate(Landroid/os/Bundle;)V";
 
             // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
-            if(!intraCFGs.containsKey(onCreateMethod)) {
+            if (!intraCFGs.containsKey(onCreateMethod)) {
                 BaseCFG onCreate = dummyIntraProceduralCFG(onCreateMethod);
                 intraCFGs.put(onCreateMethod, onCreate);
                 addSubGraph(onCreate);
@@ -879,6 +879,129 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
     }
 
     /**
+     * Checks whether the given instruction refers to adding/replacing a fragment to the underlying activity.
+     * This is done by backtracking through all predecessors.
+     *
+     * @param instruction The current (invoke) instruction.
+     * @param analyzedInstruction The corresponding analyzed instruction.
+     * @param methodSignature The invocation target.
+     * @return Returns a list of fragments if this instruction adds/replaces fragments,
+     *              otherwise an empty list is returned.
+     */
+    private List<String> isFragmentInvocation(Instruction instruction, AnalyzedInstruction analyzedInstruction, String methodSignature) {
+
+        List<String> result = new ArrayList<>();
+
+        if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+            Instruction35c invokeVirtual = (Instruction35c) instruction;
+
+            if (methodSignature.contains("Landroid/support/v4/app/FragmentTransaction;->" +
+                    "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")) {
+                // a fragment is added to the current component (class)
+
+                // typical call: v0 (Reg C), v1 (Reg D), v2 (Reg E)
+                //     invoke-virtual {v0, v1, v2}, Landroid/support/v4/app/FragmentTransaction;->
+                // add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;
+
+                // we are interested in register E (refers to the fragment)
+                int fragmentRegisterID = invokeVirtual.getRegisterE();
+
+                // go over all predecessors
+                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+                predecessors.forEach(pred -> result.addAll(isFragmentAddInvocationRecursive(pred, fragmentRegisterID)));
+
+            } else if (methodSignature.contains("Landroid/app/FragmentTransaction;->" +
+                    "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")) {
+                // a fragment is replaced with another one
+
+                // Register C: v8, Register D: p0, Register E: p4
+                // invoke-virtual {v8, p0, p4}, Landroid/app/FragmentTransaction;
+                //              ->replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;
+
+                // we are interested in register E (refers to the fragment)
+                int fragmentRegisterID = invokeVirtual.getRegisterE();
+
+                // go over all predecessors
+                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+                predecessors.forEach(pred -> result.addAll(isFragmentInvocationRecursive(pred, fragmentRegisterID)));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Recursively looks up every predecessor for holding a reference to a fragment.
+     *
+     * @param pred The current predecessor instruction.
+     * @param fragmentRegisterID The register potentially holding a fragment.
+     * @return Returns a list of fragments or an empty list if no fragment was found.
+     */
+    private List<String> isFragmentAddInvocationRecursive(AnalyzedInstruction pred, int fragmentRegisterID) {
+
+        List<String> result = new ArrayList<>();
+
+        // basic case
+        if (pred.getInstructionIndex() == -1) {
+            return result;
+        }
+
+        // invoke direct refers to constructor calls
+        if (pred.getInstruction().getOpcode() == Opcode.INVOKE_DIRECT) {
+            // invoke-direct {v2}, Lcom/zola/bmi/BMIMain$PlaceholderFragment;-><init>()V
+            Instruction35c constructor = (Instruction35c) pred.getInstruction();
+            if (constructor.getRegisterC() == fragmentRegisterID) {
+                String constructorInvocation = constructor.getReference().toString();
+                LOGGER.debug("Fragment: " + constructorInvocation);
+                // save for each activity the name of the fragment it hosts
+                String fragment = Utility.getClassName(constructorInvocation);
+                if (fragments.contains(fragment)) {
+                    result.add(fragment);
+                }
+            }
+        }
+
+        // check all predecessors
+        Set<AnalyzedInstruction> predecessors = pred.getPredecessors();
+        predecessors.forEach(p -> result.addAll(isFragmentAddInvocationRecursive(p, fragmentRegisterID)));
+        return result;
+    }
+
+    /**
+     * Recursively looks up every predecessor for holding a reference to a fragment.
+     *
+     * @param pred The current predecessor instruction.
+     * @param fragmentRegisterID The register potentially holding a fragment.
+     * @return Returns a list of fragments or an empty list if no fragment was found.
+     */
+    private List<String> isFragmentInvocationRecursive(AnalyzedInstruction pred, int fragmentRegisterID) {
+
+        List<String> result = new ArrayList<>();
+
+        // basic case
+        if (pred.getInstructionIndex() == -1) {
+            return result;
+        }
+
+        // check current instruction
+        if (pred.getInstruction().getOpcode() == Opcode.NEW_INSTANCE) {
+            // new-instance p4, Lcom/android/calendar/DayFragment;
+            Instruction21c newInstance = (Instruction21c) pred.getInstruction();
+            if (newInstance.getRegisterA() == fragmentRegisterID) {
+                String fragment = newInstance.getReference().toString();
+                LOGGER.debug("Fragment: " + fragment);
+                // save for each activity the name of the fragment it hosts
+                result.add(fragment);
+            }
+        }
+
+        // check all predecessors
+        Set<AnalyzedInstruction> predecessors = pred.getPredecessors();
+        predecessors.forEach(p -> result.addAll(isFragmentInvocationRecursive(p, fragmentRegisterID)));
+
+        return result;
+    }
+
+    /**
      * Checks whether the given invoke instruction refers to adding a fragment to an activity.
      *
      * @param instruction         The given invoke instruction.
@@ -886,19 +1009,19 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      * @param methodSignature     The invocation target method name.
      * @return Returns the name of the fragment, otherwise {@code null}.
      */
-    private String isFragmentInvocation(Instruction instruction, AnalyzedInstruction analyzedInstruction, String methodSignature) {
+    private String isFragmentInvocation2(Instruction instruction, AnalyzedInstruction analyzedInstruction, String methodSignature) {
 
         // TODO: check for fragment add transaction
         if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
             Instruction35c invokeVirtual = (Instruction35c) instruction;
 
             /*
-            * TODO: backtracking has to be improved
-            * The current implementation assumes that there is only a single predecessor
-            * for each instruction. This is wrong and thus we may miss the correct
-            * backward path defining the fragment. We should go through all instructions
-            * check if they can potentially initialise a fragment and add them all.
-            * This leads to an over-approximation but servers our purpose.
+             * TODO: backtracking has to be improved
+             * The current implementation assumes that there is only a single predecessor
+             * for each instruction. This is wrong and thus we may miss the correct
+             * backward path defining the fragment. We should go through all instructions
+             * check if they can potentially initialise a fragment and add them all.
+             * This leads to an over-approximation but servers our purpose.
              */
 
             if (methodSignature.contains("Landroid/support/v4/app/FragmentTransaction;->" +
@@ -1557,6 +1680,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             });
         }
         LOGGER.debug("Activities: " + activities);
+        LOGGER.debug("Fragments: " + fragments);
         LOGGER.debug("Number of completely constructed CFGs: " + realMethods.get());
         return intraCFGs;
     }

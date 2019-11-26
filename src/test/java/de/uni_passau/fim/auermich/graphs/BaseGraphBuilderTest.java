@@ -720,9 +720,9 @@ public class BaseGraphBuilderTest {
     @Test
     public void constructInterCFGWithBasicBlocksAndExcludeARTClassesLinux() throws IOException {
 
-        // File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
+        File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
         // File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
-        File apkFile = new File("/home/auermich/smali/BMI-debug.apk");
+        // File apkFile = new File("/home/auermich/smali/BMI-debug.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
