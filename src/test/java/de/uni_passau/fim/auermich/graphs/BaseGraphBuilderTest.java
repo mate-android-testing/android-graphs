@@ -8,9 +8,12 @@ import de.uni_passau.fim.auermich.statement.ExitStatement;
 import de.uni_passau.fim.auermich.statement.Statement;
 import de.uni_passau.fim.auermich.utility.Utility;
 import org.jf.dexlib2.DexFileFactory;
+import org.jf.dexlib2.Format;
+import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.MultiDexContainer;
+import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
 import org.junit.Test;
@@ -84,9 +87,9 @@ public class BaseGraphBuilderTest {
     public void computeBranchDistanceLinux() throws IOException {
 
         // File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
-        File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
+        // File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
         // File apkFile = new File("/home/auermich/tools/mate-commander/BMI-debug.apk");
-        // File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\ws.xsoh.etar_17.apk");
+        File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\ws.xsoh.etar_17.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -121,8 +124,8 @@ public class BaseGraphBuilderTest {
 
         System.out.println("Selected Target Vertex: " + targetVertex);
 
-        String tracesDir = "/home/auermich/tools/mate-commander/";
-        // String tracesDir = "C:\\Users\\Michael\\git\\mate-commander\\";
+        // String tracesDir = "/home/auermich/tools/mate-commander/";
+        String tracesDir = "C:\\Users\\Michael\\git\\mate-commander\\";
         File traces = new File(tracesDir, "traces.txt");
 
         List<String> executionPath = new ArrayList<>();
@@ -198,7 +201,7 @@ public class BaseGraphBuilderTest {
         System.out.println("Marking intermediate path nodes now...");
 
         // mark the intermediate path nodes that are between branches we visited
-        entryVertices.forEach(entry -> {
+        entryVertices.parallelStream().forEach(entry -> {
             Vertex exit = new Vertex(new ExitStatement(entry.getMethod()));
             if (visitedVertices.contains(entry) && visitedVertices.contains(exit)) {
                 markIntermediatePathVertices(entry, exit, visitedVertices, interCFG);
@@ -257,7 +260,94 @@ public class BaseGraphBuilderTest {
         System.out.println("Branch Distance: " + branchDistance);
     }
 
+    private boolean isInvokeVertex(Vertex vertex) {
+
+        if (vertex.isEntryVertex() || vertex.isExitVertex()
+                || vertex.isReturnVertex()) {
+            return false;
+        }
+
+        Statement statement = vertex.getStatement();
+
+        if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
+            // TODO: check if is ART method invocation
+            return false;
+        } else if (statement.getType() == Statement.StatementType.BLOCK_STATEMENT) {
+
+            BlockStatement blockStatement = (BlockStatement) statement;
+
+            // only the last statement is of interest, if this is an invoke we know no ART method as well
+            Statement stmt = blockStatement.getLastStatement();
+
+            // there could be potentially isolated return vertices
+            if (stmt.getType() == Statement.StatementType.BASIC_STATEMENT) {
+
+                BasicStatement basicStatement = (BasicStatement) stmt;
+                Instruction instruction = basicStatement.getInstruction().getInstruction();
+
+                // check if we have an invoke stmt
+                if (instruction.getOpcode().format == Format.Format35c
+                    || instruction.getOpcode().format == Format.Format3rc) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private void markIntermediatePathVertices(Vertex entry, Vertex exit, Set<Vertex> visitedVertices,
+                                              BaseCFG interCFG) {
+
+        Queue<Vertex> queue = new LinkedList<>();
+        queue.offer(entry);
+        String method = entry.getMethod();
+
+        while (!queue.isEmpty()) {
+
+            Vertex currentVertex = queue.poll();
+            visitedVertices.add(currentVertex);
+
+            // check if we gonna leave method, then enqueue return vertex
+            if (isInvokeVertex(currentVertex)) {
+
+                System.out.println("Invoke Vertex: " + currentVertex);
+
+                Vertex successor = interCFG.getOutgoingEdges(currentVertex)
+                        .stream()
+                        .map(Edge::getTarget).findFirst().get();
+
+                // should be the entry vertex of invoked method
+                if (successor.isEntryVertex()) {
+                    Vertex exitVertex = new Vertex(new ExitStatement(successor.getMethod()));
+                    queue.offer(getReturnVertex(currentVertex, exitVertex, visitedVertices, interCFG));
+                }
+            }
+
+            List<Vertex> successors = interCFG.getOutgoingEdges(currentVertex)
+                    .stream()
+                    .map(Edge::getTarget)
+                    .collect(Collectors.toList());
+
+            if (successors.size() == 1) {
+                // single path
+                Vertex successor = successors.get(0);
+                if (method.equals(successor.getMethod())) {
+                    // ensure that we stay within the same method
+                    queue.offer(successor);
+                }
+            } else {
+                // there are multiple successors, check which path(s) we visited
+                for (Vertex successor : successors) {
+                    if (method.equals(successor.getMethod())
+                            && visitedVertices.contains(successor)) {
+                        queue.offer(successor);
+                    }
+                }
+            }
+        }
+    }
+
+    private void markIntermediatePathVertices2(Vertex entry, Vertex exit, Set<Vertex> visitedVertices,
                                               BaseCFG interCFG) {
 
         System.out.println("Entry vertex: " + entry);
@@ -267,7 +357,7 @@ public class BaseGraphBuilderTest {
 
         while (!currentVertex.equals(exit)) {
 
-            System.out.println("Distance to exit: " + interCFG.getShortestDistance(currentVertex, exit));
+            // System.out.println("Distance to exit: " + interCFG.getShortestDistance(currentVertex, exit));
 
             Set<Edge> outgoingEdges = interCFG.getOutgoingEdges(currentVertex);
 
@@ -278,13 +368,14 @@ public class BaseGraphBuilderTest {
                 System.out.println("Updated Vertex: " + currentVertex);
             } else {
 
+
                 outgoingEdges.parallelStream().forEach(e -> {
                     Vertex targetVertex = e.getTarget();
-                    if (targetVertex.isBranchVertex()
-                            && visitedVertices.contains(targetVertex)) {
+                    if (visitedVertices.contains(targetVertex)) {
                         markIntermediatePathVertices(targetVertex, exit, visitedVertices, interCFG);
                     }
                 });
+
                 break;
             }
 
@@ -336,6 +427,9 @@ public class BaseGraphBuilderTest {
         }
 
         System.out.println("Found Index: " + index);
+
+        System.out.println("Outgoing Edge Targets: "
+                + interCFG.getOutgoingEdges(exit).stream().map(Edge::getTarget).collect(Collectors.toList()));
 
         // find the return vertices that return to the original method
         List<Vertex> returnVertices = interCFG.getOutgoingEdges(exit).stream().filter(edge ->
