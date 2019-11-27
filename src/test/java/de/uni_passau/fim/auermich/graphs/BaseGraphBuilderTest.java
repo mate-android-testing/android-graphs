@@ -84,9 +84,9 @@ public class BaseGraphBuilderTest {
     public void computeBranchDistanceLinux() throws IOException {
 
         // File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
-        // File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
+        File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
         // File apkFile = new File("/home/auermich/tools/mate-commander/BMI-debug.apk");
-        File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\ws.xsoh.etar_17.apk");
+        // File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\ws.xsoh.etar_17.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -121,8 +121,8 @@ public class BaseGraphBuilderTest {
 
         System.out.println("Selected Target Vertex: " + targetVertex);
 
-        // String tracesDir = "/home/auermich/tools/mate-commander/";
-        String tracesDir = "C:\\Users\\Michael\\git\\mate-commander\\";
+        String tracesDir = "/home/auermich/tools/mate-commander/";
+        // String tracesDir = "C:\\Users\\Michael\\git\\mate-commander\\";
         File traces = new File(tracesDir, "traces.txt");
 
         List<String> executionPath = new ArrayList<>();
@@ -349,7 +349,6 @@ public class BaseGraphBuilderTest {
 
             System.out.println("Return Vertex: " + returnVertex);
 
-            // the vertex contains an invoke instruction as last statement
             Statement returnStmt = returnVertex.getStatement();
 
             // we need to know instruction index of the invoke stmt
@@ -383,9 +382,39 @@ public class BaseGraphBuilderTest {
                 System.out.println("Is ReturnStmt: " + blockStatement.getFirstStatement().getType());
                 System.out.println("Block Stmt: " + blockStatement);
 
-                // the stmt after the return stmt is the next actual instruction stmt
-                BasicStatement basicStatement = (BasicStatement) blockStatement.getStatements().get(1);
-                nextIndex = basicStatement.getInstructionIndex();
+                if (blockStatement.getStatements().size() == 1) {
+                    // there can be isolated virtual return stmts
+                    // (in case the invoke is a branch target and a predecessor of another leader instruction)
+
+                    // we need to inspect the successors in this case
+                    List<Vertex> successors = interCFG.getOutgoingEdges(returnVertex).stream().
+                            map(Edge::getTarget).collect(Collectors.toList());
+
+                    System.out.println("Successors: " + successors);
+
+                    for (Vertex successor : successors) {
+
+                        BlockStatement blockStmt = (BlockStatement) successor.getStatement();
+
+                        // the stmt after the return stmt is the next actual instruction stmt
+                        BasicStatement basicStatement = (BasicStatement) blockStmt.getFirstStatement();
+                        nextIndex = basicStatement.getInstructionIndex();
+
+                        if (nextIndex == index + 1) {
+
+                            // we can't return the return stmt, but we need to mark it as visited as a side effect
+                            visitedVertices.add(returnVertex);
+
+                            // here we return the successor of the return vertex directly
+                            // otherwise we don't know again which is the actual successor
+                            return successor;
+                        }
+                    }
+                } else {
+                    // the stmt after the return stmt is the next actual instruction stmt
+                    BasicStatement basicStatement = (BasicStatement) blockStatement.getStatements().get(1);
+                    nextIndex = basicStatement.getInstructionIndex();
+                }
 
                 if (nextIndex == index + 1) {
                     return returnVertex;
@@ -658,8 +687,8 @@ public class BaseGraphBuilderTest {
     @Test
     public void constructIntraCFGWithBasicBlocksLinux() throws IOException {
 
-        File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
-        // File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
+        // File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
+        File apkFile = new File("/home/auermich/tools/mate-commander/ws.xsoh.etar_17.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -676,7 +705,7 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Landroid/support/v7/widget/ToolbarWidgetWrapper;->setMenu(Landroid/view/Menu;Landroid/support/v7/view/menu/MenuPresenter$Callback;)V")
+                .withName("Lcom/android/calendar/event/EditEventFragment;-><init>(Lcom/android/calendar/CalendarController$EventInfo;Ljava/util/ArrayList;ZIZLandroid/content/Intent;)V")
                  // .withName("Lcom/android/calendar/EventLoader$LoaderThread;->run()V")
                 .withBasicBlocks()
                 .build();

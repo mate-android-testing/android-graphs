@@ -110,6 +110,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
         List<Statement> block = new LinkedList<>();
 
+        LOGGER.debug("Number of statements: " + statements.size());
+
         for (int i = 0; i < statements.size(); i++) {
 
             // each stmt within a block stmt is per definition a basic stmt
@@ -132,7 +134,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
                             || Utility.isARTMethod(methodSignature)) {
                         // we simply avoid splitting if the invoke refers to some ART class
-                        LOGGER.debug("Ignoring ART method invocation");
+                        LOGGER.debug("Ignoring ART method invocation: " + methodSignature);
                         continue;
                     }
                 }
@@ -146,6 +148,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                         BasicStatement b = (BasicStatement) s;
                         LOGGER.debug("Instruction: " + b.getInstruction().getInstruction().getOpcode()
                                 + "(" + b.getInstructionIndex() + ")");
+                    } else {
+                        LOGGER.debug(s);
                     }
                 });
 
@@ -167,13 +171,15 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         // we need to add the last block
         if (!block.isEmpty()) {
 
-            LOGGER.debug("Block Statement:");
+            LOGGER.debug("(Last) Block Statement:");
 
             block.forEach(s -> {
                 if (s.getType() == Statement.StatementType.BASIC_STATEMENT) {
                     BasicStatement b = (BasicStatement) s;
                     LOGGER.debug("Instruction: " + b.getInstruction().getInstruction().getOpcode()
                             + "(" + b.getInstructionIndex() + ")");
+                } else {
+                    LOGGER.debug(s);
                 }
             });
             blockStmts.add(block);
