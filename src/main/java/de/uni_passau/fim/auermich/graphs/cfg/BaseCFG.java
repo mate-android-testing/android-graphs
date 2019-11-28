@@ -104,7 +104,16 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     public void addVertex(Vertex vertex) {
-        graph.addVertex(vertex);
+
+        if (containsVertex(vertex)) {
+            return;
+        }
+
+        boolean succeeded = graph.addVertex(vertex);
+
+        if (!succeeded) {
+            LOGGER.debug("Couldn't insert vertex: " + vertex);
+        }
     }
 
     public void removeEdge(Edge edge) {

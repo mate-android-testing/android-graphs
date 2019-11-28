@@ -255,6 +255,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
      */
     private Vertex reconstructSuccessorVertex(Vertex src) {
 
+        LOGGER.debug("Reconstructing Sucessor Vertex...");
+
         Statement stmt = src.getStatement();
         BlockStatement blockStmt = (BlockStatement) stmt;
         List<Statement> stmts = blockStmt.getStatements();

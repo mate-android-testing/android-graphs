@@ -6,6 +6,7 @@ public class ReturnStatement extends Statement implements Cloneable {
 
     // either tracks source and target name as String
     // or uses an additional int to make them unique
+    private int id = 0;
 
     // two distinct cases:
     // return statement should be unique among different intra CFGS (YES)
@@ -19,6 +20,13 @@ public class ReturnStatement extends Statement implements Cloneable {
         super(method);
         this.targetMethod = targetMethod;
         type = StatementType.RETURN_STATEMENT;
+    }
+
+    public ReturnStatement(int id, String method, String targetMethod) {
+        super(method);
+        this.targetMethod = targetMethod;
+        type = StatementType.RETURN_STATEMENT;
+        this.id = id;
     }
 
     @Override
@@ -41,13 +49,14 @@ public class ReturnStatement extends Statement implements Cloneable {
 
         // unique method signature of both source and target
         return this.method.equals(other.method)
+                && this.id == other.id
                 && this.targetMethod.equals(other.targetMethod);
 
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, targetMethod);
+        return Objects.hash(method, targetMethod, id);
     }
 
     public String getTargetMethod() {

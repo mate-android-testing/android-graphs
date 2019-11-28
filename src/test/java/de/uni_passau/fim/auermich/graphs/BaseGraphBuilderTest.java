@@ -87,9 +87,9 @@ public class BaseGraphBuilderTest {
     public void computeBranchDistanceLinux() throws IOException {
 
         // File apkFile = new File("/home/auermich/smali/com.zola.bmi_400.apk");
-        // File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
+        File apkFile = new File("/home/auermich/smali/ws.xsoh.etar_17.apk");
         // File apkFile = new File("/home/auermich/tools/mate-commander/BMI-debug.apk");
-        File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\ws.xsoh.etar_17.apk");
+        // File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\ws.xsoh.etar_17.apk");
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -115,6 +115,8 @@ public class BaseGraphBuilderTest {
         BaseCFG interCFG = (BaseCFG) baseGraph;
         // interCFG.drawGraph();
 
+
+
         System.out.println("Total number of Branches: " + interCFG.getBranches().size());
 
         Vertex targetVertex = interCFG.getVertices().stream().filter(v ->
@@ -124,8 +126,8 @@ public class BaseGraphBuilderTest {
 
         System.out.println("Selected Target Vertex: " + targetVertex);
 
-        // String tracesDir = "/home/auermich/tools/mate-commander/";
-        String tracesDir = "C:\\Users\\Michael\\git\\mate-commander\\";
+        String tracesDir = "/home/auermich/tools/mate-commander/";
+        // String tracesDir = "C:\\Users\\Michael\\git\\mate-commander\\";
         File traces = new File(tracesDir, "traces.txt");
 
         List<String> executionPath = new ArrayList<>();
@@ -201,7 +203,7 @@ public class BaseGraphBuilderTest {
         System.out.println("Marking intermediate path nodes now...");
 
         // mark the intermediate path nodes that are between branches we visited
-        entryVertices.parallelStream().forEach(entry -> {
+        entryVertices.forEach(entry -> {
             Vertex exit = new Vertex(new ExitStatement(entry.getMethod()));
             if (visitedVertices.contains(entry) && visitedVertices.contains(exit)) {
                 markIntermediatePathVertices(entry, exit, visitedVertices, interCFG);
@@ -270,13 +272,14 @@ public class BaseGraphBuilderTest {
         Statement statement = vertex.getStatement();
 
         if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
+            System.out.println("Basic statement not yet supported!");
             // TODO: check if is ART method invocation
             return false;
         } else if (statement.getType() == Statement.StatementType.BLOCK_STATEMENT) {
 
             BlockStatement blockStatement = (BlockStatement) statement;
 
-            // only the last statement is of interest, if this is an invoke we know no ART method as well
+            // only the last statement is of interest
             Statement stmt = blockStatement.getLastStatement();
 
             // there could be potentially isolated return vertices
@@ -287,7 +290,10 @@ public class BaseGraphBuilderTest {
 
                 // check if we have an invoke stmt
                 if (instruction.getOpcode().format == Format.Format35c
-                    || instruction.getOpcode().format == Format.Format3rc) {
+                    || instruction.getOpcode().format == Format.Format3rc
+                        && instruction.getOpcode() != Opcode.FILLED_NEW_ARRAY_RANGE
+                        && instruction.getOpcode() != Opcode.FILLED_NEW_ARRAY) {
+                    System.out.println("Instruction: " + basicStatement.getInstructionIndex() + ":" + instruction.getOpcode());
                     return true;
                 }
             }
@@ -316,10 +322,14 @@ public class BaseGraphBuilderTest {
                         .stream()
                         .map(Edge::getTarget).findFirst().get();
 
+                System.out.println("Size of successors: " + interCFG.getOutgoingEdges(currentVertex).size());
+
                 // should be the entry vertex of invoked method
                 if (successor.isEntryVertex()) {
                     Vertex exitVertex = new Vertex(new ExitStatement(successor.getMethod()));
                     queue.offer(getReturnVertex(currentVertex, exitVertex, visitedVertices, interCFG));
+                } else {
+                    System.out.println("Might be an invoke stmt that calls an ART method");
                 }
             }
 
@@ -479,6 +489,8 @@ public class BaseGraphBuilderTest {
                 if (blockStatement.getStatements().size() == 1) {
                     // there can be isolated virtual return stmts
                     // (in case the invoke is a branch target and a predecessor of another leader instruction)
+
+                    System.out.println("Outgoing Edges: " + interCFG.getOutgoingEdges(returnVertex));
 
                     // we need to inspect the successors in this case
                     List<Vertex> successors = interCFG.getOutgoingEdges(returnVertex).stream().
@@ -799,7 +811,7 @@ public class BaseGraphBuilderTest {
         });
 
         BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                .withName("Lcom/android/calendar/event/EditEventFragment;-><init>(Lcom/android/calendar/CalendarController$EventInfo;Ljava/util/ArrayList;ZIZLandroid/content/Intent;)V")
+                .withName("Lcom/android/datetimepicker/date/DayPickerView;->goTo(Lcom/android/datetimepicker/date/MonthAdapter$CalendarDay;ZZZ)Z")
                  // .withName("Lcom/android/calendar/EventLoader$LoaderThread;->run()V")
                 .withBasicBlocks()
                 .build();
