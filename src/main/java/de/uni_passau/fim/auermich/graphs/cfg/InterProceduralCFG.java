@@ -160,7 +160,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                 // the next block gets a return stmt as first entry
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-                Statement returnStmt = new ReturnStatement(stmt.getMethod(), targetMethod);
+                Statement returnStmt = new ReturnStatement(basicStmt.getInstructionIndex(),stmt.getMethod(), targetMethod);
                 block.add(returnStmt);
             } else {
                 // we need to add the stmt to the current block
@@ -234,7 +234,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                 // add return statement as first statement
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-                Statement returnStmt = new ReturnStatement(src.getMethod(), targetMethod);
+                Statement returnStmt = new ReturnStatement(basicStmt.getInstructionIndex(),src.getMethod(), targetMethod);
                 blockStmts.add(0, returnStmt);
                 break;
             } else {
@@ -589,6 +589,16 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     }
                     // there is no invoke instruction included in the block stmt -> leave the vertex unchanged
                     continue;
+                }
+
+                // check if last block contains isolated virtual return vertex
+                List<Statement> lastBlock = blocks.get(blocks.size()-1);
+
+                // TODO: we need to attach an isolated virtual return vertex to the next vertex
+                if (lastBlock.size() == 1
+                    && lastBlock.get(0).getType() == Statement.StatementType.RETURN_STATEMENT) {
+                    System.out.println("Found isolated return vertex: " + lastBlock);
+                    // blocks.remove(lastBlock);
                 }
 
                 blocks.forEach(b -> {

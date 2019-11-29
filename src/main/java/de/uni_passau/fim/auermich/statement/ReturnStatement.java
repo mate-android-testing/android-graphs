@@ -31,7 +31,7 @@ public class ReturnStatement extends Statement implements Cloneable {
 
     @Override
     public String toString() {
-        return "Return from: " + targetMethod;
+        return "Return from: " + targetMethod + " (" + id + ")";
     }
 
 

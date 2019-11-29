@@ -115,8 +115,6 @@ public class BaseGraphBuilderTest {
         BaseCFG interCFG = (BaseCFG) baseGraph;
         // interCFG.drawGraph();
 
-
-
         System.out.println("Total number of Branches: " + interCFG.getBranches().size());
 
         Vertex targetVertex = interCFG.getVertices().stream().filter(v ->
