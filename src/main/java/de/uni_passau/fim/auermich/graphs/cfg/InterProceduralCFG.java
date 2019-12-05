@@ -520,6 +520,209 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
     private void constructCFGWithBasicBlocks(APK apk) {
 
+        // add each intra-CFG to the final inter-CFG
+        intraCFGs.forEach((name,intraCFG) -> addSubGraph(intraCFG));
+
+        // collect all fragments of an activity
+        Multimap<String, String> activityFragments = TreeMultimap.create();
+
+        // collect the callback entry points
+        Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
+
+        // missing edges, which are inserted afterwards
+        Multimap<Vertex, Vertex> missingEdges = TreeMultimap.create();
+
+        // shallow copy to avoid ConcurrentModificationException
+        Set<Vertex> vertices = new HashSet<>(getVertices());
+
+        // iterate over the graph and connect the intraCFGs
+        for (Vertex vertex : vertices) {
+
+            if (vertex.isEntryVertex() || vertex.isExitVertex()) {
+                // entry and exit vertices do not have instructions attached, skip
+                continue;
+            }
+
+            String method = vertex.getMethod();
+
+            // all vertices are represented by block statements
+            BlockStatement blockStatement = (BlockStatement) vertex.getStatement();
+
+            // divide the vertex into blocks
+            List<List<Statement>> blocks = splitBlockStmt(blockStatement);
+
+            LOGGER.debug("Block Stmts: " + blocks.size());
+
+            if (blocks.size() == 1) {
+                if (excludeARTClasses) {
+                    checkFragmentInvocation(new BlockStatement(method, blocks.get(0)), activityFragments);
+                    checkComponentInvocation(new BlockStatement(method, blocks.get(0)), missingEdges);
+                }
+                // there is no invoke instruction included in the block stmt -> leave the vertex unchanged
+                continue;
+            }
+
+            // check if last block contains isolated virtual return vertex
+            List<Statement> lastBlock = blocks.get(blocks.size()-1);
+
+            // TODO: we need to attach an isolated virtual return vertex to the next vertex
+            if (lastBlock.size() == 1
+                    && lastBlock.get(0).getType() == Statement.StatementType.RETURN_STATEMENT) {
+                System.out.println("Found isolated return vertex: " + lastBlock);
+                // blocks.remove(lastBlock);
+            }
+
+            blocks.forEach(b -> {
+                b.forEach(s -> LOGGER.debug(s));
+                LOGGER.debug(System.lineSeparator());
+            });
+
+            // save the incoming and outgoing edges as we remove the vertex
+            Set<Edge> incomingEdges = getIncomingEdges(vertex);
+            Set<Edge> outgoingEdges = getOutgoingEdges(vertex);
+
+            LOGGER.debug("Incoming edges: " + incomingEdges.stream().map(e
+                    -> e.getSource().toString()).collect(Collectors.joining(",")));
+            LOGGER.debug("Outgoing edges: " + outgoingEdges.stream().map(e
+                    -> e.getTarget().toString()).collect(Collectors.joining(",")));
+
+            // first remove vertex -> this removes its predecessors and successors inherently
+            removeVertex(vertex);
+
+            List<Vertex> blockVertices = new ArrayList<>();
+            List<Vertex> exitVertices = new ArrayList<>();
+
+            for (int i = 0; i < blocks.size(); i++) {
+
+                LOGGER.debug("Block Number: " + i);
+
+                List<Statement> block = blocks.get(i);
+                Statement blockStmt = new BlockStatement(method, block);
+                Vertex blockVertex = new Vertex(blockStmt);
+                blockVertices.add(blockVertex);
+
+                LOGGER.debug("BlockVertex: " + blockVertex);
+
+                // add modified block vertex to graph
+                addVertex(blockVertex);
+
+                // first block, add original predecessors to first block
+                if (i == 0) {
+                    LOGGER.debug("First Block reached! - Special treatment!");
+                    handleFirstBlock(blockVertex, incomingEdges, missingEdges);
+                }
+
+                // needs to be before check of last block, since now last block may contain invoke instructions
+                if (excludeARTClasses) {
+                    checkFragmentInvocation(blockStmt, activityFragments);
+                    checkComponentInvocation(blockStmt, missingEdges);
+                }
+
+                // last block, add original successors to the last block
+                if (i == blocks.size() - 1) {
+                    LOGGER.debug("Last Block reached! - Special treatment!");
+                    handleLastBlock(blockVertex, outgoingEdges, missingEdges);
+                    // the last block doesn't contain any invoke instruction if !excludeARTClasses
+                    break;
+                }
+
+                BasicStatement invokeStmt = (BasicStatement) ((BlockStatement) blockStmt).getLastStatement();
+                Instruction instruction = invokeStmt.getInstruction().getInstruction();
+
+                // search for target CFG by reference of invoke instruction (target method)
+                String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+
+                // redundant code if excludeARTClasses is turned on
+                if (!excludeARTClasses) {
+
+                    // TODO: treat inherited ART calls, e.g. startActivity(), as ART class methods
+
+                    // check if invocation refers to adding a fragment
+                    List<String> fragments = isFragmentInvocation(instruction, invokeStmt.getInstruction(), methodSignature);
+
+                    if (!fragments.isEmpty()) {
+                        activityFragments.putAll(Utility.getClassName(method), fragments);
+                    }
+
+                    // check if the invocation refers to the activation of another component
+                    String targetComponent = isComponentInvocation(invokeStmt.getInstruction());
+
+                    if (targetComponent != null) {
+
+                        LOGGER.debug("Component: " + targetComponent + " is invoked by " + vertex.getMethod());
+
+                        // the source vertex is the exit vertex of the start component invocation
+                        Vertex sourceVertex = intraCFGs.get(methodSignature).getExit();
+                        Vertex targetVertex = intraCFGs.get(targetComponent).getEntry();
+                        missingEdges.put(sourceVertex, targetVertex);
+                    }
+                }
+
+                // the CFG that corresponds to the invoke call
+                BaseCFG targetCFG;
+
+                if (intraCFGs.containsKey(methodSignature)) {
+                    targetCFG = intraCFGs.get(methodSignature);
+                    LOGGER.debug("Target CFG: " + ((IntraProceduralCFG) targetCFG).getMethodName());
+                } else {
+
+                    /*
+                     * There are some Android specific classes, e.g. android/view/View, which are
+                     * not included in the classes.dex file for yet unknown reasons. Basically,
+                     * these classes should be just treated like other classes from the ART.
+                     */
+                    LOGGER.warn("Target CFG for method: " + methodSignature + " not found!");
+                    targetCFG = dummyIntraProceduralCFG(methodSignature);
+                    intraCFGs.put(methodSignature, targetCFG);
+                    addSubGraph(targetCFG);
+                }
+
+                // add edge to entry of target CFG
+                addEdge(blockVertex, targetCFG.getEntry());
+
+                // save exit vertex -> there is an edge to the return vertex
+                exitVertices.add(targetCFG.getExit());
+            }
+
+            // add edge from each target CFG's exit vertex to the return vertex (first stmt within next block)
+            for (int i = 0; i < exitVertices.size(); i++) {
+                addEdge(exitVertices.get(i), blockVertices.get(i + 1));
+            }
+        }
+
+        // add missing edges, requires src and dest vertex to be present already
+        LOGGER.debug("Missing Edges Size: " + missingEdges.size());
+        for (Map.Entry<Vertex, Vertex> edge : missingEdges.entries()) {
+            addEdge(edge.getKey(), edge.getValue());
+        }
+
+        // TODO: instead of using reference for whole onCreate method, it should be sufficient to save only entry vertex
+
+        // add activity and fragment lifecycle as well as global entry point for activities
+        activities.forEach(activity -> {
+            String onCreateMethod = activity + "->onCreate(Landroid/os/Bundle;)V";
+
+            // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
+            if (!intraCFGs.containsKey(onCreateMethod)) {
+                BaseCFG onCreate = dummyIntraProceduralCFG(onCreateMethod);
+                intraCFGs.put(onCreateMethod, onCreate);
+                addSubGraph(onCreate);
+            }
+
+            BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
+            LOGGER.debug("Activity " + activity + " defines the following fragments: " + activityFragments.get(activity));
+            BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
+            callbackEntryPoints.put(activity, callbackEntryPoint);
+            // TODO: check whether copy is here as well necessary
+            addGlobalEntryPoint(onCreateCFG);
+        });
+
+        // add the callbacks specified either through XML or directly in code
+        addCallbacks(callbackEntryPoints, apk);
+    }
+
+    private void constructCFGWithBasicBlocks2(APK apk) {
+
         // avoid concurrent modification exception
         Map<String, BaseCFG> intraCFGsCopy = new HashMap<>(intraCFGs);
 
