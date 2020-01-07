@@ -587,7 +587,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
                     -> e.getTarget().toString()).collect(Collectors.joining(",")));
 
             // first remove vertex -> this removes its predecessors and successors inherently
-            removeVertex(vertex);
+            // removeVertex(vertex);
 
             List<Vertex> blockVertices = new ArrayList<>();
             List<Vertex> exitVertices = new ArrayList<>();
@@ -688,6 +688,8 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
             for (int i = 0; i < exitVertices.size(); i++) {
                 addEdge(exitVertices.get(i), blockVertices.get(i + 1));
             }
+
+            removeVertex(vertex);
         }
 
         // add missing edges, requires src and dest vertex to be present already
