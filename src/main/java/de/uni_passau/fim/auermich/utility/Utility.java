@@ -8,6 +8,8 @@ import de.uni_passau.fim.auermich.graphs.Vertex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.spi.LoggerRegistry;
+import org.jf.dexlib2.Format;
+import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
@@ -20,10 +22,7 @@ import org.jf.dexlib2.iface.instruction.Instruction;
 
 import java.io.*;
 import java.net.URISyntaxException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
 
@@ -116,6 +115,91 @@ public final class Utility {
         return null;
     }
 
+    /**
+     * Checks whether the given instruction refers to an if or goto instruction.
+     *
+     * @param analyzedInstruction The instruction to be analyzed.
+     * @return Returns {@code true} if the instruction is a branch or goto instruction,
+     *      otherwise {@code false} is returned.
+     */
+    public static boolean isJumpInstruction(AnalyzedInstruction analyzedInstruction) {
+        // TODO: may handle parse-switch and packed-switch instructions
+        // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
+        EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH, Opcode.PACKED_SWITCH_PAYLOAD,
+                Opcode.SPARSE_SWITCH, Opcode.SPARSE_SWITCH_PAYLOAD);
+        if (opcodes.contains(analyzedInstruction.getInstruction().getOpcode())) {
+            LOGGER.debug("Sparse/Packed-switch instruction at index: " + analyzedInstruction.getInstructionIndex());
+        }
+        return isBranchingInstruction(analyzedInstruction) || isGotoInstruction(analyzedInstruction);
+    }
+
+    /**
+     * Checks whether the given instruction refers to a goto instruction.
+     *
+     * @param analyzedInstruction The instruction to be analyzed.
+     * @return Returns {@code true} if the instruction is a goto instruction,
+     *      otherwise {@code false} is returned.
+     */
+    public static boolean isGotoInstruction(AnalyzedInstruction analyzedInstruction) {
+        Instruction instruction = analyzedInstruction.getInstruction();
+        EnumSet<Format> gotoInstructions = EnumSet.of(Format.Format10t, Format.Format20t, Format.Format30t);
+        return gotoInstructions.contains(instruction.getOpcode().format);
+    }
+
+    /**
+     * Checks whether the given instruction refers to an if instruction.
+     *
+     * @param analyzedInstruction The instruction to be analyzed.
+     * @return Returns {@code true} if the instruction is a branching instruction,
+     *      otherwise {@code false} is returned.
+     */
+    public static boolean isBranchingInstruction(AnalyzedInstruction analyzedInstruction) {
+        Instruction instruction = analyzedInstruction.getInstruction();
+        EnumSet<Format> branchingInstructions = EnumSet.of(Format.Format21t, Format.Format22t);
+        return branchingInstructions.contains(instruction.getOpcode().format);
+    }
+
+    /**
+     * Checks whether the given instruction refers to a return or throw statement.
+     *
+     * @param instruction The instruction to be inspected.
+     * @return Returns {@code true} if the given instruction is a return or throw statement,
+     *      otherwise {@code false} is returned.
+     */
+    public static boolean isTerminationStatement(AnalyzedInstruction instruction) {
+        // TODO: should we handle the throw-verification-error instruction?
+        return isReturnStatement(instruction) || instruction.getInstruction().getOpcode() == Opcode.THROW;
+    }
+
+    /**
+     * Checks whether the given instruction refers to a return statement.
+     *
+     * @param analyzedInstruction The instruction to be inspected.
+     * @return Returns {@code true} if the given instruction is a return statement, otherwise
+     *      {@code false} is returned.
+     */
+    public static boolean isReturnStatement(AnalyzedInstruction analyzedInstruction) {
+        Instruction instruction = analyzedInstruction.getInstruction();
+        EnumSet<Opcode> returnStmts = EnumSet.of(Opcode.RETURN, Opcode.RETURN_WIDE, Opcode.RETURN_OBJECT,
+                Opcode.RETURN_VOID, Opcode.RETURN_VOID_BARRIER, Opcode.RETURN_VOID_NO_BARRIER);
+        return returnStmts.contains(instruction.getOpcode());
+    }
+
+    /**
+     * Convenient function to get the list of {@code AnalyzedInstruction} of a certain target method.
+     *
+     * @param dexFile The dex file containing the target method.
+     * @param method The target method.
+     * @return Returns a list of {@code AnalyzedInstruction} included in the target method.
+     */
+    public static List<AnalyzedInstruction> getAnalyzedInstructions(DexFile dexFile, Method method) {
+
+        MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
+                true, ClassPath.NOT_ART), method,
+                null, false);
+
+        return analyzer.getAnalyzedInstructions();
+    }
 
     /**
      * Searches for a target method in the given {@code dexFile}.

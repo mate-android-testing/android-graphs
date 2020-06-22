@@ -2,6 +2,7 @@ package de.uni_passau.fim.auermich.graphs;
 
 import de.uni_passau.fim.auermich.app.APK;
 import de.uni_passau.fim.auermich.graphs.cfg.InterProceduralCFG;
+import de.uni_passau.fim.auermich.graphs.cfg.IntraCFG;
 import de.uni_passau.fim.auermich.graphs.cfg.IntraProceduralCFG;
 import de.uni_passau.fim.auermich.utility.Utility;
 import org.jf.dexlib2.iface.DexFile;
@@ -72,7 +73,7 @@ public class BaseGraphBuilder {
                     throw new IllegalArgumentException("Method not present in dex files!");
                 }
 
-                return new IntraProceduralCFG(name, dexFile.get(), useBasicBlocks);
+                return new IntraCFG(name, dexFile.get(), useBasicBlocks);
             case INTERCFG:
                 Objects.requireNonNull(name, "CFG name is mandatory!");
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");

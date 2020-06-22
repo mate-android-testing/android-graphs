@@ -116,11 +116,8 @@ public final class Main {
         // parse command line arguments
         commander.parse(args);
 
-        LOGGER.debug("Command input: " + commander.getParsedCommand());
-
         // determine which logging level should be used
         if (mainCmd.isDebug()) {
-            LOGGER.debug("Debug mode is enabled!");
             DEBUG_MODE = true;
             Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
         } else {
@@ -205,9 +202,7 @@ public final class Main {
          * potentially, we may want to return an empty result -> Optional.
          */
 
-        LOGGER.debug("Determining which action to take dependent on given command");
-
-        LOGGER.info(mainCmd.getAPKFile().getAbsolutePath());
+        LOGGER.debug("APK: " + mainCmd.getAPKFile().getAbsolutePath());
 
         if (!mainCmd.getAPKFile().exists()) {
             LOGGER.warn("No valid APK path!");
@@ -257,6 +252,8 @@ public final class Main {
                         BaseGraph baseGraph = builder.build();
                         baseGraph.drawGraph();
                         // TODO: perform some computation on the graph (check for != null)
+                    } else {
+                        LOGGER.error("Target method not contained in dex file!");
                     }
                     break;
                 case INTERCFG:
@@ -271,6 +268,7 @@ public final class Main {
                         }
 
                         BaseGraph baseGraph = builder.build();
+                        baseGraph.drawGraph();
                         // computeApproachLevel(interCFG);
                     }
                     break;

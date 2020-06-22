@@ -28,6 +28,7 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
         type = VertexType.mapType(statement);
     }
 
+    @Override
     public String toString() {
 
         if (isEntryVertex() || isExitVertex() || isReturnVertex()) {

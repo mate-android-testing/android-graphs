@@ -315,7 +315,7 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
 
     /**
      * Computes the leader instructions. We consider branch targets, return statements, jump targets and invoke
-     * instructions as leaders. As a side product, the indices of return instructions are tracked as well as
+     * instructions as leaders. As a side effect, the indices of return instructions are tracked as well as
      * the edges between basic blocks are computed.
      *
      * @param analyzedInstructions The set of instructions for a given method.
