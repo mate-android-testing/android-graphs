@@ -8,6 +8,12 @@ public class BlockStatement extends Statement implements Cloneable {
 
     private List<Statement> statements;
 
+    public BlockStatement(String method) {
+        super(method);
+        statements = new ArrayList<>();
+        type = StatementType.BLOCK_STATEMENT;
+    }
+
     public BlockStatement(String method, List<Statement> statements) {
         super(method);
         this.statements = statements;

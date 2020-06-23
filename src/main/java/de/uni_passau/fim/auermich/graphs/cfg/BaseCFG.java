@@ -92,7 +92,10 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     public void addEdge(Vertex src, Vertex dest) {
-        graph.addEdge(src, dest);
+        Edge e = graph.addEdge(src, dest);
+        if (e == null) {
+            LOGGER.debug("Edge already existing in graph!");
+        }
     }
 
     public Set<Edge> getOutgoingEdges(Vertex vertex) {

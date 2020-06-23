@@ -1,11 +1,13 @@
 package de.uni_passau.fim.auermich.graphs.cfg;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import de.uni_passau.fim.auermich.statement.BasicStatement;
+import de.uni_passau.fim.auermich.statement.BlockStatement;
 import de.uni_passau.fim.auermich.statement.Statement;
 import de.uni_passau.fim.auermich.utility.Utility;
 import org.apache.logging.log4j.LogManager;
@@ -136,9 +138,10 @@ public class IntraCFG extends BaseCFG implements Cloneable {
     }
 
     /**
-     * Computes the intra-procedural CFG for a given method. Uses basic blocks to reduce
-     * the number of vertices. The underlying algorithm computes first the leader statements
-     * and then groups statements between two leaders within a basic block.
+     * Computes the intra-procedural CFG for a given method using basic blocks. Initially,
+     * the leader instructions are computed, which separate basic blocks from each other. Then,
+     * based on this information statements are grouped in basic blocks and mapped to a vertex.
+     * Finally, the edges between the basic blocks are inserted.
      *
      * @param dexFile      The dex file containing the target method.
      * @param targetMethod The method for which we want to generate the CFG.
@@ -150,14 +153,78 @@ public class IntraCFG extends BaseCFG implements Cloneable {
         if (targetMethod.getImplementation() != null) {
 
             List<AnalyzedInstruction> analyzedInstructions = Utility.getAnalyzedInstructions(dexFile, targetMethod);
-            List<Integer> leaders = computeLeaders(targetMethod, analyzedInstructions);
+            Set<Integer> leaders = computeLeaders(targetMethod, analyzedInstructions);
 
+            String method = targetMethod.toString();
 
+            // save for each vertex/basic block the instruction id of the last statement
+            Map<Integer, Vertex> vertices = new HashMap<>();
+
+            BlockStatement basicBlock = new BlockStatement(method);
+            basicBlock.addStatement(new BasicStatement(method, analyzedInstructions.get(0)));
+
+            // assign the instructions to basic blocks
+            for (int index = 1; index < analyzedInstructions.size(); index++) {
+                AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
+
+                if (!leaders.contains(analyzedInstruction.getInstructionIndex())) {
+                    // instruction belongs to current basic block
+                    basicBlock.addStatement(new BasicStatement(method, analyzedInstruction));
+                } else {
+                    // end of basic block
+                    createBasicBlockVertex(basicBlock, vertices);
+
+                    // reset basic block
+                    basicBlock = new BlockStatement(method);
+
+                    // current instruction belongs to next basic block
+                    basicBlock.addStatement(new BasicStatement(method, analyzedInstruction));
+                }
+            }
+
+            // add the last basic block separately
+            createBasicBlockVertex(basicBlock, vertices);
         } else {
             // no method implementation found -> construct dummy CFG
             addEdge(getEntry(), getExit());
         }
+    }
 
+    /**
+     * Creates a new vertex in the graph for a given basic block. Also adds edges between the
+     * basic block and previously created basic blocks. Likewise, an edge between the
+     * entry vertex and the basic block or the basic block and the exit vertex is inserted if necessary.
+     *
+     * @param basicBlock The basic block wrapping the statements.
+     * @param vertices A map storing each vertex/basic block by the instruction id of the last statement.
+     */
+    private void createBasicBlockVertex(BlockStatement basicBlock, Map<Integer, Vertex> vertices) {
+
+        Vertex vertex = new Vertex(basicBlock);
+        addVertex(vertex);
+
+        // save vertex/basic block by index of last statement
+        BasicStatement lastStmt = (BasicStatement) basicBlock.getLastStatement();
+        vertices.put(lastStmt.getInstructionIndex(), vertex);
+
+        // check if we need an edge between entry node and the basic block
+        BasicStatement firstStmt = (BasicStatement) basicBlock.getFirstStatement();
+
+        if (firstStmt.getInstruction().isBeginningInstruction()) {
+            addEdge(getEntry(), vertex);
+        }
+
+        // check if we need an edge between the basic block and the exit node
+        if (Utility.isTerminationStatement(lastStmt.getInstruction())) {
+            addEdge(vertex, getExit());
+        }
+
+        // check for incoming edges of previously created basic blocks
+        for (AnalyzedInstruction predecessor : firstStmt.getInstruction().getPredecessors()) {
+            if (vertices.containsKey(predecessor.getInstructionIndex())) {
+                addEdge(vertices.get(predecessor.getInstructionIndex()), vertex);
+            }
+        }
     }
 
     /**
@@ -167,9 +234,9 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      *
      * @param method The method for which we want to compute the leader instructions.
      * @param analyzedInstructions The instructions of belonging to the given method.
-     * @return Returns the instruction indices of leader instructions.
+     * @return Returns the sorted instruction indices of leader instructions.
      */
-    private List<Integer> computeLeaders(Method method, List<AnalyzedInstruction> analyzedInstructions) {
+    private Set<Integer> computeLeaders(Method method, List<AnalyzedInstruction> analyzedInstructions) {
 
         // maintains the leaders sorted
         Set<Integer> leaders = new TreeSet<>();
@@ -201,6 +268,8 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
             }
 
+            // TODO: every instruction after a return/throw statement should be a leader instruction?
+
             if (analyzedInstruction.isBeginningInstruction()) {
                 // any 'first' instruction is a leader instruction
                 leaders.add(analyzedInstruction.getInstructionIndex());
@@ -209,20 +278,16 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 leaders.addAll(analyzedInstruction.getSuccessors().stream()
                         .map(AnalyzedInstruction::getInstructionIndex).collect(Collectors.toSet()));
             } else if (analyzedInstruction.getSuccessors().size() > 1) {
-                // TODO: remove when it's guaranteed that we don't miss any leader instructions
-                //  These instructions should be the first instructions of a catch block only. (covered by above procedure)
                 // any non-direct successor (exceptional flow) is a leader instruction
                 for (AnalyzedInstruction successor : analyzedInstruction.getSuccessors()) {
-                    if (successor.getInstructionIndex() != analyzedInstruction.getInstructionIndex() + 1) {
                         LOGGER.debug("Exceptional flow Leader: " + successor.getInstructionIndex());
                         leaders.add(successor.getInstructionIndex());
-                    }
                 }
             }
         }
 
         LOGGER.debug("Leader Instructions: " + leaders);
-        return new ArrayList<>(leaders);
+        return leaders;
     }
 
     @Override
