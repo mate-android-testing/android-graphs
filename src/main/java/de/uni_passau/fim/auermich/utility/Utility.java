@@ -123,14 +123,46 @@ public final class Utility {
      *      otherwise {@code false} is returned.
      */
     public static boolean isJumpInstruction(AnalyzedInstruction analyzedInstruction) {
-        // TODO: may handle parse-switch and packed-switch instructions
+        return isBranchingInstruction(analyzedInstruction) || isGotoInstruction(analyzedInstruction);
+    }
+
+    /**
+     * Checks whether the given instruction refers to an parse-switch or packed-switch payload instruction.
+     * These instructions are typically located at the end of a method after the return statement, thus
+     * being isolated.
+     *
+     * @param analyzedInstruction The instruction to be analyzed.
+     * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
+     *      otherwise {@code false} is returned.
+     */
+    public static boolean isSwitchPayloadInstruction(AnalyzedInstruction analyzedInstruction) {
+        // TODO: may handle the actual parse-switch and packed-switch instructions (not the payload instructions)
         // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
-        EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH, Opcode.PACKED_SWITCH_PAYLOAD,
-                Opcode.SPARSE_SWITCH, Opcode.SPARSE_SWITCH_PAYLOAD);
+        EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH_PAYLOAD, Opcode.SPARSE_SWITCH_PAYLOAD);
+        if (opcodes.contains(analyzedInstruction.getInstruction().getOpcode())) {
+            LOGGER.debug("Sparse/Packed-switch payload instruction at index: " + analyzedInstruction.getInstructionIndex());
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Checks whether the given instruction refers to an parse-switch or packed-switch instruction.
+     *
+     * @param analyzedInstruction The instruction to be analyzed.
+     * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
+     *      otherwise {@code false} is returned.
+     */
+    public static boolean isSwitchInstruction(AnalyzedInstruction analyzedInstruction) {
+        // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
+        EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH, Opcode.SPARSE_SWITCH);
         if (opcodes.contains(analyzedInstruction.getInstruction().getOpcode())) {
             LOGGER.debug("Sparse/Packed-switch instruction at index: " + analyzedInstruction.getInstructionIndex());
+            return true;
+        } else {
+            return false;
         }
-        return isBranchingInstruction(analyzedInstruction) || isGotoInstruction(analyzedInstruction);
     }
 
     /**

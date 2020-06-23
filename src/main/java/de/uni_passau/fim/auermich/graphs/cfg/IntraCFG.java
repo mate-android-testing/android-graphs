@@ -30,6 +30,10 @@ public class IntraCFG extends BaseCFG implements Cloneable {
     private static final Logger LOGGER = LogManager.getLogger(IntraCFG.class);
     private static final GraphType GRAPH_TYPE = GraphType.INTRACFG;
 
+    public IntraCFG(String methodName) {
+        super(methodName);
+    }
+
     public IntraCFG(String methodName, DexFile dexFile, boolean useBasicBlocks) {
         super(methodName);
         Optional<Method> targetMethod = Utility.searchForTargetMethod(dexFile, methodName);
@@ -76,6 +80,12 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
             // pre-create a vertex for each single instruction
             for (int index = 0; index < analyzedInstructions.size(); index++) {
+
+                // ignore parse-switch and packed-switch payload instructions
+                if (Utility.isSwitchPayloadInstruction(analyzedInstructions.get(index))) {
+                    continue;
+                }
+
                 Statement stmt = new BasicStatement(getMethodName(), analyzedInstructions.get(index));
                 Vertex vertex = new Vertex(stmt);
                 addVertex(vertex);
@@ -84,6 +94,11 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
             // connect vertices by inspecting successors and predecessors of instructions
             for (int index = 0; index < analyzedInstructions.size(); index++) {
+
+                // ignore parse-switch and packed-switch payload instructions
+                if (Utility.isSwitchPayloadInstruction(analyzedInstructions.get(index))) {
+                    continue;
+                }
 
                 Vertex vertex = vertices.get(index);
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
@@ -166,6 +181,11 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             // assign the instructions to basic blocks
             for (int index = 1; index < analyzedInstructions.size(); index++) {
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
+
+                // ignore parse-switch and packed-switch payload instructions
+                if (Utility.isSwitchPayloadInstruction(analyzedInstruction)) {
+                    continue;
+                }
 
                 if (!leaders.contains(analyzedInstruction.getInstructionIndex())) {
                     // instruction belongs to current basic block
@@ -298,7 +318,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
     // TODO: check if this method will be ever used
     @Override
     public BaseCFG copy() {
-        BaseCFG clone = new IntraProceduralCFG(getMethodName());
+        BaseCFG clone = new IntraCFG(getMethodName());
 
         Graph<Vertex, Edge> graphClone = GraphTypeBuilder
                 .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
@@ -324,8 +344,8 @@ public class IntraCFG extends BaseCFG implements Cloneable {
     }
 
     @Override
-    public IntraProceduralCFG clone() {
-        IntraProceduralCFG cloneCFG = (IntraProceduralCFG) super.clone();
+    public IntraCFG clone() {
+        IntraCFG cloneCFG = (IntraCFG) super.clone();
         return cloneCFG;
     }
 }
