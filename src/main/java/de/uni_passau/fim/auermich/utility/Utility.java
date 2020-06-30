@@ -46,6 +46,29 @@ public final class Utility {
         add("R$styleable");
     }};
 
+    private static final Set<Opcode> invokeOpcodes = new HashSet<Opcode>() {{
+        add(Opcode.INVOKE_CUSTOM_RANGE);
+        add(Opcode.INVOKE_CUSTOM);
+        add(Opcode.INVOKE_DIRECT_RANGE);
+        add(Opcode.INVOKE_DIRECT);
+        add(Opcode.INVOKE_DIRECT_EMPTY);
+        add(Opcode.INVOKE_INTERFACE_RANGE);
+        add(Opcode.INVOKE_INTERFACE);
+        add(Opcode.INVOKE_OBJECT_INIT_RANGE);
+        add(Opcode.INVOKE_POLYMORPHIC_RANGE);
+        add(Opcode.INVOKE_POLYMORPHIC);
+        add(Opcode.INVOKE_STATIC_RANGE);
+        add(Opcode.INVOKE_STATIC);
+        add(Opcode.INVOKE_SUPER_RANGE);
+        add(Opcode.INVOKE_SUPER);
+        add(Opcode.INVOKE_SUPER_QUICK_RANGE);
+        add(Opcode.INVOKE_SUPER_QUICK);
+        add(Opcode.INVOKE_VIRTUAL_RANGE);
+        add(Opcode.INVOKE_VIRTUAL);
+        add(Opcode.INVOKE_VIRTUAL_QUICK_RANGE);
+        add(Opcode.INVOKE_VIRTUAL_QUICK);
+    }};
+
     private Utility() {
         throw new UnsupportedOperationException("Utility class!");
     }
@@ -372,6 +395,18 @@ public final class Utility {
         className = className.substring(className.indexOf('L') + 1, className.indexOf(';'));
         className = className.replace('/', '.');
         return className;
+    }
+
+    /**
+     * Checks whether the given instruction is any sort of invoke statement.
+     *
+     * @param analyzedInstruction The instruction to be inspected.
+     * @return Returns {@code true} if the given instruction is an invoke statement,
+     *      otherwise {@code false} is returned.
+     */
+    public static boolean isInvokeInstruction(AnalyzedInstruction analyzedInstruction) {
+        Instruction instruction = analyzedInstruction.getInstruction();
+        return invokeOpcodes.contains(instruction.getOpcode());
     }
 
     /**
