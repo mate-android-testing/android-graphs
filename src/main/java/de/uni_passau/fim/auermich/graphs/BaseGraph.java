@@ -8,5 +8,8 @@ public interface BaseGraph {
 
     void drawGraph();
 
+    // number of vertices
+    int size();
+
     GraphType getGraphType();
 }

@@ -227,6 +227,7 @@ public final class Main {
 
                         BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
                                 .withName("global")
+                                .withExcludeARTClasses()
                                 .withAPKFile(mainCmd.getAPKFile());
 
                         if (intraCFGCmd.isUseBasicBlocks()) {
@@ -234,7 +235,9 @@ public final class Main {
                         }
 
                         BaseGraph baseGraph = builder.build();
-                        baseGraph.drawGraph();
+                        if (baseGraph.size() < 1000) {
+                            baseGraph.drawGraph();
+                        }
                         // computeApproachLevel(interCFG);
                     }
                     break;

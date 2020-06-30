@@ -168,6 +168,11 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         }
     }
 
+    @Override
+    public int size() {
+        return graph.vertexSet().size();
+    }
+
     /**
      * Returns the list of branches contained in the graph. That are
      * all vertices, which are successors of if-statements.
