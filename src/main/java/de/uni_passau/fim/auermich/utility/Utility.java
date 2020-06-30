@@ -14,22 +14,37 @@ import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MethodParameter;
+import org.jf.dexlib2.dexbacked.value.DexBackedTypeEncodedValue;
+import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
 import java.io.*;
 import java.net.URISyntaxException;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 
 public final class Utility {
 
     public static final String EXCLUSION_PATTERN_FILE = "exclude.txt";
     private static final Logger LOGGER = LogManager.getLogger(Utility.class);
+
+    private static final Set<String> resourceClasses = new HashSet<String>() {{
+        add("R$anim");
+        add("R$attr");
+        add("R$bool");
+        add("R$color");
+        add("R$dimen");
+        add("R$drawable");
+        add("R$id");
+        add("R$integer");
+        add("R$layout");
+        add("R$mipmap");
+        add("R$string");
+        add("R$style");
+        add("R$styleable");
+    }};
 
     private Utility() {
         throw new UnsupportedOperationException("Utility class!");
@@ -357,6 +372,66 @@ public final class Utility {
         className = className.substring(className.indexOf('L') + 1, className.indexOf(';'));
         className = className.replace('/', '.');
         return className;
+    }
+
+    /**
+     * Checks whether the given class represents the dynamically generated BuildConfig class.
+     *
+     * @param classDef The class to be checked.
+     * @return Returns {@code true} if the given class represents the dynamically generated
+     *          BuildConfig class, otherwise {@code false} is returned.
+     */
+    public static boolean isBuildConfigClass(ClassDef classDef) {
+        String className = Utility.dottedClassName(classDef.toString());
+        // TODO: check solely the last token (the actual class name)
+        return className.endsWith("BuildConfig");
+    }
+
+    /**
+     * Checks whether the given class represents the dynamically generated R class or any
+     * inner class of it.
+     *
+     * @param classDef The class to be checked.
+     * @return Returns {@code true} if the given class represents the R class or any
+     *          inner class of it, otherwise {@code false} is returned.
+     */
+    public static boolean isResourceClass(ClassDef classDef) {
+
+        String className = Utility.dottedClassName(classDef.toString());
+
+        String[] tokens = className.split("\\.");
+
+        // check whether it is the R class itself
+        if (tokens[tokens.length-1].equals("R")) {
+            return true;
+        }
+
+        // check for inner R classes
+        for (String resourceClass : resourceClasses) {
+            if (className.contains(resourceClass)) {
+                return true;
+            }
+        }
+
+        // TODO: can be removed, just for illustration how to process annotations
+        Set<? extends Annotation> annotations = classDef.getAnnotations();
+
+        for (Annotation annotation : annotations) {
+
+            // check if the enclosing class is the R class
+            if (annotation.getType().equals("Ldalvik/annotation/EnclosingClass;")) {
+                for (AnnotationElement annotationElement : annotation.getElements()) {
+                    if (annotationElement.getValue() instanceof DexBackedTypeEncodedValue) {
+                        DexBackedTypeEncodedValue value = (DexBackedTypeEncodedValue) annotationElement.getValue();
+                        if (value.getValue().equals("Landroidx/appcompat/R;")) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

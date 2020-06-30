@@ -82,6 +82,12 @@ public class InterCFG extends BaseCFG {
 
                 String className = Utility.dottedClassName(classDef.toString());
 
+                if (Utility.isResourceClass(classDef) || Utility.isBuildConfigClass(classDef)) {
+                    LOGGER.debug("Skipping resource/build class: " + className);
+                    // skip R + BuildConfig classes
+                    continue;
+                }
+
                 // as a side effect track whether the given class represents an activity or fragment
                 if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                     if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
@@ -97,6 +103,7 @@ public class InterCFG extends BaseCFG {
 
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
                             || Utility.isARTMethod(methodSignature)) {
+                        // only construct dummy CFG for non ART classes
                         if (!excludeARTClasses) {
                             // dummy CFG consisting only of entry, exit vertex and edge between
                             intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
