@@ -160,7 +160,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                 // the next block gets a return stmt as first entry
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-                Statement returnStmt = new ReturnStatement(basicStmt.getInstructionIndex(),stmt.getMethod(), targetMethod);
+                Statement returnStmt = new ReturnStatement(stmt.getMethod(), targetMethod, basicStmt.getInstructionIndex());
                 block.add(returnStmt);
             } else {
                 // we need to add the stmt to the current block
@@ -234,7 +234,7 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
                 // add return statement as first statement
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-                Statement returnStmt = new ReturnStatement(basicStmt.getInstructionIndex(),src.getMethod(), targetMethod);
+                Statement returnStmt = new ReturnStatement(src.getMethod(), targetMethod, basicStmt.getInstructionIndex());
                 blockStmts.add(0, returnStmt);
                 break;
             } else {

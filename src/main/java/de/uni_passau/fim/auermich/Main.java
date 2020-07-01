@@ -230,7 +230,7 @@ public final class Main {
                                 .withExcludeARTClasses()
                                 .withAPKFile(mainCmd.getAPKFile());
 
-                        if (intraCFGCmd.isUseBasicBlocks()) {
+                        if (interCFGCmd.isUseBasicBlocks()) {
                             builder = builder.withBasicBlocks();
                         }
 

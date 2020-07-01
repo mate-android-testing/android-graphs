@@ -5,6 +5,9 @@ import brut.common.BrutException;
 import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.Main;
 import de.uni_passau.fim.auermich.graphs.Vertex;
+import de.uni_passau.fim.auermich.statement.BasicStatement;
+import de.uni_passau.fim.auermich.statement.BlockStatement;
+import de.uni_passau.fim.auermich.statement.Statement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.spi.LoggerRegistry;
@@ -395,6 +398,26 @@ public final class Utility {
         className = className.substring(className.indexOf('L') + 1, className.indexOf(';'));
         className = className.replace('/', '.');
         return className;
+    }
+
+    /**
+     * Checks whether a block statement contains an invoke instruction.
+     *
+     * @param blockStatement The block statement to be checked.
+     * @return Returns {@code true} if the block statement contains an
+     *      invoke instruction, otherwise {@code false} is returned.
+     */
+    public static boolean containsInvoke(BlockStatement blockStatement) {
+
+        for (Statement statement : blockStatement.getStatements()) {
+            if (statement instanceof BasicStatement) {
+                if (Utility.isInvokeInstruction(((BasicStatement) statement).getInstruction())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

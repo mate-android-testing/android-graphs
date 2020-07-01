@@ -6,12 +6,20 @@ import de.uni_passau.fim.auermich.app.APK;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
+import de.uni_passau.fim.auermich.statement.BasicStatement;
+import de.uni_passau.fim.auermich.statement.BlockStatement;
+import de.uni_passau.fim.auermich.statement.ReturnStatement;
+import de.uni_passau.fim.auermich.statement.Statement;
 import de.uni_passau.fim.auermich.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.units.qual.A;
+import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
+import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
@@ -50,7 +58,7 @@ public class InterCFG extends BaseCFG {
 
     private void constructCFG(APK apk, boolean useBasicBlocks) {
 
-        // create the individual intraCFGs
+        // create the individual intraCFGs and add them as sub graphs
         constructIntraCFGs(apk, useBasicBlocks);
 
         if (useBasicBlocks) {
@@ -62,14 +70,142 @@ public class InterCFG extends BaseCFG {
 
     private void constructCFGWithBasicBlocks(APK apk) {
 
+        LOGGER.debug("Constructing Inter CFG with basic blocks!");
 
+        // exclude certain classes and methods from graph
+        Pattern exclusionPattern = Utility.readExcludePatterns();
 
+        // resolve the invoke vertices and connect the sub graphs with each other
+        for (Vertex invokeVertex : getInvokeVertices()) {
+
+            BlockStatement blockStatement = (BlockStatement) invokeVertex.getStatement();
+            List<List<Statement>> blocks = splitBlockStatement(blockStatement, exclusionPattern);
+
+            // save the incoming and outgoing edges as we remove the vertex
+            Set<Edge> incomingEdges = getIncomingEdges(invokeVertex);
+            Set<Edge> outgoingEdges = getOutgoingEdges(invokeVertex);
+
+            // remove original vertex
+            removeVertex(invokeVertex);
+
+            List<Vertex> blockVertices = new ArrayList<>();
+            List<Vertex> exitVertices = new ArrayList<>();
+
+            for (int i = 0; i < blocks.size(); i++) {
+
+                // create a new vertex for each block
+                List<Statement> block = blocks.get(i);
+                Statement blockStmt = new BlockStatement(invokeVertex.getMethod(), block);
+                Vertex blockVertex = new Vertex(blockStmt);
+                blockVertices.add(blockVertex);
+
+                // add modified block vertex to graph
+                addVertex(blockVertex);
+
+                // first block, add original predecessors to first block
+                if (i == 0) {
+                    // handleFirstBlock(blockVertex, incomingEdges, missingEdges);
+                }
+
+                // last block, add original successors to the last block
+                if (i == blocks.size() - 1) {
+                    // handleLastBlock(blockVertex, outgoingEdges, missingEdges);
+                    // the last block doesn't contain any invoke instruction -> no target CFG
+                    break;
+                }
+
+                // get target method CFG
+                BasicStatement invokeStmt = (BasicStatement) ((BlockStatement) blockStmt).getLastStatement();
+                Instruction instruction = invokeStmt.getInstruction().getInstruction();
+                String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+
+                // the CFG that corresponds to the invoke call
+                BaseCFG targetCFG;
+
+                if (intraCFGs.containsKey(targetMethod)) {
+                    targetCFG = intraCFGs.get(targetMethod);
+                } else {
+
+                    /*
+                     * There are some Android specific classes, e.g. android/view/View, which are
+                     * not included in the classes.dex file for yet unknown reasons. Basically,
+                     * these classes should be just treated like other classes from the ART.
+                     */
+                    LOGGER.debug("Target method " + targetMethod + " not contained in dex files!");
+                    targetCFG = dummyIntraProceduralCFG(targetMethod);
+                    intraCFGs.put(targetMethod, targetCFG);
+                    addSubGraph(targetCFG);
+                }
+
+                // add edge to entry of target CFG
+                addEdge(blockVertex, targetCFG.getEntry());
+
+                // save exit vertex -> there is an edge to the return vertex
+                exitVertices.add(targetCFG.getExit());
+            }
+
+            // add edge from each targetCFG's exit vertex to the return vertex (next block)
+            for (int i = 0; i < exitVertices.size(); i++) {
+                addEdge(exitVertices.get(i), blockVertices.get(i + 1));
+            }
+        }
+    }
+
+    private List<List<Statement>> splitBlockStatement(BlockStatement blockStatement, Pattern exclusionPattern) {
+
+        List<List<Statement>> blocks = new ArrayList<>();
+
+        List<Statement> block = new ArrayList<>();
+
+        List<Statement> statements = blockStatement.getStatements();
+
+        for (Statement statement : statements) {
+
+            BasicStatement basicStatement = (BasicStatement) statement;
+            AnalyzedInstruction analyzedInstruction = basicStatement.getInstruction();
+
+            if (!Utility.isInvokeInstruction(analyzedInstruction)) {
+                // statement belongs to current block
+                block.add(statement);
+            } else {
+
+                // invoke instruction belongs to current block
+                block.add(statement);
+
+                // get the target method of the invocation
+                Instruction instruction = analyzedInstruction.getInstruction();
+                String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+                String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
+
+                // don't resolve certain classes/methods, e.g. ART methods
+                if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                            || (Utility.isARTMethod(targetMethod) && excludeARTClasses)) {
+                    continue;
+                }
+
+                // save block
+                blocks.add(block);
+
+                // reset block
+                block = new ArrayList<>();
+
+                // add return statement to next block
+                block.add(new ReturnStatement(blockStatement.getMethod(), targetMethod,
+                        analyzedInstruction.getInstructionIndex()));
+            }
+        }
+
+        // add last block
+        if (!block.isEmpty()) {
+            blocks.add(block);
+        }
+
+        return blocks;
     }
 
     private void constructCFG(APK apk) {
 
-
-
+        LOGGER.debug("Constructing Inter CFG!");
     }
 
     private void constructIntraCFGs(APK apk, boolean useBasicBlocks) {
@@ -120,8 +256,13 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("List of activities: " + activities);
         LOGGER.debug("List of fragments: " + fragments);
 
-        // add intraCFGs as sub graphs
-        intraCFGs.forEach((name,intraCFG) -> addSubGraph(intraCFG));
+        // add intraCFGs as sub graphs + update collected invoke vertices
+        intraCFGs.forEach((name,intraCFG) -> {
+            addSubGraph(intraCFG);
+            addInvokeVertices(intraCFG.getInvokeVertices());
+        });
+
+        LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
     }
 
     private void constructIntraCFGsParallel(APK apk, boolean useBasicBlocks) {
@@ -188,6 +329,20 @@ public class InterCFG extends BaseCFG {
     private BaseCFG dummyIntraProceduralCFG(Method targetMethod) {
 
         BaseCFG cfg = new IntraCFG(Utility.deriveMethodSignature(targetMethod));
+        cfg.addEdge(cfg.getEntry(), cfg.getExit());
+        return cfg;
+    }
+
+    /**
+     * Constructs a dummy CFG only consisting of the virtual entry and exit vertices
+     * and an edge between. This CFG is used to model Android Runtime methods (ART).
+     *
+     * @param targetMethod The ART method.
+     * @return Returns a simplified CFG.
+     */
+    private BaseCFG dummyIntraProceduralCFG(String targetMethod) {
+
+        BaseCFG cfg = new IntraProceduralCFG(targetMethod);
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
         return cfg;
     }

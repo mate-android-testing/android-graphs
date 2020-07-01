@@ -4,25 +4,26 @@ import java.util.Objects;
 
 public class ReturnStatement extends Statement implements Cloneable {
 
-    // either tracks source and target name as String
-    // or uses an additional int to make them unique
-    private int id = 0;
-
-    // two distinct cases:
-    // return statement should be unique among different intra CFGS (YES)
-    // return statement should be unique among same intra CFG (multiple calls) (NO)
+    /**
+     * Store the instruction index of the invoke statement in order
+     * to make a return statement unique within a method. Based on the
+     * id, we can assign which invoke statement is linked to which return
+     * statement.
+     */
+    private final int id;
 
     // stores the method name from which control flow returned
     private String targetMethod;
 
-    // should be the target method name
+    // TODO: remove when InterCFG class is refactored
     public ReturnStatement(String method, String targetMethod) {
         super(method);
         this.targetMethod = targetMethod;
         type = StatementType.RETURN_STATEMENT;
+        this.id = 0;
     }
 
-    public ReturnStatement(int id, String method, String targetMethod) {
+    public ReturnStatement(String method, String targetMethod, int id) {
         super(method);
         this.targetMethod = targetMethod;
         type = StatementType.RETURN_STATEMENT;

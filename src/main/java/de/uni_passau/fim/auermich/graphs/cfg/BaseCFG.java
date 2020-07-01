@@ -70,6 +70,14 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         graph.addVertex(exit);
     }
 
+    public void addInvokeVertices(Set<Vertex> vertices) {
+        invokeVertices.addAll(vertices);
+    }
+
+    public void addInvokeVertex(Vertex vertex) {
+        invokeVertices.add(vertex);
+    }
+
     public Set<Vertex> getInvokeVertices() {
         return invokeVertices;
     }
@@ -116,38 +124,11 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
 
     public void addVertex(Vertex vertex) {
 
-        // track whether an invoke vertex was added
-        if (isInvokeVertex(vertex)) {
-            invokeVertices.add(vertex);
-        }
-
         boolean succeeded = graph.addVertex(vertex);
 
         if (!succeeded) {
             LOGGER.debug("Couldn't insert vertex: " + vertex);
         }
-    }
-
-    private boolean isInvokeVertex(Vertex vertex) {
-
-        if (vertex.isEntryVertex() || vertex.isExitVertex()) {
-            return false;
-        }
-
-        Statement stmt = vertex.getStatement();
-
-        if (stmt instanceof BasicStatement) {
-            AnalyzedInstruction instruction = ((BasicStatement) stmt).getInstruction();
-            return Utility.isInvokeInstruction(instruction);
-        } else if (stmt instanceof BlockStatement) {
-            // iterate over all instructions in block
-            List<Statement> blockStmt = ((BlockStatement) stmt).getStatements();
-            return blockStmt.stream().anyMatch(statement -> {
-                AnalyzedInstruction instruction = ((BasicStatement) blockStmt).getInstruction();
-                return Utility.isInvokeInstruction(instruction);
-            });
-        }
-        return false;
     }
 
     public void removeEdge(Edge edge) {

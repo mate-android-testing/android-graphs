@@ -88,6 +88,12 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
                 Statement stmt = new BasicStatement(getMethodName(), analyzedInstructions.get(index));
                 Vertex vertex = new Vertex(stmt);
+
+                // keep track of invoke vertices
+                if (Utility.isInvokeInstruction(analyzedInstructions.get(index))) {
+                    addInvokeVertex(vertex);
+                }
+
                 addVertex(vertex);
                 vertices.add(vertex);
             }
@@ -222,6 +228,11 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
         Vertex vertex = new Vertex(basicBlock);
         addVertex(vertex);
+
+        // keep track of invoke vertices
+        if (Utility.containsInvoke(basicBlock)) {
+            addInvokeVertex(vertex);
+        }
 
         // save vertex/basic block by index of last statement
         BasicStatement lastStmt = (BasicStatement) basicBlock.getLastStatement();
