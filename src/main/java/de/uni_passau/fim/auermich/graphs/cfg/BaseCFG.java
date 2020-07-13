@@ -240,6 +240,34 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         }
     }
 
+    public void drawGraph(int ID) {
+        JGraphXAdapter<Vertex, Edge> graphXAdapter
+                = new JGraphXAdapter<>(graph);
+        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
+        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
+
+        // mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
+        // ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
+
+        layout.execute(graphXAdapter.getDefaultParent());
+
+        BufferedImage image =
+                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
+
+        Path resourceDirectory = Paths.get("src", "test", "resources");
+        File file = new File(resourceDirectory.toFile(), "graph" + ID + ".png");
+        LOGGER.debug(file.getPath());
+
+        try {
+            file.createNewFile();
+            ImageIO.write(image, "PNG", file);
+        } catch (IOException e) {
+            LOGGER.warn(e.getMessage());
+        }
+    }
+
     /**
      * Draws the graph and marks the visited vertices in a different color as well
      * as the selected target vertex.
