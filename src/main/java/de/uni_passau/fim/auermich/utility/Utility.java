@@ -33,6 +33,10 @@ public final class Utility {
     public static final String EXCLUSION_PATTERN_FILE = "exclude.txt";
     private static final Logger LOGGER = LogManager.getLogger(Utility.class);
 
+    /**
+     * It seems that certain resource classes are API dependent, e.g.
+     * "R$interpolator" is only available in API 21.
+     */
     private static final Set<String> resourceClasses = new HashSet<String>() {{
         add("R$anim");
         add("R$attr");
@@ -47,6 +51,7 @@ public final class Utility {
         add("R$string");
         add("R$style");
         add("R$styleable");
+        add("R$interpolator");
     }};
 
     private static final Set<Opcode> invokeOpcodes = new HashSet<Opcode>() {{
