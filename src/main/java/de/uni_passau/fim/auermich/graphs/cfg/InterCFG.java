@@ -26,6 +26,7 @@ import org.jgrapht.graph.builder.GraphTypeBuilder;
 
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public class InterCFG extends BaseCFG {
@@ -74,18 +75,26 @@ public class InterCFG extends BaseCFG {
 
         // exclude certain classes and methods from graph
         Pattern exclusionPattern = Utility.readExcludePatterns();
-
+        
         // resolve the invoke vertices and connect the sub graphs with each other
         for (Vertex invokeVertex : getInvokeVertices()) {
 
             BlockStatement blockStatement = (BlockStatement) invokeVertex.getStatement();
             List<List<Statement>> blocks = splitBlockStatement(blockStatement, exclusionPattern);
 
-            // save the incoming and outgoing edges as we remove the vertex
-            Set<Edge> incomingEdges = getIncomingEdges(invokeVertex);
-            Set<Edge> outgoingEdges = getOutgoingEdges(invokeVertex);
+            if (blocks.size() == 1) {
+                // the vertex is not split, no need to delete and re-insert the vertex
+                LOGGER.debug("Unchanged vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]" );
+                continue;
+            }
 
-            // remove original vertex
+            LOGGER.debug("Invoke Vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]");
+
+            // save the predecessors and successors as we remove the vertex
+            Set<Vertex> predecessors = getIncomingEdges(invokeVertex).stream().map(Edge::getSource).collect(Collectors.toSet());
+            Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
+
+            // remove original vertex, inherently removes edges
             removeVertex(invokeVertex);
 
             List<Vertex> blockVertices = new ArrayList<>();
@@ -104,12 +113,18 @@ public class InterCFG extends BaseCFG {
 
                 // first block, add original predecessors to first block
                 if (i == 0) {
-                    // handleFirstBlock(blockVertex, incomingEdges, missingEdges);
+                    LOGGER.debug("Number of predecessors: " + predecessors.size());
+                    for (Vertex predecessor : predecessors) {
+                        addEdge(predecessor, blockVertex);
+                    }
                 }
 
                 // last block, add original successors to the last block
                 if (i == blocks.size() - 1) {
-                    // handleLastBlock(blockVertex, outgoingEdges, missingEdges);
+                    LOGGER.debug("Number of successors: " + successors.size());
+                    for (Vertex successor : successors) {
+                        addEdge(blockVertex, successor);
+                    }
                     // the last block doesn't contain any invoke instruction -> no target CFG
                     break;
                 }
