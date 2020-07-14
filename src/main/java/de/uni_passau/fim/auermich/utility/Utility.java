@@ -3,6 +3,7 @@ package de.uni_passau.fim.auermich.utility;
 import brut.androlib.ApkDecoder;
 import brut.common.BrutException;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import de.uni_passau.fim.auermich.Main;
 import de.uni_passau.fim.auermich.graphs.Vertex;
 import de.uni_passau.fim.auermich.statement.BasicStatement;
@@ -20,6 +21,10 @@ import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.dexbacked.value.DexBackedTypeEncodedValue;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
+import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
+import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
+import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
 
 import java.io.*;
 import java.net.URISyntaxException;
@@ -98,6 +103,243 @@ public final class Utility {
     }
 
     /**
+     * Checks whether the given method refers to the invocation of a fragment. That
+     * is either a call to add() or replace(). We do not ensure that commit() is
+     * called afterwards.
+     *
+     * @param method The method to be checked against.
+     * @return Returns {@code true} if method refers to the invocation of a component,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isFragmentInvocation(String method) {
+        return method.contains("Landroid/support/v4/app/FragmentTransaction;->" +
+                "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")
+                || method.contains("Landroid/app/FragmentTransaction;->" +
+                "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;");
+    }
+
+    /**
+     * Checks whether the instruction refers to the invocation of a fragment.
+     * Only call this method when isFragmentInvocation() returns {@code true}.
+     *
+     * @param analyzedInstruction The given instruction.
+     * @return Returns the name of the fragment or {@code null} if the fragment name
+     *      couldn't be derived.
+     */
+    public static String isFragmentInvocation(AnalyzedInstruction analyzedInstruction) {
+
+        List<String> fragments = new ArrayList<>();
+
+        Instruction instruction = analyzedInstruction.getInstruction();
+        String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+
+        // TODO: verify that only 'Instruction35c' is valid for fragment invocations
+        if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+
+            Instruction35c invokeVirtual = (Instruction35c) instruction;
+
+            if (targetMethod.contains("Landroid/support/v4/app/FragmentTransaction;->" +
+                    "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")) {
+                // a fragment is added to the current component (class)
+
+                // typical call: v0 (Reg C), v1 (Reg D), v2 (Reg E)
+                //     invoke-virtual {v0, v1, v2}, Landroid/support/v4/app/FragmentTransaction;->
+                // add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;
+
+                // we are interested in register E (refers to the fragment)
+                int fragmentRegisterID = invokeVirtual.getRegisterE();
+
+                // go over all predecessors
+                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+                predecessors.forEach(pred -> fragments.addAll(isFragmentAddInvocationRecursive(pred, fragmentRegisterID)));
+
+            } else if (targetMethod.contains("Landroid/app/FragmentTransaction;->" +
+                    "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")) {
+                // a fragment is replaced with another one
+
+                // Register C: v8, Register D: p0, Register E: p4
+                // invoke-virtual {v8, p0, p4}, Landroid/app/FragmentTransaction;
+                //              ->replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;
+
+                // we are interested in register E (refers to the fragment)
+                int fragmentRegisterID = invokeVirtual.getRegisterE();
+
+                // go over all predecessors
+                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+                predecessors.forEach(pred -> fragments.addAll(isFragmentReplaceInvocationRecursive(pred, fragmentRegisterID)));
+            }
+        }
+
+        if (!fragments.isEmpty()) {
+            return fragments.get(0);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Recursively looks up every predecessor for holding a reference to a fragment.
+     *
+     * @param pred               The current predecessor instruction.
+     * @param fragmentRegisterID The register potentially holding a fragment.
+     * @return Returns a list of fragments or an empty list if no fragment was found.
+     */
+    private static List<String> isFragmentReplaceInvocationRecursive(AnalyzedInstruction pred, int fragmentRegisterID) {
+
+        List<String> fragments = new ArrayList<>();
+
+        // basic case
+        if (pred.getInstructionIndex() == -1) {
+            return fragments;
+        }
+
+        // check current instruction
+        if (pred.getInstruction().getOpcode() == Opcode.NEW_INSTANCE) {
+            // new-instance p4, Lcom/android/calendar/DayFragment;
+            Instruction21c newInstance = (Instruction21c) pred.getInstruction();
+            if (newInstance.getRegisterA() == fragmentRegisterID) {
+                String fragment = newInstance.getReference().toString();
+                LOGGER.debug("Fragment: " + fragment);
+                // save for each activity the name of the fragment it hosts
+                fragments.add(fragment);
+            }
+        }
+
+        // check all predecessors
+        Set<AnalyzedInstruction> predecessors = pred.getPredecessors();
+        predecessors.forEach(p -> fragments.addAll(isFragmentReplaceInvocationRecursive(p, fragmentRegisterID)));
+        return fragments;
+    }
+
+    /**
+     * Recursively looks up every predecessor for holding a reference to a fragment.
+     *
+     * @param pred               The current predecessor instruction.
+     * @param fragmentRegisterID The register potentially holding a fragment.
+     * @return Returns a list of fragments or an empty list if no fragment was found.
+     */
+    private static List<String> isFragmentAddInvocationRecursive(AnalyzedInstruction pred, int fragmentRegisterID) {
+
+        List<String> fragments = new ArrayList<>();
+
+        // basic case
+        if (pred.getInstructionIndex() == -1) {
+            return fragments;
+        }
+
+        // invoke direct refers to constructor calls
+        if (pred.getInstruction().getOpcode() == Opcode.INVOKE_DIRECT) {
+            // invoke-direct {v2}, Lcom/zola/bmi/BMIMain$PlaceholderFragment;-><init>()V
+            Instruction35c constructor = (Instruction35c) pred.getInstruction();
+            if (constructor.getRegisterC() == fragmentRegisterID) {
+                String constructorInvocation = constructor.getReference().toString();
+                LOGGER.debug("Fragment: " + constructorInvocation);
+                // save for each activity the name of the fragment it hosts
+                String fragment = Utility.getClassName(constructorInvocation);
+                fragments.add(fragment);
+            }
+        }
+
+        // check all predecessors
+        Set<AnalyzedInstruction> predecessors = pred.getPredecessors();
+        predecessors.forEach(p -> fragments.addAll(isFragmentAddInvocationRecursive(p, fragmentRegisterID)));
+        return fragments;
+    }
+
+    /**
+     * Checks whether the given method refers to the invocation of a component, e.g. an activity.
+     *
+     * @param method The method to be checked against.
+     * @return Returns {@code true} if method refers to the invocation of a component,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isComponentInvocation(String method) {
+        // TODO: add missing invocations, e.g. startService() + use static class variable (set)
+        return method.endsWith("startActivity(Landroid/content/Intent;)V")
+                || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
+    }
+
+    /**
+     * Checks whether the given instruction refers to the invocation of a component.
+     * Only call this method when isComponentInvocation() returns {@code true}.
+     *
+     * @param analyzedInstruction The given instruction.
+     * @return Returns the constructor name of the target component if the instruction
+     * refers to a component invocation, otherwise {@code null}.
+     */
+    public static String isComponentInvocation(AnalyzedInstruction analyzedInstruction) {
+
+        Instruction instruction = analyzedInstruction.getInstruction();
+
+        // check for invoke/invoke-range instruction
+        if (Utility.isInvokeInstruction(analyzedInstruction)) {
+
+            String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+
+            if (methodSignature.endsWith("startActivity(Landroid/content/Intent;)V")
+                    || methodSignature.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
+
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> target activity name might be defined somewhere else or external
+                    return null;
+                }
+
+                // go back until we find const-class instruction which holds the activity name
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                // TODO: check that we don't miss activities, go back recursively if there are several predecessors
+                // upper bound to avoid resolving external activities or activities defined in a different method
+
+                while (pred.getInstructionIndex() != -1) {
+                    Instruction predecessor = pred.getInstruction();
+                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+                        String targetActivity = ((Instruction21c) predecessor).getReference().toString();
+                        // return the full-qualified name of the constructor
+                        return targetActivity + "-><init>()V";
+                    } else {
+                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                            // there is no predecessor -> target activity name might be defined somewhere else or external
+                            return null;
+                        } else {
+                            // TODO: may use recursive search over all predecessors
+                            pred = pred.getPredecessors().first();
+                        }
+                    }
+                }
+            } else if (methodSignature.equals("Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
+
+                // invoke-virtual {p0, p1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
+
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> target activity name might be defined somewhere else or external
+                    return null;
+                }
+
+                // go back until we find const-class instruction which holds the service name
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                while (pred.getInstructionIndex() != -1) {
+                    Instruction predecessor = pred.getInstruction();
+                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+                        String service = ((Instruction21c) predecessor).getReference().toString();
+                        // return the full-qualified name of the constructor
+                        return service + "-><init>()V";
+                    } else {
+                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                            // there is no predecessor -> target activity name might be defined somewhere else or external
+                            return null;
+                        } else {
+                            // TODO: may use recursive search over all predecessors
+                            pred = pred.getPredecessors().first();
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Retrieves the class name of the method's defining class.
      *
      * @param methodSignature The given method signature.
@@ -166,7 +408,7 @@ public final class Utility {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a branch or goto instruction,
-     *      otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isJumpInstruction(AnalyzedInstruction analyzedInstruction) {
         return isBranchingInstruction(analyzedInstruction) || isGotoInstruction(analyzedInstruction);
@@ -179,7 +421,7 @@ public final class Utility {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
-     *      otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isSwitchPayloadInstruction(AnalyzedInstruction analyzedInstruction) {
         // TODO: may handle the actual parse-switch and packed-switch instructions (not the payload instructions)
@@ -198,7 +440,7 @@ public final class Utility {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
-     *      otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isSwitchInstruction(AnalyzedInstruction analyzedInstruction) {
         // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
@@ -216,7 +458,7 @@ public final class Utility {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a goto instruction,
-     *      otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isGotoInstruction(AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -229,7 +471,7 @@ public final class Utility {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a branching instruction,
-     *      otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isBranchingInstruction(AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -242,7 +484,7 @@ public final class Utility {
      *
      * @param instruction The instruction to be inspected.
      * @return Returns {@code true} if the given instruction is a return or throw statement,
-     *      otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isTerminationStatement(AnalyzedInstruction instruction) {
         // TODO: should we handle the throw-verification-error instruction?
@@ -254,7 +496,7 @@ public final class Utility {
      *
      * @param analyzedInstruction The instruction to be inspected.
      * @return Returns {@code true} if the given instruction is a return statement, otherwise
-     *      {@code false} is returned.
+     * {@code false} is returned.
      */
     public static boolean isReturnStatement(AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -267,7 +509,7 @@ public final class Utility {
      * Convenient function to get the list of {@code AnalyzedInstruction} of a certain target method.
      *
      * @param dexFile The dex file containing the target method.
-     * @param method The target method.
+     * @param method  The target method.
      * @return Returns a list of {@code AnalyzedInstruction} included in the target method.
      */
     public static List<AnalyzedInstruction> getAnalyzedInstructions(DexFile dexFile, Method method) {
@@ -410,7 +652,7 @@ public final class Utility {
      *
      * @param blockStatement The block statement to be checked.
      * @return Returns {@code true} if the block statement contains an
-     *      invoke instruction, otherwise {@code false} is returned.
+     * invoke instruction, otherwise {@code false} is returned.
      */
     public static boolean containsInvoke(BlockStatement blockStatement) {
 
@@ -430,7 +672,7 @@ public final class Utility {
      *
      * @param analyzedInstruction The instruction to be inspected.
      * @return Returns {@code true} if the given instruction is an invoke statement,
-     *      otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isInvokeInstruction(AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -442,7 +684,7 @@ public final class Utility {
      *
      * @param classDef The class to be checked.
      * @return Returns {@code true} if the given class represents the dynamically generated
-     *          BuildConfig class, otherwise {@code false} is returned.
+     * BuildConfig class, otherwise {@code false} is returned.
      */
     public static boolean isBuildConfigClass(ClassDef classDef) {
         String className = Utility.dottedClassName(classDef.toString());
@@ -456,7 +698,7 @@ public final class Utility {
      *
      * @param classDef The class to be checked.
      * @return Returns {@code true} if the given class represents the R class or any
-     *          inner class of it, otherwise {@code false} is returned.
+     * inner class of it, otherwise {@code false} is returned.
      */
     public static boolean isResourceClass(ClassDef classDef) {
 
@@ -465,7 +707,7 @@ public final class Utility {
         String[] tokens = className.split("\\.");
 
         // check whether it is the R class itself
-        if (tokens[tokens.length-1].equals("R")) {
+        if (tokens[tokens.length - 1].equals("R")) {
             return true;
         }
 
@@ -527,10 +769,10 @@ public final class Utility {
     /**
      * Checks whether the given class represents an activity by checking against the super class.
      *
-     * @param classes The set of classes.
+     * @param classes      The set of classes.
      * @param currentClass The class to be inspected.
      * @return Returns {@code true} if the current class is an activity,
-     *          otherwise {@code false}.
+     * otherwise {@code false}.
      */
     public static boolean isActivity(List<ClassDef> classes, ClassDef currentClass) {
 
@@ -565,10 +807,10 @@ public final class Utility {
     /**
      * Checks whether the given class represents a fragment by checking against the super class.
      *
-     * @param classes The set of classes.
+     * @param classes      The set of classes.
      * @param currentClass The class to be inspected.
      * @return Returns {@code true} if the current class is a fragment,
-     *          otherwise {@code false}.
+     * otherwise {@code false}.
      */
     public static boolean isFragment(List<ClassDef> classes, ClassDef currentClass) {
 
