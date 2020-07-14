@@ -115,7 +115,9 @@ public final class Utility {
         return method.contains("Landroid/support/v4/app/FragmentTransaction;->" +
                 "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")
                 || method.contains("Landroid/app/FragmentTransaction;->" +
-                "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;");
+                "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")
+                || method.contains("Landroidx/fragment/app/FragmentTransaction;->" +
+                "add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;");
     }
 
     /**
@@ -128,6 +130,9 @@ public final class Utility {
      */
     public static String isFragmentInvocation(AnalyzedInstruction analyzedInstruction) {
 
+        LOGGER.debug("Try deriving name of fragment...");
+
+        // TODO: get rid of list and directly return the string or null
         List<String> fragments = new ArrayList<>();
 
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -167,6 +172,19 @@ public final class Utility {
                 // go over all predecessors
                 Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
                 predecessors.forEach(pred -> fragments.addAll(isFragmentReplaceInvocationRecursive(pred, fragmentRegisterID)));
+            } else if (targetMethod.contains("Landroidx/fragment/app/FragmentTransaction;->" +
+                    "add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;")) {
+                // a fragment is added (API 28)
+
+                // invoke-virtual {v1, v3, v2, v4}, Landroidx/fragment/app/FragmentTransaction;->
+                //      add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;
+
+                // we are interested in register E (refers to the fragment)
+                int fragmentRegisterID = invokeVirtual.getRegisterE();
+
+                // go over all predecessors
+                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+                predecessors.forEach(pred -> fragments.addAll(isFragmentAddInvocationRecursive(pred, fragmentRegisterID)));
             }
         }
 
