@@ -1723,6 +1723,14 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
 
     }
 
+    /**
+     * Adds the lifecycle methods to a given activity. This also includes the lifecycle
+     * of possible fragments attached to the given activity.
+     *
+     * @param onCreateCFG The sub graph describing the onCreate method of the activity.
+     * @param fragments A list of fragments attached to the activity.
+     * @return Returns the sub graph describing the callbacks of the given activity.
+     */
     private BaseCFG addAndroidLifecycle(BaseCFG onCreateCFG, Collection<String> fragments) {
 
         String methodName = onCreateCFG.getMethodName();
