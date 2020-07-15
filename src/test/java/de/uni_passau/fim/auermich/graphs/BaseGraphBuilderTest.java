@@ -22,6 +22,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -81,6 +83,186 @@ public class BaseGraphBuilderTest {
         boolean reachable = distance != -1;
         System.out.println("Target Vertex reachable " + reachable);
         System.out.println("Distance: " + distance);
+    }
+
+    @Test
+    public void computeBranchDistanceWindows() throws IOException {
+
+        File apkFile = new File("C:\\Users\\Michael\\git\\mate-commander\\com.simple.app.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .withExcludeARTClasses()
+                .build();
+
+        BaseCFG interCFG = (BaseCFG) baseGraph;
+
+        System.out.println("Total number of Branches: " + interCFG.getBranches().size());
+
+        Vertex targetVertex = interCFG.getVertices().stream().filter(v ->
+                v.containsInstruction("Lcom/simple/app/SecondActivity$1;->onClick(Landroid/view/View;)V", 9))
+                .findFirst().get();
+
+        System.out.println("Selected Target Vertex: " + targetVertex);
+
+        String tracesDir = "C:\\Users\\Michael\\git\\mate-commander\\";
+        File traces = new File(tracesDir, "traces.txt");
+
+        // a set of traces describing an execution path
+        List<String> executionPath = new ArrayList<>();
+
+        System.out.println("Reading traces from file ...");
+
+        try (Stream<String> stream = Files.lines(traces.toPath(), StandardCharsets.UTF_8)) {
+            executionPath = stream.collect(Collectors.toList());
+        }
+        catch (IOException e) {
+            System.out.println("Reading traces.txt failed!");
+            e.printStackTrace();
+            return;
+        }
+
+        System.out.println("Number of visited vertices: " + executionPath.size());
+
+        Map<String, Vertex> vertexMap = constructVertexMap(interCFG);
+        Set<Vertex> visitedVertices = mapTracesToVertices(executionPath, vertexMap);
+
+        // the minimal distance between a execution path and a chosen target vertex
+        AtomicInteger min = new AtomicInteger(Integer.MAX_VALUE);
+
+        // cache already computed branch distances
+        Map<Vertex, Double> branchDistances = new ConcurrentHashMap<>();
+
+        // use bidirectional dijkstra
+        ShortestPathAlgorithm<Vertex, Edge> bfs = interCFG.initBidirectionalDijkstraAlgorithm();
+
+        visitedVertices.parallelStream().forEach(visitedVertex -> {
+
+            System.out.println("Visited Vertex: " + visitedVertex + " " + visitedVertex.getMethod());
+
+            int distance = -1;
+
+            if (branchDistances.containsKey(visitedVertex)) {
+                distance = branchDistances.get(visitedVertex).intValue();
+            } else {
+                GraphPath<Vertex, Edge> path = bfs.getPath(visitedVertex, targetVertex);
+                if (path != null) {
+                    distance = path.getLength();
+                    // update branch distance map
+                    branchDistances.put(visitedVertex, Double.valueOf(distance));
+                } else {
+                    // update branch distance map
+                    branchDistances.put(visitedVertex, Double.valueOf(-1));
+                }
+            }
+
+            // int distance = branchDistances.get(visitedVertex).intValue();
+            if (distance < min.get() && distance != -1) {
+                // found shorter path
+                min.set(distance);
+                System.out.println("Current min distance: " + distance);
+            }
+        });
+
+        System.out.println("Branch Distance: " + min.get());
+
+        Path resourceDirectory = Paths.get("src", "test", "resources");
+        File file = new File(resourceDirectory.toFile(), "graph.png");
+
+        ((BaseCFG) baseGraph).drawGraph(visitedVertices, targetVertex, file);
+    }
+
+    /**
+     * Constructs a mapping of traces to vertices. In particular, the traces of entry, exit and
+     * branch vertices are mapped to the respective vertices. This should later speed up the
+     * traversal of the graph regarding visited vertices.
+     *
+     * @param baseCFG The given graph.
+     * @return Returns a mapping of certain traces to vertices.
+     */
+    private Map<String, Vertex> constructVertexMap(BaseCFG baseCFG) {
+
+        Map<String, Vertex> vertexMap = new ConcurrentHashMap<>();
+
+        System.out.println("Constructing vertexMap ...");
+
+        baseCFG.getVertices().parallelStream().forEach(vertex -> {
+            if (vertex.isEntryVertex()) {
+                vertexMap.put(vertex.getMethod() + "->entry", vertex);
+            } else if (vertex.isExitVertex()) {
+                vertexMap.put(vertex.getMethod() + "->exit", vertex);
+            } else if (vertex.isBranchVertex()) {
+                // get instruction id of first stmt
+                Statement statement = vertex.getStatement();
+
+                if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
+                    BasicStatement basicStmt = (BasicStatement) statement;
+                    vertexMap.put(vertex.getMethod() + "->" + basicStmt.getInstructionIndex(), vertex);
+                } else {
+                    // should be a block stmt, other stmt types shouldn't be branch targets
+                    BlockStatement blockStmt = (BlockStatement) statement;
+                    // a branch target can only be the first instruction in a basic block since it has to be a leader
+                    BasicStatement basicStmt = (BasicStatement) blockStmt.getFirstStatement();
+                    // identify a basic block by its first instruction (the branch target)
+                    vertexMap.put(vertex.getMethod() + "->" + basicStmt.getInstructionIndex(), vertex);
+                }
+            }
+        });
+
+        return vertexMap;
+    }
+
+    /**
+     * Maps traces to vertices and returns the set of visited vertices.
+     *
+     * @param traces The execution path described by the collected traces.
+     * @param vertexMap A mapping of certain traces to vertices.
+     * @return Returns the set of visited vertices.
+     */
+    private Set<Vertex> mapTracesToVertices(List<String> traces, Map<String, Vertex> vertexMap) {
+
+        System.out.println("Mapping traces to vertices...");
+
+        // we need to mark vertices we visit
+        Set<Vertex> visitedVertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
+
+        // map trace to vertex
+        traces.parallelStream().forEach(pathNode -> {
+
+            int index = pathNode.lastIndexOf("->");
+            String type = pathNode.substring(index+2);
+
+            Vertex visitedVertex = vertexMap.get(pathNode);
+
+            if (visitedVertex == null) {
+                System.out.println("Couldn't derive vertex for trace entry: " + pathNode);
+            }  else {
+
+                visitedVertices.add(visitedVertex);
+
+                if (visitedVertex.isEntryVertex()) {
+                    // entryVertices.add(visitedVertex);
+                }
+            }
+        });
+
+        return visitedVertices;
     }
 
     @Test

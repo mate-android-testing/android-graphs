@@ -56,7 +56,7 @@ public class InterCFG extends BaseCFG {
     // maintain the individual intra CFGs
     Map<String, BaseCFG> intraCFGs = new HashMap<>();
 
-    // copy constructor
+    // necessary for the copy constructor
     public InterCFG(String graphName) {
         super(graphName);
     }
@@ -79,6 +79,11 @@ public class InterCFG extends BaseCFG {
         }
     }
 
+    /**
+     * Constructs the inter CFG using basic blocks for a given app.
+     *
+     * @param apk The APK file describing the app.
+     */
     private void constructCFGWithBasicBlocks(APK apk) {
 
         LOGGER.debug("Constructing Inter CFG with basic blocks!");
