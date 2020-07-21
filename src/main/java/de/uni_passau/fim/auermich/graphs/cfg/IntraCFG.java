@@ -304,11 +304,15 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             if (analyzedInstruction.isBeginningInstruction()) {
                 // any 'first' instruction is a leader instruction
                 leaders.add(analyzedInstruction.getInstructionIndex());
-            } else if (Utility.isJumpInstruction(analyzedInstruction)) {
+            }
+
+            if (Utility.isJumpInstruction(analyzedInstruction)) {
                 // any successor (target or due to exceptional flow) is a leader instruction
                 leaders.addAll(analyzedInstruction.getSuccessors().stream()
                         .map(AnalyzedInstruction::getInstructionIndex).collect(Collectors.toSet()));
-            } else if (analyzedInstruction.getSuccessors().size() > 1) {
+            }
+
+            if (analyzedInstruction.getSuccessors().size() > 1) {
                 // any non-direct successor (exceptional flow) is a leader instruction
                 for (AnalyzedInstruction successor : analyzedInstruction.getSuccessors()) {
                         LOGGER.debug("Exceptional flow Leader: " + successor.getInstructionIndex());
