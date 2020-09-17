@@ -4,13 +4,9 @@ import com.beust.jcommander.JCommander;
 import de.uni_passau.fim.auermich.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.graphs.GraphType;
-import de.uni_passau.fim.auermich.graphs.Vertex;
-import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.IntraCFGCommand;
 import de.uni_passau.fim.auermich.jcommander.MainCommand;
-import de.uni_passau.fim.auermich.statement.BasicStatement;
-import de.uni_passau.fim.auermich.statement.BlockStatement;
 import de.uni_passau.fim.auermich.utility.Utility;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -22,41 +18,55 @@ import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.MultiDexContainer;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-// TODO: rename to AndroidGraphs or whatever
-public final class Main {
+/**
+ * Defines the command line interface. A typical invocation could be:
+ *      java -jar android-graphs-all.jar -f <path-to-apk>
+ *              -d intra -b -t <FQN of method>
+ * This would generate an intra CFG with basic blocks enabled for the
+ * method specified by the -t switch.
+ */
+public final class Cli {
 
-    private static final Logger LOGGER = LogManager.getLogger(Main.class);
+    private static final Logger LOGGER = LogManager.getLogger(Cli.class);
 
     // the dalvik bytecode level (Android API version)
     public static final Opcodes API_OPCODE = Opcodes.forApi(28);
-
-    // debug mode
-    private static boolean DEBUG_MODE = false;
 
     // the set of possible commands
     private static final MainCommand mainCmd = new MainCommand();
     private static final InterCFGCommand interCFGCmd = new InterCFGCommand();
     private static final IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
 
-    // the path to the decoded APK
-    private static String decodingOutputPath;
-
-    private Main() {
+    // utility class implies private constructor
+    private Cli() {
         throw new UnsupportedOperationException("Utility class!");
     }
 
+    /**
+     * Processes the command line arguments and constructs the specified graph.
+     *
+     * @param args The command line arguments specify which graph should be generated.
+     *             The switch -f specifies the path to the APK file (must come first).
+     *             The switch -d specifies whether debugging mode should be enabled (no argument required).
+     *
+     *             After those global options, a sub commando must follow. This can be either
+     *             'intra' or 'inter', which specifies which graph should be constructed.
+     *             Each sub commando expects further arguments.
+     *
+     *             The 'intra' sub commando can handle the following arguments:
+     *             The switch -t specifies the FQN of the method for which the intraCFG should be constructed.
+     *             The switch -b specifies whether basic blocks should be used. (optional)
+     *
+     *             The 'inter' sub commando can handle the following arguments:
+     *             The switch -b specifies whether basic blocks should be used. (optional)
+     *
+     * @throws IOException Should never happen.
+     */
     public static void main(String[] args) throws IOException {
 
         /*
@@ -84,7 +94,6 @@ public final class Main {
 
         // determine which logging level should be used
         if (mainCmd.isDebug()) {
-            DEBUG_MODE = true;
             Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
         } else {
             Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.INFO);
@@ -109,7 +118,7 @@ public final class Main {
     /**
      * Verifies that the given arguments are valid.
      *
-     * @param cmd
+     * @param cmd The command line arguments.
      */
     private static boolean checkArguments(IntraCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTRACFG;
@@ -119,44 +128,14 @@ public final class Main {
     }
 
     /**
-     * @param cmd
+     * Verifies that the given arguments are valid.
+     *
+     * @param cmd The command line arguments.
      */
     private static boolean checkArguments(InterCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTERCFG;
         // Objects.requireNonNull(cmd.getMetric());
         return true;
-    }
-
-    public static BaseCFG computerInterCFGWithBB(String apkPath, boolean excludeARTClasses) throws IOException {
-
-        File apkFile = new File(apkPath);
-
-        MultiDexContainer<? extends DexBackedDexFile> apk
-                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
-
-        List<DexFile> dexFiles = new ArrayList<>();
-
-        apk.getDexEntryNames().forEach(dexFile -> {
-            try {
-                dexFiles.add(apk.getEntry(dexFile).getDexFile());
-            } catch (IOException e) {
-                e.printStackTrace();
-                throw new IllegalStateException("Couldn't load dex file!");
-            }
-        });
-
-        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
-                .withName("global")
-                .withBasicBlocks()
-                .withAPKFile(apkFile);
-
-        if (excludeARTClasses) {
-            builder = builder.withExcludeARTClasses();
-        }
-
-        BaseGraph baseGraph = builder.build();
-
-        return (BaseCFG) baseGraph;
     }
 
     private static void run(JCommander commander, boolean exceptionalFlow) throws IOException {
@@ -217,6 +196,7 @@ public final class Main {
 
                         BaseGraph baseGraph = builder.build();
                         baseGraph.drawGraph();
+
                         // TODO: perform some computation on the graph (check for != null)
                     } else {
                         LOGGER.error("Target method not contained in dex file!");
@@ -243,79 +223,5 @@ public final class Main {
                     break;
             }
         }
-    }
-
-    private static void computeApproachLevel(BaseCFG interCFG) {
-
-        Path resourceDirectory = Paths.get("src","test","resources");
-        File traces = new File(resourceDirectory.toFile(), "traces.txt");
-        List<String> executionPath = new ArrayList<>();
-
-        try (Stream<String> stream = Files.lines(traces.toPath(), StandardCharsets.UTF_8)) {
-            executionPath = stream.collect(Collectors.toList());
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        LOGGER.debug(executionPath);
-
-        // we need to mark vertices we visit
-        List<Vertex> visitedVertices = new ArrayList<>();
-
-        // look up each pathNode (vertex) in the CFG
-        for (String pathNode : executionPath) {
-            LOGGER.debug("Searching for vertex: " + pathNode);
-
-            // get full-qualified method name + type (entry,exit,instructionID)
-            int index = pathNode.lastIndexOf("->");
-            String method = pathNode.substring(0, index);
-            String type = pathNode.substring(index+2);
-
-            if (type.equals("entry")) {
-                Vertex entry = interCFG.getVertices().stream().filter(v -> v.isEntryVertex() && v.getMethod().equals(method)).findFirst().get();
-                LOGGER.debug("Entry Vertex: " + entry);
-                visitedVertices.add(entry);
-            } else if (type.equals("exit")) {
-                Vertex exit = interCFG.getVertices().stream().filter(v -> v.isExitVertex() && v.getMethod().equals(method)).findFirst().get();
-                LOGGER.debug("Exit Vertex: " + exit);
-                visitedVertices.add(exit);
-            } else {
-                // must be the instruction id of a branch
-                int id = Integer.parseInt(type);
-                Vertex branch = interCFG.getVertices().stream().filter(v -> v.containsInstruction(method,id)).findFirst().get();
-                LOGGER.debug("Branch Vertex: " + branch);
-                visitedVertices.add(branch);
-            }
-        }
-
-        // we need to select a target vertex
-        // Vertex target = interCFG.getExit();
-        Vertex target = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
-                        && v.getMethod().equals("Lcom/zola/bmi/BMIMain;->onStart()V")).findFirst().get();
-        LOGGER.debug("Target Vertex: " + target);
-
-        for (Vertex source : visitedVertices) {
-            LOGGER.debug("Shortest Distance from Vertex: " + source);
-            LOGGER.debug(interCFG.getShortestDistance(source, target));
-        }
-
-        // get all branches
-        List<Vertex> branches = interCFG.getVertices().stream()
-                .filter(v -> v.isBranchVertex()).collect(Collectors.toList());
-
-        for (Vertex branch : branches) {
-            Integer branchID = null;
-            if (branch.getStatement() instanceof BasicStatement) {
-                branchID = ((BasicStatement) branch.getStatement()).getInstructionIndex();
-            } else if (branch.getStatement() instanceof BlockStatement) {
-                branchID = ((BasicStatement) ((BlockStatement) branch.getStatement()).getFirstStatement()).getInstructionIndex();
-            }
-
-            if (branchID != null) {
-                LOGGER.debug(branch.getMethod() + "->" + branchID);
-            }
-        }
-
     }
 }

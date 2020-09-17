@@ -3,34 +3,35 @@ package de.uni_passau.fim.auermich.utility;
 import brut.androlib.ApkDecoder;
 import brut.common.BrutException;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-import de.uni_passau.fim.auermich.Main;
-import de.uni_passau.fim.auermich.graphs.Vertex;
+import de.uni_passau.fim.auermich.graphs.BaseGraph;
+import de.uni_passau.fim.auermich.graphs.BaseGraphBuilder;
+import de.uni_passau.fim.auermich.graphs.GraphType;
+import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.statement.BasicStatement;
 import de.uni_passau.fim.auermich.statement.BlockStatement;
 import de.uni_passau.fim.auermich.statement.Statement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.spi.LoggerRegistry;
+import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Format;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
+import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.dexbacked.value.DexBackedTypeEncodedValue;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
-import org.jf.dexlib2.iface.instruction.formats.Instruction3rc;
 
 import java.io.*;
-import java.net.URISyntaxException;
 import java.util.*;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
+
+import static de.uni_passau.fim.auermich.Cli.API_OPCODE;
 
 
 public final class Utility {
@@ -861,6 +862,105 @@ public final class Utility {
             }
         }
         return false;
+    }
+
+    /**
+     * Convenient function to construct an intraCFG. Should be used
+     * for the construction requested by mate server.
+     *
+     * @param apkPath The path to the APK file.
+     * @param method The FQN name of the method.
+     * @param useBasicBlocks Whether to use basic blocks or not.
+     * @return Returns an intraCFG for the specified method.
+     */
+    public static BaseCFG constructIntraCFG(File apkPath, String method, boolean useBasicBlocks) {
+
+        MultiDexContainer<? extends DexBackedDexFile> apk = null;
+
+        try {
+            apk = DexFileFactory.loadDexContainer(apkPath, API_OPCODE);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        List<DexFile> dexFiles = new ArrayList<>();
+        List<String> dexEntries = new ArrayList<>();
+
+        try {
+            dexEntries = apk.getDexEntryNames();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        for (String dexEntry : dexEntries) {
+            try {
+                dexFiles.add(apk.getEntry(dexEntry).getDexFile());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
+                .withName(method);
+
+        if (useBasicBlocks) {
+            builder = builder.withBasicBlocks();
+        }
+
+        BaseGraph baseGraph = builder.build();
+        return (BaseCFG) baseGraph;
+    }
+
+    /**
+     * Convenient function to construct an interCFG. Should be used
+     * for the construction requested by mate server.
+     *
+     * @param apkPath The path to the APK file.
+     * @param useBasicBlocks Whether to use basic blocks or not.
+     * @param excludeARTClasses Whether to exclude ART classes or not.
+     * @return Returns an interCFG.
+     */
+    public static BaseCFG constructInterCFG(File apkPath, boolean useBasicBlocks, boolean excludeARTClasses) throws IOException {
+
+        MultiDexContainer<? extends DexBackedDexFile> apk = null;
+
+        try {
+            apk = DexFileFactory.loadDexContainer(apkPath, API_OPCODE);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        List<DexFile> dexFiles = new ArrayList<>();
+        List<String> dexEntries = new ArrayList<>();
+
+        try {
+            dexEntries = apk.getDexEntryNames();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        for (String dexEntry : dexEntries) {
+            try {
+                dexFiles.add(apk.getEntry(dexEntry).getDexFile());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withAPKFile(apkPath);
+
+        if (useBasicBlocks) {
+            builder = builder.withBasicBlocks();
+        }
+
+        if (excludeARTClasses) {
+            builder = builder.withExcludeARTClasses();
+        }
+
+        BaseGraph baseGraph = builder.build();
+        return (BaseCFG) baseGraph;
     }
 
 }
