@@ -1,7 +1,6 @@
 package de.uni_passau.fim.auermich.graphs;
 
 import de.uni_passau.fim.auermich.graphs.cfg.BaseCFG;
-import de.uni_passau.fim.auermich.graphs.cfg.InterProceduralCFG;
 import de.uni_passau.fim.auermich.statement.BasicStatement;
 import de.uni_passau.fim.auermich.statement.BlockStatement;
 import de.uni_passau.fim.auermich.statement.ExitStatement;
@@ -31,7 +30,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static de.uni_passau.fim.auermich.Main.API_OPCODE;
+import static de.uni_passau.fim.auermich.Cli.API_OPCODE;
 
 public class BaseGraphBuilderTest {
 
@@ -131,8 +130,7 @@ public class BaseGraphBuilderTest {
 
         try (Stream<String> stream = Files.lines(traces.toPath(), StandardCharsets.UTF_8)) {
             executionPath = stream.collect(Collectors.toList());
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             System.out.println("Reading traces.txt failed!");
             e.printStackTrace();
             return;
@@ -181,6 +179,24 @@ public class BaseGraphBuilderTest {
         });
 
         System.out.println("Branch Distance: " + min.get());
+
+        /*
+         * FIXME: The marking of the intermediate path nodes seems to be too
+         *  time and memory consuming on medium to large scale apps. There might
+         *  be either an infinite loop causing this behaviour or the fact that
+         *  this algorithm is inherently too complex. Moreover, some vertices
+         *  are not marked although they should be.
+         */
+        System.out.println("Marking intermediate path nodes now...");
+        Set<Vertex> entryVertices = visitedVertices.stream().filter(Vertex::isEntryVertex).collect(Collectors.toSet());
+
+        // mark the intermediate path nodes that are between branches we visited
+        entryVertices.forEach(entry -> {
+            Vertex exit = new Vertex(new ExitStatement(entry.getMethod()));
+            if (visitedVertices.contains(entry) && visitedVertices.contains(exit)) {
+                markIntermediatePathVertices(entry, exit, visitedVertices, interCFG);
+            }
+        });
 
         Path resourceDirectory = Paths.get("src", "test", "resources");
         File file = new File(resourceDirectory.toFile(), "graph.png");

@@ -9,11 +9,10 @@ import de.uni_passau.fim.auermich.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.graphs.Edge;
 import de.uni_passau.fim.auermich.graphs.GraphType;
 import de.uni_passau.fim.auermich.graphs.Vertex;
-import de.uni_passau.fim.auermich.statement.*;
-import de.uni_passau.fim.auermich.utility.Utility;
+import de.uni_passau.fim.auermich.statement.EntryStatement;
+import de.uni_passau.fim.auermich.statement.ExitStatement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
@@ -31,8 +30,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCFG> {

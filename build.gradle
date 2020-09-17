@@ -26,7 +26,7 @@ repositories {
 //create a single Jar with all dependencies
 task fatJar(type: Jar) {
     manifest {
-        attributes 'Main-Class': 'de.uni_passau.fim.auermich.Main'
+        attributes 'Main-Class': 'de.uni_passau.fim.auermich.Cli'
     }
 
     from {
@@ -36,7 +36,7 @@ task fatJar(type: Jar) {
 
 jar {
     manifest {
-        attributes "Main-Class": "de.uni_passau.fim.auermich.Main"
+        attributes "Main-Class": "de.uni_passau.fim.auermich.Cli"
     }
     archiveName(rootProject.name + '-all.jar')
 }

@@ -1,6 +1,5 @@
 package de.uni_passau.fim.auermich.statement;
 
-import de.uni_passau.fim.auermich.Main;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
