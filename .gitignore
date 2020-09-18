@@ -16,4 +16,3 @@ build/
 
 # ignore graph
 graph.png
-src/test/resources/graph.png
