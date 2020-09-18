@@ -921,7 +921,7 @@ public final class Utility {
      * @param excludeARTClasses Whether to exclude ART classes or not.
      * @return Returns an interCFG.
      */
-    public static BaseCFG constructInterCFG(File apkPath, boolean useBasicBlocks, boolean excludeARTClasses) throws IOException {
+    public static BaseCFG constructInterCFG(File apkPath, boolean useBasicBlocks, boolean excludeARTClasses) {
 
         MultiDexContainer<? extends DexBackedDexFile> apk = null;
 
