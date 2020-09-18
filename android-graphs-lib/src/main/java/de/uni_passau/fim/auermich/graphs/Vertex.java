@@ -114,6 +114,7 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                 }
                 return false;
             case BLOCK_STATEMENT:
+                // TODO: it should be sufficient to look at the first instruction -> branch is a leader instruction!
                 // inspect each single statement in the basic block
                 BlockStatement block = (BlockStatement) statement;
                 List<Statement> stmts = block.getStatements();
