@@ -28,12 +28,12 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCFG> {
@@ -316,6 +316,98 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         try {
             output.createNewFile();
             ImageIO.write(image, "PNG", output);
+        } catch (IOException e) {
+            LOGGER.warn(e.getMessage());
+        }
+    }
+
+    /**
+     * Draws the graph where both the visited and target vertices are marked
+     * in a different color.
+     *
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertices The selected target vertices.
+     * @param output The output path of graph.
+     */
+    public void drawGraph(Set<Vertex> visitedVertices, Set<Vertex> targetVertices, File output) {
+
+        LOGGER.info("Number of visited vertices: " + visitedVertices.size());
+        LOGGER.info("Number of target vertices: " + targetVertices.size());
+
+        JGraphXAdapter<Vertex, Edge> graphXAdapter
+                = new JGraphXAdapter<>(graph);
+        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        Map<Vertex, mxICell> vertexToCellMap = graphXAdapter.getVertexToCellMap();
+
+        // we like to mark covered target vertices in a different color
+        Set<Vertex> coveredTargets = new HashSet<>(targetVertices);
+        coveredTargets.retainAll(visitedVertices);
+
+        LOGGER.info("Number of covered target vertices: " + coveredTargets.size());
+        // just for debugging
+        LOGGER.info("Number of target vertices: " + targetVertices.size());
+
+        // map covered target vertices to cells
+        List<Object> coveredTargetCells = new ArrayList<>();
+        coveredTargets.forEach(v -> coveredTargetCells.add(vertexToCellMap.get(v)));
+
+        // mark covered target vertices orange
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "orange", coveredTargetCells.toArray());
+
+        // map visited vertices to cells
+        List<Object> visitedCells = new ArrayList<>();
+        visitedVertices.stream().filter(Predicate.not(coveredTargets::contains))
+                .forEach(v -> visitedCells.add(vertexToCellMap.get(v)));
+
+        // mark visited vertices red
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "red", visitedCells.toArray());
+
+        // map target vertices to cells
+        List<Object> targetCells = new ArrayList<>();
+        targetVertices.stream().filter(Predicate.not(coveredTargets::contains))
+                .forEach(v -> targetCells.add(vertexToCellMap.get(v)));
+
+        // mark target vertices green
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "green", targetCells.toArray());
+
+        graphXAdapter.refresh();
+
+        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
+        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
+        layout.execute(graphXAdapter.getDefaultParent());
+
+        BufferedImage image =
+                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
+
+        try {
+            output.createNewFile();
+            ImageIO.write(image, "PNG", output);
+        } catch (IOException e) {
+            LOGGER.warn(e.getMessage());
+        }
+    }
+
+    /**
+     * Draws the raw graph and saves it at the specified output path.
+     *
+     * @param outputPath The location where the graph should be saved.
+     */
+    public void drawGraph(File outputPath) {
+        JGraphXAdapter<Vertex, Edge> graphXAdapter
+                = new JGraphXAdapter<>(graph);
+        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
+        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
+        layout.execute(graphXAdapter.getDefaultParent());
+
+        BufferedImage image =
+                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
+
+        try {
+            outputPath.createNewFile();
+            ImageIO.write(image, "PNG", outputPath);
         } catch (IOException e) {
             LOGGER.warn(e.getMessage());
         }

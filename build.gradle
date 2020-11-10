@@ -18,7 +18,7 @@ buildscript {
 
 allprojects {
     apply plugin: 'java'
-    sourceCompatibility = 1.8
+    sourceCompatibility = 1.11
 
     group 'de.uni-passau.fim.auermich'
     // version '1.0-SNAPSHOT'
