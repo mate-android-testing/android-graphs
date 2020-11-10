@@ -345,8 +345,6 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         coveredTargets.retainAll(visitedVertices);
 
         LOGGER.info("Number of covered target vertices: " + coveredTargets.size());
-        // just for debugging
-        LOGGER.info("Number of target vertices: " + targetVertices.size());
 
         // map covered target vertices to cells
         List<Object> coveredTargetCells = new ArrayList<>();
