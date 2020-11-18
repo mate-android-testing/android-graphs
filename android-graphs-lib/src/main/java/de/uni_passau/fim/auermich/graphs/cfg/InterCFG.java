@@ -100,39 +100,35 @@ public class InterCFG extends BaseCFG {
         for (Vertex invokeVertex : getInvokeVertices()) {
 
             BlockStatement blockStatement = (BlockStatement) invokeVertex.getStatement();
-            List<List<Statement>> blocks = splitBlockStatement(blockStatement, exclusionPattern);
 
-            if (blocks.size() == 1) {
+            // track fragment invocations
+            for (Statement statement : blockStatement.getStatements()) {
 
-                LOGGER.debug("Unchanged vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]" );
+                // every statement within a block statement is a basic statement
+                BasicStatement basicStmt = (BasicStatement) statement;
 
-                /*
-                * We need to track fragment invocations in any case, even if we exclude
-                * resolving ART and other methods. The invoke statement(s) can be at any
-                * position in the vertex's block statement.
-                 */
-                for (Statement statement : blockStatement.getStatements()) {
+                if (Utility.isInvokeInstruction(basicStmt.getInstruction())) {
 
-                    // every statement within a block statement is a basic statement
-                    BasicStatement basicStmt = (BasicStatement) statement;
+                    Instruction instruction = basicStmt.getInstruction().getInstruction();
+                    String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
 
-                    if (Utility.isInvokeInstruction(basicStmt.getInstruction())) {
+                    // track which fragments are hosted by which activity
+                    if (Utility.isFragmentInvocation(targetMethod)) {
+                        // try to derive the fragment name
+                        String fragment = Utility.isFragmentInvocation(basicStmt.getInstruction());
 
-                        Instruction instruction = basicStmt.getInstruction().getInstruction();
-                        String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-
-                        // track which fragments are hosted by which activity
-                        if (Utility.isFragmentInvocation(targetMethod)) {
-                            // try to derive the fragment name
-                            String fragment = Utility.isFragmentInvocation(basicStmt.getInstruction());
-
-                            if (fragment != null) {
-                                activityFragments.put(Utility.getClassName(blockStatement.getMethod()), fragment);
-                            }
+                        if (fragment != null) {
+                            activityFragments.put(Utility.getClassName(blockStatement.getMethod()), fragment);
                         }
                     }
                 }
+            }
 
+            // split vertex into blocks (split after each invoke instruction + insert virtual return statement)
+            List<List<Statement>> blocks = splitBlockStatement(blockStatement, exclusionPattern);
+
+            if (blocks.size() == 1) {
+                LOGGER.debug("Unchanged vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]" );
                 // the vertex is not split, no need to delete and re-insert the vertex
                 continue;
             }
@@ -183,16 +179,6 @@ public class InterCFG extends BaseCFG {
                 Instruction instruction = invokeStmt.getInstruction().getInstruction();
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
 
-                // track which fragments are hosted by which activity
-                if (Utility.isFragmentInvocation(targetMethod)) {
-                    // try to derive the fragment name
-                    String fragment = Utility.isFragmentInvocation(invokeStmt.getInstruction());
-
-                    if (fragment != null) {
-                        activityFragments.put(Utility.getClassName(blockStmt.getMethod()), fragment);
-                    }
-                }
-
                 // the CFG that corresponds to the invoke call
                 BaseCFG targetCFG = null;
 
@@ -235,8 +221,6 @@ public class InterCFG extends BaseCFG {
                 addEdge(exitVertices.get(i), blockVertices.get(i + 1));
             }
         }
-
-        LOGGER.debug("Activities: " + activities);
 
         // add activity and fragment lifecycle as well as global entry point for activities
         activities.forEach(activity -> {
