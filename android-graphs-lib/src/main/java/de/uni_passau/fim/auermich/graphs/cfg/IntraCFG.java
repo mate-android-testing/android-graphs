@@ -358,4 +358,17 @@ public class IntraCFG extends BaseCFG implements Cloneable {
         IntraCFG cloneCFG = (IntraCFG) super.clone();
         return cloneCFG;
     }
+
+    // brute force search
+    @Override
+    public Vertex lookUpVertex(String trace) {
+
+        // decompose trace into class, method  and instruction index
+
+        // safety check for correct method
+
+        // go through all vertices in graph
+
+        return null;
+    }
 }

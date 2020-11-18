@@ -103,8 +103,37 @@ public class InterCFG extends BaseCFG {
             List<List<Statement>> blocks = splitBlockStatement(blockStatement, exclusionPattern);
 
             if (blocks.size() == 1) {
-                // the vertex is not split, no need to delete and re-insert the vertex
+
                 LOGGER.debug("Unchanged vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]" );
+
+                /*
+                * We need to track fragment invocations in any case, even if we exclude
+                * resolving ART and other methods. The invoke statement(s) can be at any
+                * position in the vertex's block statement.
+                 */
+                for (Statement statement : blockStatement.getStatements()) {
+
+                    // every statement within a block statement is a basic statement
+                    BasicStatement basicStmt = (BasicStatement) statement;
+
+                    if (Utility.isInvokeInstruction(basicStmt.getInstruction())) {
+
+                        Instruction instruction = basicStmt.getInstruction().getInstruction();
+                        String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+
+                        // track which fragments are hosted by which activity
+                        if (Utility.isFragmentInvocation(targetMethod)) {
+                            // try to derive the fragment name
+                            String fragment = Utility.isFragmentInvocation(basicStmt.getInstruction());
+
+                            if (fragment != null) {
+                                activityFragments.put(Utility.getClassName(blockStatement.getMethod()), fragment);
+                            }
+                        }
+                    }
+                }
+
+                // the vertex is not split, no need to delete and re-insert the vertex
                 continue;
             }
 
@@ -206,6 +235,8 @@ public class InterCFG extends BaseCFG {
                 addEdge(exitVertices.get(i), blockVertices.get(i + 1));
             }
         }
+
+        LOGGER.debug("Activities: " + activities);
 
         // add activity and fragment lifecycle as well as global entry point for activities
         activities.forEach(activity -> {
@@ -664,13 +695,9 @@ public class InterCFG extends BaseCFG {
 
                 // don't resolve certain classes/methods, e.g. ART methods
                 if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
-                            // TODO: do not resolve fragment invocations
-                            && !Utility.isFragmentInvocation(targetMethod)
                             || (Utility.isARTMethod(targetMethod) && excludeARTClasses
                             // we have to resolve component invocations in any case
-                            && !Utility.isComponentInvocation(targetMethod)
-                            // resolving fragment invocations simplifies analysis
-                            && !Utility.isFragmentInvocation(targetMethod))) {
+                            && !Utility.isComponentInvocation(targetMethod))) {
                     continue;
                 }
 
@@ -679,6 +706,18 @@ public class InterCFG extends BaseCFG {
 
                 // reset block
                 block = new ArrayList<>();
+
+                /*
+                * If we deal with a component invocation, the target method should be replaced
+                * with the constructor of the component. Here, the return statement should also
+                * reflect this change.
+                 */
+                if (Utility.isComponentInvocation(targetMethod)) {
+                    String component = Utility.isComponentInvocation(analyzedInstruction);
+                    if (component != null && intraCFGs.containsKey(component)) {
+                        targetMethod = component;
+                    }
+                }
 
                 // add return statement to next block
                 block.add(new ReturnStatement(blockStatement.getMethod(), targetMethod,
@@ -715,9 +754,107 @@ public class InterCFG extends BaseCFG {
         // resolve the invoke vertices and connect the sub graphs with each other
         for (Vertex invokeVertex : getInvokeVertices()) {
 
+            // every (invoke) statement is a basic statement (no basic blocks here)
+            BasicStatement invokeStmt = (BasicStatement) invokeVertex.getStatement();
 
+            // get target method CFG
+            Instruction instruction = invokeStmt.getInstruction().getInstruction();
+            String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+            String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
 
+            // track which fragments are hosted by which activity
+            if (Utility.isFragmentInvocation(targetMethod)) {
+                // try to derive the fragment name
+                String fragment = Utility.isFragmentInvocation(invokeStmt.getInstruction());
+
+                if (fragment != null) {
+                    activityFragments.put(Utility.getClassName(invokeStmt.getMethod()), fragment);
+                }
+            }
+
+            // don't resolve certain classes/methods, e.g. ART methods
+            if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                    || (Utility.isARTMethod(targetMethod) && excludeARTClasses
+                    // we have to resolve component invocations in any case
+                    && !Utility.isComponentInvocation(targetMethod))) {
+                continue;
+            }
+
+            // there might be multiple (two) successors in a try-catch block
+            Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
+
+            // the CFG that corresponds to the invoke call
+            BaseCFG targetCFG = null;
+
+            if (intraCFGs.containsKey(targetMethod)) {
+                targetCFG = intraCFGs.get(targetMethod);
+            } else {
+
+                /*
+                 * If there is a component invocation, e.g. a call to startActivity(), we
+                 * replace the targetCFG with the constructor of the respective component.
+                 */
+                if (Utility.isComponentInvocation(targetMethod)) {
+                    String component = Utility.isComponentInvocation(invokeStmt.getInstruction());
+                    if (component != null && intraCFGs.containsKey(component)) {
+                        targetCFG = intraCFGs.get(component);
+                    }
+                } else {
+
+                    /*
+                     * There are some Android specific classes, e.g. android/view/View, which are
+                     * not included in the classes.dex file for yet unknown reasons. Basically,
+                     * these classes should be just treated like other classes from the ART.
+                     */
+                    LOGGER.debug("Target method " + targetMethod + " not contained in dex files!");
+                    targetCFG = dummyIntraCFG(targetMethod);
+                    intraCFGs.put(targetMethod, targetCFG);
+                    addSubGraph(targetCFG);
+                }
+            }
+
+            // remove edges between invoke vertex and original successors (copy is here necessary!)
+            removeEdges(new ArrayList<>((getOutgoingEdges(invokeVertex))));
+
+            // add edge to entry of target CFG
+            addEdge(invokeVertex, targetCFG.getEntry());
+
+            // add virtual return vertex
+            ReturnStatement returnStmt = new ReturnStatement(invokeVertex.getMethod(), targetCFG.getMethodName(),
+                    invokeStmt.getInstructionIndex());
+            Vertex returnVertex = new Vertex(returnStmt);
+            addVertex(returnVertex);
+
+            // add edge to virtual return vertex
+            addEdge(targetCFG.getExit(), returnVertex);
+
+            // add edge from virtual return vertex to each original successor
+            for (Vertex successor : successors) {
+                addEdge(returnVertex, successor);
+            }
         }
+
+        // add activity and fragment lifecycle as well as global entry point for activities
+        activities.forEach(activity -> {
+            String onCreateMethod = activity + "->onCreate(Landroid/os/Bundle;)V";
+
+            // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
+            if (!intraCFGs.containsKey(onCreateMethod)) {
+                BaseCFG onCreate = dummyIntraCFG(onCreateMethod);
+                intraCFGs.put(onCreateMethod, onCreate);
+                addSubGraph(onCreate);
+            }
+
+            BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
+            LOGGER.debug("Activity " + activity + " defines the following fragments: " + activityFragments.get(activity));
+
+            BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
+            callbackEntryPoints.put(activity, callbackEntryPoint);
+            addGlobalEntryPoint(onCreateCFG);
+        });
+
+        // add the callbacks specified either through XML or directly in code
+        addCallbacks(callbackEntryPoints, apk);
     }
 
     /**
@@ -786,6 +923,7 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
     }
 
+    @SuppressWarnings("unused")
     private void constructIntraCFGsParallel(APK apk, boolean useBasicBlocks) {
 
         LOGGER.debug("Constructing IntraCFGs!");
@@ -900,5 +1038,23 @@ public class InterCFG extends BaseCFG {
 
         clone.graph = graphClone;
         return clone;
+    }
+
+    @Override
+    public Vertex lookUpVertex(String trace) {
+
+        // decompose trace into class, method and instruction index
+
+        // hook entry/exit vertex of intraCFG
+
+        // we can't look up intraCFG directly since vertex might have been modified through inter CFG construction
+
+        // go (parallel) forward/backward search from entry/exit vertex
+
+        // backtrack if search falls out of method
+
+        // bypass virtual vertex -> jump to entry/exit
+
+        return null;
     }
 }
