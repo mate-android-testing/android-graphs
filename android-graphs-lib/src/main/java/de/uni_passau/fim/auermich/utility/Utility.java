@@ -60,6 +60,8 @@ public final class Utility {
         add("R$style");
         add("R$styleable");
         add("R$interpolator");
+        add("R$menu");
+        add("R$array");
     }};
 
     private static final Set<Opcode> invokeOpcodes = new HashSet<Opcode>() {{
