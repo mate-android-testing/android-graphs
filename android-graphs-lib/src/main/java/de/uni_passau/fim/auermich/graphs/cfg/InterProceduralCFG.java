@@ -61,6 +61,11 @@ public class InterProceduralCFG extends BaseCFG implements Cloneable {
         super(methodName);
     }
 
+    @Override
+    public Vertex lookUpVertex(String trace) {
+        return null;
+    }
+
     public InterProceduralCFG(String methodName, APK apk, boolean useBasicBlocks) {
         super(methodName);
         intraCFGs = constructIntraCFGs(apk.getDexFiles(), useBasicBlocks);

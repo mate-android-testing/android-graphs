@@ -71,6 +71,8 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         graph.addVertex(exit);
     }
 
+    public abstract Vertex lookUpVertex(String trace);
+
     public void addInvokeVertices(Set<Vertex> vertices) {
         invokeVertices.addAll(vertices);
     }
@@ -136,7 +138,25 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         graph.removeEdge(edge);
     }
 
+    public Edge getEdge(Vertex source, Vertex target) {
+        return graph.getEdge(source, target);
+    }
+
     public void removeEdges(Collection<Edge> edges) {
+        /*
+        * JGraphT ends up in a ConcurrentModificationException if you don't supply
+        * a copy of edges to this method. For instance:
+        *
+        *       removeEdges(getOutgoingEdges(invokeVertex));
+        *
+        * will fail with the above mentioned exception while:
+        *
+        *       removeEdges(new ArrayList<>((getOutgoingEdges(invokeVertex))));
+        *
+        * will work.
+        *
+        * See https://github.com/jgrapht/jgrapht/issues/767 for more details.
+         */
         graph.removeAllEdges(edges);
     }
 

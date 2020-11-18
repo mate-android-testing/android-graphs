@@ -40,6 +40,11 @@ public class IntraProceduralCFG extends BaseCFG implements Cloneable {
         super(methodName);
     }
 
+    @Override
+    public Vertex lookUpVertex(String trace) {
+        return null;
+    }
+
     public IntraProceduralCFG(String methodName, DexFile dexFile, boolean useBasicBlocks) {
         super(methodName);
         Optional<Method> targetMethod = Utility.searchForTargetMethod(dexFile, methodName);
