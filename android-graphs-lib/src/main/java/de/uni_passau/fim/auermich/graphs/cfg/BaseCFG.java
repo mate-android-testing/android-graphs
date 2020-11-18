@@ -416,6 +416,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      *
      * @return Returns a deep copy of the graph.
      */
+    @SuppressWarnings("unused")
     public abstract BaseCFG copy();
 
     public BaseCFG clone() {
@@ -446,6 +447,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
                 graphClone.addEdge(edge.getSource().clone(), edge.getTarget().clone());
             }
 
+            cloneCFG.invokeVertices = new HashSet<>(this.invokeVertices);
             cloneCFG.entry = this.entry.clone();
             cloneCFG.exit = this.exit.clone();
             cloneCFG.graph = graphClone;

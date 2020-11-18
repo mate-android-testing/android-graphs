@@ -873,7 +873,9 @@ public class InterCFG extends BaseCFG {
         return GRAPH_TYPE;
     }
 
+    // TODO: check if deep copy of vertices and edges is necessary
     @Override
+    @SuppressWarnings("unused")
     public BaseCFG copy() {
         BaseCFG clone = new InterCFG(getMethodName());
 

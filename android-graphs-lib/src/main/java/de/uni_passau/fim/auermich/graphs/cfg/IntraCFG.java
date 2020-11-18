@@ -324,8 +324,9 @@ public class IntraCFG extends BaseCFG implements Cloneable {
         return GRAPH_TYPE;
     }
 
-    // TODO: check if this method will be ever used
+    // TODO: check if deep copy of vertices and edges is necessary
     @Override
+    @SuppressWarnings("unused")
     public BaseCFG copy() {
         BaseCFG clone = new IntraCFG(getMethodName());
 

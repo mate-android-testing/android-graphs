@@ -218,7 +218,6 @@ public final class Cli {
                         if (baseGraph.size() < 1000) {
                             baseGraph.drawGraph();
                         }
-                        // computeApproachLevel(interCFG);
                     }
                     break;
             }
