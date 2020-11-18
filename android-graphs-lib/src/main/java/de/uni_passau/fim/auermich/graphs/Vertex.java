@@ -30,7 +30,7 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
     @Override
     public String toString() {
 
-        if (isEntryVertex() || isExitVertex() || isReturnVertex()) {
+        if (isEntryVertex() || isExitVertex()) {
             return type + " " + statement.getMethod();
         } else {
             return statement.toString();
