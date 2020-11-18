@@ -188,7 +188,7 @@ public class InterCFG extends BaseCFG {
                          * these classes should be just treated like other classes from the ART.
                          */
                         LOGGER.debug("Target method " + targetMethod + " not contained in dex files!");
-                        targetCFG = dummyIntraProceduralCFG(targetMethod);
+                        targetCFG = dummyIntraCFG(targetMethod);
                         intraCFGs.put(targetMethod, targetCFG);
                         addSubGraph(targetCFG);
                     }
@@ -213,7 +213,7 @@ public class InterCFG extends BaseCFG {
 
             // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
             if (!intraCFGs.containsKey(onCreateMethod)) {
-                BaseCFG onCreate = dummyIntraProceduralCFG(onCreateMethod);
+                BaseCFG onCreate = dummyIntraCFG(onCreateMethod);
                 intraCFGs.put(onCreateMethod, onCreate);
                 addSubGraph(onCreate);
             }
@@ -328,7 +328,7 @@ public class InterCFG extends BaseCFG {
         // TODO: right now all callbacks are handled central, no distinction between callbacks from activities and fragments
 
         // add callbacks sub graph
-        BaseCFG callbacksCFG = dummyIntraProceduralCFG("callbacks " + className);
+        BaseCFG callbacksCFG = dummyIntraCFG("callbacks " + className);
         addSubGraph(callbacksCFG);
 
         // callbacks can be invoked after onResume() has finished
@@ -418,7 +418,7 @@ public class InterCFG extends BaseCFG {
             lifecyle = intraCFGs.get(newLifecycle);
         } else {
             // use custom lifecycle CFG
-            lifecyle = dummyIntraProceduralCFG(newLifecycle);
+            lifecyle = dummyIntraCFG(newLifecycle);
             addSubGraph(lifecyle);
         }
 
@@ -564,8 +564,7 @@ public class InterCFG extends BaseCFG {
                                  * TODO: check if there are cases where invoke-virtual/range is used
                                  */
                                 if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
-
-                                    String resourceID = getLayoutResourceID(classDef, analyzedInstruction);
+                                    String resourceID = Utility.getLayoutResourceID(classDef, analyzedInstruction);
 
                                     if (resourceID != null) {
                                         componentResourceID.put(classDef.toString(), resourceID);
@@ -626,137 +625,6 @@ public class InterCFG extends BaseCFG {
             }
         }
         return callbacks;
-    }
-
-    /**
-     * Checks for a call to setContentView() or inflate() respectively and retrieves the layout resource id
-     * associated with the layout file.
-     *
-     * @param classDef            The class defining the invocation.
-     * @param analyzedInstruction The instruction referring to an invocation of setContentView() or inflate().
-     * @return Returns the layout resource for the given class (if any).
-     */
-    private String getLayoutResourceID(ClassDef classDef, AnalyzedInstruction analyzedInstruction) {
-
-        Instruction35c invokeVirtual = (Instruction35c) analyzedInstruction.getInstruction();
-        String methodReference = invokeVirtual.getReference().toString();
-
-        if (methodReference.endsWith("setContentView(I)V")
-                // ensure that setContentView() refers to the given class
-                && classDef.toString().equals(Utility.getClassName(methodReference))) {
-            // TODO: there are multiple overloaded setContentView() implementations
-            // we assume here only setContentView(int layoutResID)
-            // link: https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
-
-            /*
-             * We need to find the resource id located in one of the registers. A typical call to
-             * setContentView(int layoutResID) looks as follows:
-             *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
-             * Here, v0 contains the resource id, thus we need to search backwards for the last
-             * change of v0. This is typically the previous instruction and is of type 'const'.
-             */
-
-            LOGGER.debug("ClassName: " + classDef);
-            LOGGER.debug("Method Reference: " + methodReference);
-            LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
-
-            // the id of the register, which contains the layoutResID
-            int layoutResIDRegister = invokeVirtual.getRegisterD();
-
-            boolean foundLayoutResID = false;
-            AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
-
-            while (!foundLayoutResID) {
-
-                LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
-                Instruction pred = predecessor.getInstruction();
-
-                // the predecessor should be either const, const/4 or const/16 and holds the XML ID
-                if (pred instanceof NarrowLiteralInstruction
-                        && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
-                        || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
-                    foundLayoutResID = true;
-                    LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
-                    int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
-                    return "0x" + Integer.toHexString(resourceID);
-                }
-
-                predecessor = predecessor.getPredecessors().first();
-            }
-        } else if (methodReference.endsWith("setContentView(Landroid/view/View;)V")
-                // ensure that setContentView() refers to the given class
-                && classDef.toString().equals(Utility.getClassName(methodReference))) {
-
-            /*
-             * A typical example of this call looks as follows:
-             * invoke-virtual {v2, v3}, Landroid/widget/PopupWindow;->setContentView(Landroid/view/View;)V
-             *
-             * Here, register v2 is the PopupWindow instance while v3 refers to the View object param.
-             * Thus, we need to search for the call of setContentView/inflate() on the View object
-             * in order to retrieve its layout resource ID.
-             */
-
-            LOGGER.debug("Class " + Utility.getClassName(methodReference) + " makes use of setContentView(View v)!");
-
-            /*
-             * TODO: are we interested in calls to setContentView(..) that don't refer to the this object?
-             * The primary goal is to derive the layout ID of a given component (class). However, it seems
-             * like classes (components) can define the layout of other (sub) components. Are we interested
-             * in getting the layout ID of those (sub) components?
-             */
-
-            // we need to resolve the layout ID of the given View object parameter
-
-
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z")) {
-            // TODO: there are multiple overloaded inflate() implementations
-            // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
-            // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
-
-            /*
-             * A typical call of inflate(int resource,ViewGroup root, boolean attachToRoot) looks as follows:
-             *   invoke-virtual {p1, v0, p2, v1}, Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z)Landroid/view/View;
-             * Here, v0 contains the resource id, thus we need to search backwards for the last change of v0.
-             * This is typically the previous instruction and is of type 'const'.
-             */
-
-            LOGGER.debug("ClassName: " + classDef);
-            LOGGER.debug("Method Reference: " + methodReference);
-            LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
-
-            // the id of the register, which contains the layoutResID
-            int layoutResIDRegister = invokeVirtual.getRegisterD();
-
-            boolean foundLayoutResID = false;
-            AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
-
-            while (!foundLayoutResID) {
-
-                LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
-                Instruction pred = predecessor.getInstruction();
-
-                // the predecessor should be either const, const/4 or const/16 and holds the XML ID
-                if (pred instanceof NarrowLiteralInstruction
-                        && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
-                        || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
-                    foundLayoutResID = true;
-                    LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
-                    int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
-                    return "0x" + Integer.toHexString(resourceID);
-                }
-
-                predecessor = predecessor.getPredecessors().first();
-            }
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;")) {
-
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->" +
-                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;")) {
-
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->" +
-                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;Z")) {
-
-        }
-        return null;
     }
 
     /**
@@ -834,6 +702,22 @@ public class InterCFG extends BaseCFG {
     private void constructCFG(APK apk) {
 
         LOGGER.debug("Constructing Inter CFG!");
+
+        // exclude certain classes and methods from graph
+        Pattern exclusionPattern = Utility.readExcludePatterns();
+
+        // collect all fragments of an activity
+        Multimap<String, String> activityFragments = TreeMultimap.create();
+
+        // collect the callback entry points
+        Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
+
+        // resolve the invoke vertices and connect the sub graphs with each other
+        for (Vertex invokeVertex : getInvokeVertices()) {
+
+
+
+        }
     }
 
     /**
@@ -879,7 +763,7 @@ public class InterCFG extends BaseCFG {
                         // only construct dummy CFG for non ART classes
                         if (!excludeARTClasses) {
                             // dummy CFG consisting only of entry, exit vertex and edge between
-                            intraCFGs.put(methodSignature, dummyIntraProceduralCFG(method));
+                            intraCFGs.put(methodSignature, dummyIntraCFG(method));
                         }
                     } else {
                         LOGGER.debug("Method: " + methodSignature);
@@ -939,7 +823,7 @@ public class InterCFG extends BaseCFG {
                         if (!excludeARTClasses) {
                             // dummy CFG consisting only of entry, exit vertex and edge between
                             synchronized (this) {
-                                BaseCFG intraCFG = dummyIntraProceduralCFG(method);
+                                BaseCFG intraCFG = dummyIntraCFG(method);
                                 addSubGraph(intraCFG);
                                 intraCFGs.put(methodSignature, intraCFG);
                             }
@@ -963,7 +847,7 @@ public class InterCFG extends BaseCFG {
      * @param targetMethod The ART method.
      * @return Returns a simplified CFG.
      */
-    private BaseCFG dummyIntraProceduralCFG(Method targetMethod) {
+    private BaseCFG dummyIntraCFG(Method targetMethod) {
 
         BaseCFG cfg = new IntraCFG(Utility.deriveMethodSignature(targetMethod));
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
@@ -977,9 +861,9 @@ public class InterCFG extends BaseCFG {
      * @param targetMethod The ART method.
      * @return Returns a simplified CFG.
      */
-    private BaseCFG dummyIntraProceduralCFG(String targetMethod) {
+    private BaseCFG dummyIntraCFG(String targetMethod) {
 
-        BaseCFG cfg = new IntraProceduralCFG(targetMethod);
+        BaseCFG cfg = new IntraCFG(targetMethod);
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
         return cfg;
     }

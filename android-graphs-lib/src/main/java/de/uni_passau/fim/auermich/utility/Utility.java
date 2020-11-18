@@ -24,6 +24,7 @@ import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.dexbacked.value.DexBackedTypeEncodedValue;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.NarrowLiteralInstruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
@@ -102,6 +103,137 @@ public final class Utility {
             }
         });
         return matches;
+    }
+
+    /**
+     * Checks for a call to setContentView() or inflate() respectively and retrieves the layout resource id
+     * associated with the layout file.
+     *
+     * @param classDef            The class defining the invocation.
+     * @param analyzedInstruction The instruction referring to an invocation of setContentView() or inflate().
+     * @return Returns the layout resource for the given class (if any).
+     */
+    public static String getLayoutResourceID(ClassDef classDef, AnalyzedInstruction analyzedInstruction) {
+
+        Instruction35c invokeVirtual = (Instruction35c) analyzedInstruction.getInstruction();
+        String methodReference = invokeVirtual.getReference().toString();
+
+        if (methodReference.endsWith("setContentView(I)V")
+                // ensure that setContentView() refers to the given class
+                && classDef.toString().equals(Utility.getClassName(methodReference))) {
+            // TODO: there are multiple overloaded setContentView() implementations
+            // we assume here only setContentView(int layoutResID)
+            // link: https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
+
+            /*
+             * We need to find the resource id located in one of the registers. A typical call to
+             * setContentView(int layoutResID) looks as follows:
+             *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
+             * Here, v0 contains the resource id, thus we need to search backwards for the last
+             * change of v0. This is typically the previous instruction and is of type 'const'.
+             */
+
+            LOGGER.debug("ClassName: " + classDef);
+            LOGGER.debug("Method Reference: " + methodReference);
+            LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
+
+            // the id of the register, which contains the layoutResID
+            int layoutResIDRegister = invokeVirtual.getRegisterD();
+
+            boolean foundLayoutResID = false;
+            AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+
+            while (!foundLayoutResID) {
+
+                LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
+                Instruction pred = predecessor.getInstruction();
+
+                // the predecessor should be either const, const/4 or const/16 and holds the XML ID
+                if (pred instanceof NarrowLiteralInstruction
+                        && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                        || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
+                    foundLayoutResID = true;
+                    LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                    int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
+                    return "0x" + Integer.toHexString(resourceID);
+                }
+
+                predecessor = predecessor.getPredecessors().first();
+            }
+        } else if (methodReference.endsWith("setContentView(Landroid/view/View;)V")
+                // ensure that setContentView() refers to the given class
+                && classDef.toString().equals(Utility.getClassName(methodReference))) {
+
+            /*
+             * A typical example of this call looks as follows:
+             * invoke-virtual {v2, v3}, Landroid/widget/PopupWindow;->setContentView(Landroid/view/View;)V
+             *
+             * Here, register v2 is the PopupWindow instance while v3 refers to the View object param.
+             * Thus, we need to search for the call of setContentView/inflate() on the View object
+             * in order to retrieve its layout resource ID.
+             */
+
+            LOGGER.debug("Class " + Utility.getClassName(methodReference) + " makes use of setContentView(View v)!");
+
+            /*
+             * TODO: are we interested in calls to setContentView(..) that don't refer to the this object?
+             * The primary goal is to derive the layout ID of a given component (class). However, it seems
+             * like classes (components) can define the layout of other (sub) components. Are we interested
+             * in getting the layout ID of those (sub) components?
+             */
+
+            // we need to resolve the layout ID of the given View object parameter
+
+
+        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z")) {
+            // TODO: there are multiple overloaded inflate() implementations
+            // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
+            // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
+
+            /*
+             * A typical call of inflate(int resource,ViewGroup root, boolean attachToRoot) looks as follows:
+             *   invoke-virtual {p1, v0, p2, v1}, Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z)Landroid/view/View;
+             * Here, v0 contains the resource id, thus we need to search backwards for the last change of v0.
+             * This is typically the previous instruction and is of type 'const'.
+             */
+
+            LOGGER.debug("ClassName: " + classDef);
+            LOGGER.debug("Method Reference: " + methodReference);
+            LOGGER.debug("LayoutResID Register: " + invokeVirtual.getRegisterD());
+
+            // the id of the register, which contains the layoutResID
+            int layoutResIDRegister = invokeVirtual.getRegisterD();
+
+            boolean foundLayoutResID = false;
+            AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+
+            while (!foundLayoutResID) {
+
+                LOGGER.debug("Predecessor: " + predecessor.getInstruction().getOpcode());
+                Instruction pred = predecessor.getInstruction();
+
+                // the predecessor should be either const, const/4 or const/16 and holds the XML ID
+                if (pred instanceof NarrowLiteralInstruction
+                        && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                        || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
+                    foundLayoutResID = true;
+                    LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
+                    int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
+                    return "0x" + Integer.toHexString(resourceID);
+                }
+
+                predecessor = predecessor.getPredecessors().first();
+            }
+        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;")) {
+
+        } else if (methodReference.contains("Landroid/view/LayoutInflater;->" +
+                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;")) {
+
+        } else if (methodReference.contains("Landroid/view/LayoutInflater;->" +
+                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;Z")) {
+
+        }
+        return null;
     }
 
     /**
