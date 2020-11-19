@@ -363,6 +363,10 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      * Searches for the vertex described by the given trace in the graph.
      * Performs a brute force search if an instruction index is given.
      *
+     * Don't use this method when dealing with an interCFG. The intra CFGs
+     * stored by the interCFG are the original, non-connected graphs, i.e.
+     * no virtual return vertices have been introduced.
+     *
      * @param trace The trace describing the vertex, i.e. className->methodName->(entry|exit|instructionIndex).
      * @return Returns the vertex corresponding to the given trace.
      */

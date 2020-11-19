@@ -26,16 +26,17 @@ import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MethodImplementation;
 import org.jf.dexlib2.iface.instruction.Instruction;
-import org.jf.dexlib2.iface.instruction.NarrowLiteralInstruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
-import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 import org.jgrapht.Graph;
+import org.jgrapht.GraphPath;
+import org.jgrapht.alg.shortestpath.AllDirectedPaths;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class InterCFG extends BaseCFG {
@@ -797,8 +798,8 @@ public class InterCFG extends BaseCFG {
                 }
             }
 
-            // remove edges between invoke vertex and original successors (copy is here necessary!)
-            removeEdges(new ArrayList<>((getOutgoingEdges(invokeVertex))));
+            // remove edges between invoke vertex and original successors
+            removeEdges(getOutgoingEdges(invokeVertex));
 
             // add edge to entry of target CFG
             addEdge(invokeVertex, targetCFG.getEntry());
@@ -1024,21 +1025,75 @@ public class InterCFG extends BaseCFG {
         return clone;
     }
 
+    /**
+     * Searches for the vertex described by the given trace in the graph.
+     *
+     * Searching an entry/exit vertex can be satisfied in O(1).
+     * When a search of an intermediate vertex is requested, all directed
+     * paths from the subgraph are traversed in a parallel manner.
+     *
+     * @param trace The trace describing the vertex, i.e. className->methodName->(entry|exit|instructionIndex).
+     * @return Returns the vertex corresponding to the given trace.
+     */
     @Override
     public Vertex lookUpVertex(String trace) {
 
-        // decompose trace into class, method and instruction index
+        // TODO: may support lookup of a virtual return vertex
 
-        // hook entry/exit vertex of intraCFG
+        // decompose trace into class, method  and instruction index
+        String[] tokens = trace.split("->");
 
-        // we can't look up intraCFG directly since vertex might have been modified through inter CFG construction
+        // class + method + entry|exit|instruction-index
+        assert tokens.length == 3;
 
-        // go (parallel) forward/backward search from entry/exit vertex
+        // retrieve fully qualified method name (class name + method name)
+        String method = tokens[0] + "->" + tokens[1];
 
-        // backtrack if search falls out of method
+        // check whether method belongs to graph
+        if (!intraCFGs.containsKey(method)) {
+            throw new IllegalArgumentException("Given trace refers to a method not part of the graph!");
+        }
 
-        // bypass virtual vertex -> jump to entry/exit
+        if (tokens[2].equals("entry")) {
+            return intraCFGs.get(method).getEntry();
+        } else if (tokens[2].equals("exit")) {
+            return intraCFGs.get(method).getExit();
+        } else {
+            // iterate over all paths between entry and exit vertex
+            int instructionIndex = Integer.parseInt(tokens[2]);
 
-        return null;
+            Vertex entry = intraCFGs.get(method).getEntry();
+            Vertex exit = intraCFGs.get(method).getExit();
+
+            /*
+            * If the 'AllDirectedPaths' algorithm appears to be too slow, we could alternatively use
+            * some traversal strategy supplied by JGraphT, see https://jgrapht.org/javadoc-1.4.0/org/jgrapht/traverse/package-summary.html.
+            * If this is still not good enough, we can roll out our own search algorithm. One could
+            * perform a parallel forward/backward search starting from the entry and exit vertex, respectively.
+            * If a forward/backward step falls out of the given method, i.e. a vertex of a different method is reached,
+            * we can directly jump from the entry vertex to the virtual return vertex in case of a forward step,
+            * otherwise (a backward step was performed) we can directly jump to the invoke vertex leading to
+            * the entry of the different method.
+             */
+
+            AllDirectedPaths<Vertex, Edge> allDirectedPaths = new AllDirectedPaths<>(graph);
+            // TODO: verify how the flag 'simplePathsOnly' affects the traversal
+            List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
+
+            return paths.parallelStream().map(path -> path.getEdgeList().parallelStream()
+                    .map(edge -> {
+                        Vertex source = edge.getSource();
+                        Vertex target = edge.getTarget();
+
+                        if (source.containsInstruction(method, instructionIndex)) {
+                            return source;
+                        } else if (target.containsInstruction(method, instructionIndex)) {
+                            return target;
+                        } else {
+                            return null;
+                        }
+                    }).filter(Objects::nonNull)).findFirst().flatMap(Stream::findFirst)
+                    .orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
+        }
     }
 }

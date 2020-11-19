@@ -157,7 +157,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         *
         * See https://github.com/jgrapht/jgrapht/issues/767 for more details.
          */
-        graph.removeAllEdges(edges);
+        graph.removeAllEdges(new ArrayList<>(edges));
     }
 
     public Vertex getEntry() {
