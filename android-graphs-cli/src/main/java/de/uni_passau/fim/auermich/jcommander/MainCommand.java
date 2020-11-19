@@ -22,6 +22,7 @@ public class MainCommand {
     @Parameter(names = { "-l", "-lookup"}, description = "A trace referring to a vertex.")
     private String trace;
 
+    // TODO: use file path instead, fallback to default path is none is specified
     @Parameter(names = {"-draw"}, description = "Whether the graph should be drawn.")
     private boolean draw = false;
 
