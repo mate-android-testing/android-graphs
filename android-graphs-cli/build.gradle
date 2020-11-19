@@ -1,0 +1,29 @@
+
+apply plugin:'java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+dependencies {
+    compile project(':android-graphs-lib')
+    compile depends.guava,
+            depends.gson,
+            depends.jgrapht,
+            depends.jgrapht_core,
+            depends.jgrapht_ext,
+            depends.log4j,
+            depends.junit,
+            depends.cloning,
+            depends.dom4j,
+            depends.jcommander,
+            depends.dexlib2
+}
+
+task customFatJar(type: Jar) {
+    manifest {
+        attributes "Main-Class": "de.uni_passau.fim.auermich.Cli"
+    }
+    archiveName(rootProject.name + '-cli.jar')
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
+
+

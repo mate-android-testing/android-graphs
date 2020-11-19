@@ -14,5 +14,5 @@ out/
 /build/
 build/
 
-# ignore graph
 graph.png
+app.log

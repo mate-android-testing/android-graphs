@@ -1,0 +1,26 @@
+
+apply plugin:'java'
+apply plugin: 'com.github.johnrengelman.shadow'
+
+dependencies {
+
+    // We can either place this dependency here or via the subprojects attribute in the main gradle file
+    // compile name: 'apktool-cli-all'
+
+    compile depends.guava,
+            depends.gson,
+            depends.jgrapht,
+            depends.jgrapht_core,
+            depends.jgrapht_ext,
+            depends.log4j,
+            depends.junit,
+            depends.cloning,
+            depends.dom4j,
+            depends.dexlib2
+}
+
+task customFatJar(type: Jar) {
+    archiveName(rootProject.name + '-lib.jar')
+    from { configurations.compile.collect { it.isDirectory() ? it : zipTree(it) } }
+    with jar
+}
