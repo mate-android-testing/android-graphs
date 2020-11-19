@@ -19,6 +19,7 @@ import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.MultiDexContainer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -154,7 +155,7 @@ public final class Cli {
         String selectedCommand = commander.getParsedCommand();
         Optional<GraphType> graphType = GraphType.fromString(selectedCommand);
 
-        if (!graphType.isPresent()) {
+        if (graphType.isEmpty()) {
             LOGGER.warn("Enter a valid command please!");
             commander.usage();
         } else {
@@ -170,8 +171,7 @@ public final class Cli {
                     dexFiles.add(apk.getEntry(dexFile).getDexFile());
                 } catch (IOException e) {
                     LOGGER.warn("Failure loading dexFile");
-                    LOGGER.warn(e.getMessage());
-                    return;
+                    throw new UncheckedIOException(e);
                 }
             });
 
