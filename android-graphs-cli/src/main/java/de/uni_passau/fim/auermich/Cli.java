@@ -137,13 +137,6 @@ public final class Cli {
 
     private static void run(JCommander commander) throws IOException {
 
-        /*
-         * TODO: define some result data type
-         * We basically want to return something, e.g. a distance between two nodes. This
-         * should be stored in some result data type. Since mandatory options are missing
-         * potentially, we may want to return an empty result -> Optional.
-         */
-
         LOGGER.debug("APK: " + mainCmd.getAPKFile().getAbsolutePath());
 
         if (!mainCmd.getAPKFile().exists()) {

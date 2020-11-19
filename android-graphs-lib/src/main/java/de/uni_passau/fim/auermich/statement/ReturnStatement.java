@@ -15,14 +15,6 @@ public class ReturnStatement extends Statement implements Cloneable {
     // stores the method name from which control flow returned
     private String targetMethod;
 
-    // TODO: remove when InterCFG class is refactored
-    public ReturnStatement(String method, String targetMethod) {
-        super(method);
-        this.targetMethod = targetMethod;
-        type = StatementType.RETURN_STATEMENT;
-        this.id = 0;
-    }
-
     public ReturnStatement(String method, String targetMethod, int id) {
         super(method);
         this.targetMethod = targetMethod;

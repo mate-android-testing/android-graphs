@@ -44,7 +44,6 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
             .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
             .edgeClass(Edge.class).buildGraph();
 
-    // protected AbstractGraph graph = new DirectedMultigraph(DefaultEdge.class);
     private Vertex entry; // = new Vertex(-1, null, null);
     private Vertex exit; // = new Vertex(-2, null, null);
 
@@ -85,11 +84,8 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         return invokeVertices;
     }
 
+    // TODO: replace with bidirectional dijkstra
     public int getShortestDistance(Vertex source, Vertex target) {
-        /*
-        FloydWarshallShortestPaths shortestPathsAlgorithm = new FloydWarshallShortestPaths(graph);
-        return shortestPathsAlgorithm.getPath(source, target).getLength();
-        */
         GraphPath<Vertex, Edge> path = BFSShortestPath.findPathBetween(graph, source, target);
         if (path != null) {
             return path.getLength();
@@ -98,14 +94,17 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         }
     }
 
+    @SuppressWarnings("unused")
     public ShortestPathAlgorithm<Vertex, Edge> initBFSAlgorithm() {
         return new BFSShortestPath<>(graph);
     }
 
-    public ShortestPathAlgorithm<Vertex, Edge> initDijkstraAlgorithm() {
-        return new DijkstraShortestPath<>(graph);
-    }
-
+    /**
+     * Initialises the bidirectional dijkstra algorithm. This seems to be fastest algorithm
+     * next to the BFS search algorithm.
+     *
+     * @return Returns a shortest path algorithm.
+     */
     public ShortestPathAlgorithm<Vertex, Edge> initBidirectionalDijkstraAlgorithm() {
         return new BidirectionalDijkstraShortestPath<>(graph);
     }
@@ -134,10 +133,12 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         }
     }
 
+    @SuppressWarnings("unused")
     public void removeEdge(Edge edge) {
         graph.removeEdge(edge);
     }
 
+    @SuppressWarnings("unused")
     public Edge getEdge(Vertex source, Vertex target) {
         return graph.getEdge(source, target);
     }
@@ -180,6 +181,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         return graph.containsVertex(vertex);
     }
 
+    @SuppressWarnings("unused")
     public boolean containsEdge(Edge edge) {
         return graph.containsEdge(edge);
     }
@@ -262,34 +264,6 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         } catch (IOException e) {
             LOGGER.warn(e.getMessage());
             e.printStackTrace();
-        }
-    }
-
-    public void drawGraph(int ID) {
-        JGraphXAdapter<Vertex, Edge> graphXAdapter
-                = new JGraphXAdapter<>(graph);
-        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
-
-        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
-        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
-
-        // mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
-        // ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
-
-        layout.execute(graphXAdapter.getDefaultParent());
-
-        BufferedImage image =
-                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
-
-        Path resourceDirectory = Paths.get("src", "test", "resources");
-        File file = new File(resourceDirectory.toFile(), "graph" + ID + ".png");
-        LOGGER.debug(file.getPath());
-
-        try {
-            file.createNewFile();
-            ImageIO.write(image, "PNG", file);
-        } catch (IOException e) {
-            LOGGER.warn(e.getMessage());
         }
     }
 
