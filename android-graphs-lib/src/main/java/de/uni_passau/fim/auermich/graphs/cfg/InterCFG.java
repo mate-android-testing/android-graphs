@@ -1092,7 +1092,7 @@ public class InterCFG extends BaseCFG {
                         } else {
                             return null;
                         }
-                    }).filter(Objects::nonNull)).findFirst().flatMap(Stream::findFirst)
+                    }).filter(Objects::nonNull)).findAny().flatMap(Stream::findAny)
                     .orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
         }
     }
