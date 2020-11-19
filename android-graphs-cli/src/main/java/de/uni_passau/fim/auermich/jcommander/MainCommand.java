@@ -6,15 +6,6 @@ import java.io.File;
 
 public class MainCommand {
 
-    /*
-     * TODO: Handle multi-dex files
-     * The current implementation can only handle a single dex file, although APKs may consist of multiple dex files.
-     * Thus we should use in some point in time a path instead of a file, which refers to the parent directory of the classes.dex file.
-     * We can make use of the built-in PathConverter.class to check if the input represents a path.
-     *
-     * THERE SHOULD BE ALREADY SOME FUNCTIONALITY INTEGRATED INTO DEXLIB2 TO PROCESS DIRECTLY APK FILES. (ASK FELIX)
-     */
-
     @Parameter(names = { "-f", "-file"}, description = "File path to the APK file we want to analyze.",
             required = true, converter = CustomFileConverter.class)
     private File apkFile;
@@ -27,6 +18,24 @@ public class MainCommand {
 
     @Parameter(names = { "-h", "--help" }, help = true)
     private boolean help;
+
+    @Parameter(names = { "-l", "-lookup"}, description = "A trace referring to a vertex.")
+    private String trace;
+
+    @Parameter(names = {"-draw"}, description = "Whether the graph should be drawn.")
+    private boolean draw = false;
+
+    public boolean isDraw() {
+        return draw;
+    }
+
+    public String getTrace() {
+        return trace;
+    }
+
+    public boolean lookup() {
+        return trace != null;
+    }
 
     public File getAPKFile() {
         return apkFile;

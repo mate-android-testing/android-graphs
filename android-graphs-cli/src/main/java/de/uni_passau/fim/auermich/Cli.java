@@ -53,6 +53,8 @@ public final class Cli {
      * @param args The command line arguments specify which graph should be generated.
      *             The switch -f specifies the path to the APK file (must come first).
      *             The switch -d specifies whether debugging mode should be enabled (no argument required).
+     *             The switch -draw specifies whether the graph should be drawn.
+     *             The switch -l (-lookup) requests a vertex lookup corresponding to the given trace.
      *
      *             After those global options, a sub commando must follow. This can be either
      *             'intra' or 'inter', which specifies which graph should be constructed.
@@ -64,6 +66,7 @@ public final class Cli {
      *
      *             The 'inter' sub commando can handle the following arguments:
      *             The switch -b specifies whether basic blocks should be used. (optional)
+     *             The switch -art specifies whether ART classes should be resolved. (optional)
      *
      * @throws IOException Should never happen.
      */
@@ -103,15 +106,8 @@ public final class Cli {
         if (mainCmd.isHelp()) {
             commander.usage();
         } else {
-            boolean exceptionalFlow = false;
-
-            // check whether we want to model edges from try-catch blocks
-            if (mainCmd.isExceptionalFlow()) {
-                exceptionalFlow = true;
-            }
-
             // process apk and construct desired graph
-            run(commander, exceptionalFlow);
+            run(commander);
         }
     }
 
@@ -138,7 +134,7 @@ public final class Cli {
         return true;
     }
 
-    private static void run(JCommander commander, boolean exceptionalFlow) throws IOException {
+    private static void run(JCommander commander) throws IOException {
 
         /*
          * TODO: define some result data type
@@ -195,9 +191,16 @@ public final class Cli {
                         }
 
                         BaseGraph baseGraph = builder.build();
-                        baseGraph.drawGraph();
 
-                        // TODO: perform some computation on the graph (check for != null)
+                        if (mainCmd.isDraw()) {
+                            LOGGER.debug("Drawing graph!");
+                            baseGraph.drawGraph();
+                        }
+
+                        if (mainCmd.lookup()) {
+                            LOGGER.debug("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
+                        }
+
                     } else {
                         LOGGER.error("Target method not contained in dex file!");
                     }
@@ -207,16 +210,27 @@ public final class Cli {
 
                         BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
                                 .withName("global")
-                                .withExcludeARTClasses()
                                 .withAPKFile(mainCmd.getAPKFile());
 
                         if (interCFGCmd.isUseBasicBlocks()) {
                             builder = builder.withBasicBlocks();
                         }
 
+                        if (!interCFGCmd.resolveARTClasses()) {
+                            builder = builder.withExcludeARTClasses();
+                        }
+
                         BaseGraph baseGraph = builder.build();
-                        if (baseGraph.size() < 1000) {
+
+                        LOGGER.debug("Size of graph: " + baseGraph.size());
+
+                        if (mainCmd.isDraw() && baseGraph.size() < 1000) {
+                            LOGGER.debug("Drawing graph!");
                             baseGraph.drawGraph();
+                        }
+
+                        if (mainCmd.lookup()) {
+                            LOGGER.debug("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
                         }
                     }
                     break;
