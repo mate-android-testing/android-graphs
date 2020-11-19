@@ -76,7 +76,6 @@ public class LayoutFile {
                 // each node is a <public ... /> xml tag
                 Node node = (Node) itr.next();
                 Element element = (Element) node;
-                // LOGGER.debug("ElementName: " + node.getName());
 
                 // each <public /> tag contains the attributes type,name,id
                 String layoutFile = element.attributeValue("name");

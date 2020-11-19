@@ -17,7 +17,6 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
 
     private static final Logger LOGGER = LogManager.getLogger(Vertex.class);
 
-    // the type of vertex
     private final VertexType type;
 
     private Statement statement;
@@ -39,7 +38,7 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
 
     @Override
     public int compareTo(Vertex other) {
-        // TODO: find better comparison, only implemented to be usable with MultiMap
+        // TODO: find better comparison, required by MultiMap implementation
         return Integer.compare(this.hashCode(), other.hashCode());
     }
 
@@ -179,47 +178,10 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
 
         Vertex other = (Vertex) o;
 
-
         if (statement.getType() != other.statement.getType()
             || !this.getMethod().equals(other.getMethod())) {
             return false;
         }
-
-        /*
-        switch (statement.getType()) {
-            case ENTRY_STATEMENT:
-            case EXIT_STATEMENT:
-            case RETURN_STATEMENT:
-            case BASIC_STATEMENT:
-                return this.statement.equals(other.statement);
-            case BLOCK_STATEMENT:
-
-                if (this.statement.equals(other.statement)) {
-                    return true;
-                }
-
-                // check for subset relation
-                BlockStatement blockStmt = (BlockStatement) statement;
-                BlockStatement otherBlockStmt = (BlockStatement) other.statement;
-
-                // check on first stmt equality
-                return blockStmt.getFirstStatement().equals(otherBlockStmt.getFirstStatement());
-
-                if (!statement.getMethod().equals(other.statement.getMethod())) {
-                    return false;
-                }
-
-                List<Statement> statements = blockStmt.getStatements();
-                List<Statement> otherStatements = otherBlockStmt.getStatements();
-
-                // check for subset relation
-                if (statements.containsAll(otherStatements)
-                    || otherStatements.containsAll(statements)) {
-                    return true;
-                }
-
-        }
-        */
 
         // unique method signature + instruction id
         return this.statement.equals(other.statement);
@@ -227,21 +189,6 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
 
     @Override
     public int hashCode() {
-
-        /*
-        switch (statement.getType()) {
-            case ENTRY_STATEMENT:
-            case EXIT_STATEMENT:
-            case RETURN_STATEMENT:
-            case BASIC_STATEMENT:
-                return Objects.hash(statement);
-            case BLOCK_STATEMENT:
-                BlockStatement blockStmt = (BlockStatement) statement;
-                return Objects.hash(blockStmt.getFirstStatement());
-                // return Objects.hash(getMethod());
-        }
-        */
-
         return Objects.hash(statement);
     }
 
@@ -256,7 +203,6 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
         }
 
     }
-
 
     /**
      * Represents the type of vertex. This can be either
