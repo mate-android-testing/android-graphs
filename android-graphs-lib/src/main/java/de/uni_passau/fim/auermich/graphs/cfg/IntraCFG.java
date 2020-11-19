@@ -359,16 +359,67 @@ public class IntraCFG extends BaseCFG implements Cloneable {
         return cloneCFG;
     }
 
-    // brute force search
+    /**
+     * Searches for the vertex described by the given trace in the graph.
+     * Performs a brute force search if an instruction index is given.
+     *
+     * @param trace The trace describing the vertex, i.e. className->methodName->(entry|exit|instructionIndex).
+     * @return Returns the vertex corresponding to the given trace.
+     */
     @Override
     public Vertex lookUpVertex(String trace) {
 
         // decompose trace into class, method  and instruction index
+        String[] tokens = trace.split("->");
 
-        // safety check for correct method
+        // class + method + entry|exit|instruction-index
+        assert tokens.length == 3;
 
-        // go through all vertices in graph
+        // retrieve fully qualified method name (class name + method name)
+        String method = tokens[0] + "->" + tokens[1];
 
-        return null;
+        // check whether trace refers to this graph
+        if (!method.equals(getMethodName())) {
+            throw new IllegalArgumentException("Given trace refers to a different method, thus to a different graph!");
+        }
+
+        if (tokens[2].equals("entry")) {
+            return getEntry();
+        } else if (tokens[2].equals("exit")) {
+            return getExit();
+        } else {
+            // brute force search
+            int instructionIndex = Integer.parseInt(tokens[2]);
+
+            for (Vertex vertex : getVertices()) {
+
+                if (vertex.isEntryVertex() || vertex.isExitVertex()) {
+                    continue;
+                }
+
+                Statement statement = vertex.getStatement();
+
+                if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
+                    // no basic blocks
+                    BasicStatement basicStmt = (BasicStatement) statement;
+                    if (basicStmt.getInstructionIndex() == instructionIndex) {
+                        return vertex;
+                    }
+                } else if (statement.getType() == Statement.StatementType.BLOCK_STATEMENT) {
+                    // basic blocks
+                    BlockStatement blockStmt = (BlockStatement) statement;
+
+                    // check if index is in range [firstStmt,lastStmt]
+                    BasicStatement firstStmt = (BasicStatement) blockStmt.getFirstStatement();
+                    BasicStatement lastStmt = (BasicStatement) blockStmt.getLastStatement();
+
+                    if (firstStmt.getInstructionIndex() <= instructionIndex &&
+                            instructionIndex <= lastStmt.getInstructionIndex()) {
+                        return vertex;
+                    }
+                }
+            }
+        }
+        throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
     }
 }
