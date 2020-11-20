@@ -34,9 +34,9 @@ import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class InterCFG extends BaseCFG {
@@ -1080,7 +1080,20 @@ public class InterCFG extends BaseCFG {
             // TODO: verify how the flag 'simplePathsOnly' affects the traversal
             List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
 
+            Set<Vertex> vertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
+
+            paths.parallelStream().forEach(path -> path.getEdgeList().parallelStream().forEach(edge -> {
+                vertices.add(edge.getSource());
+                vertices.add(edge.getTarget());
+            }));
+
+            return vertices.parallelStream()
+                    .filter(vertex -> vertex.containsInstruction(method, instructionIndex))
+                    .findAny().orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
+
+            /*
             // TODO: due to non-determinism (findAny()) the search randomly fails!
+            // https://stackoverflow.com/questions/64929090/nested-parallel-stream-execution-in-java-findany-randomly-fails
             return paths.parallelStream().map(path -> path.getEdgeList().parallelStream()
                     .map(edge -> {
                         Vertex source = edge.getSource();
@@ -1095,6 +1108,7 @@ public class InterCFG extends BaseCFG {
                         }
                     }).filter(Objects::nonNull)).findAny().flatMap(Stream::findAny)
                     .orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
+             */
         }
     }
 }
