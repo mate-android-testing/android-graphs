@@ -33,10 +33,12 @@ import org.jgrapht.alg.shortestpath.AllDirectedPaths;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 
+import java.lang.instrument.Instrumentation;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class InterCFG extends BaseCFG {
@@ -885,11 +887,16 @@ public class InterCFG extends BaseCFG {
                         // only construct dummy CFG for non ART classes
                         if (!excludeARTClasses) {
                             // dummy CFG consisting only of entry, exit vertex and edge between
-                            intraCFGs.put(methodSignature, dummyIntraCFG(method));
+                            BaseCFG intraCFG = dummyIntraCFG(method);
+                            addSubGraph(intraCFG);
+                            intraCFGs.put(methodSignature, intraCFG);
                         }
                     } else {
                         LOGGER.debug("Method: " + methodSignature);
-                        intraCFGs.put(methodSignature, new IntraCFG(methodSignature, dexFile, useBasicBlocks));
+                        BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
+                        addSubGraph(intraCFG);
+                        addInvokeVertices(intraCFG.getInvokeVertices());
+                        intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
                     }
                 }
             }
@@ -898,13 +905,6 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("Generated CFGs: " + intraCFGs.size());
         LOGGER.debug("List of activities: " + activities);
         LOGGER.debug("List of fragments: " + fragments);
-
-        // add intraCFGs as sub graphs + update collected invoke vertices
-        intraCFGs.forEach((name,intraCFG) -> {
-            addSubGraph(intraCFG);
-            addInvokeVertices(intraCFG.getInvokeVertices());
-        });
-
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
     }
 
@@ -972,7 +972,7 @@ public class InterCFG extends BaseCFG {
      */
     private BaseCFG dummyIntraCFG(Method targetMethod) {
 
-        BaseCFG cfg = new IntraCFG(Utility.deriveMethodSignature(targetMethod));
+        BaseCFG cfg = new DummyCFG(Utility.deriveMethodSignature(targetMethod));
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
         return cfg;
     }
@@ -986,7 +986,7 @@ public class InterCFG extends BaseCFG {
      */
     private BaseCFG dummyIntraCFG(String targetMethod) {
 
-        BaseCFG cfg = new IntraCFG(targetMethod);
+        BaseCFG cfg = new DummyCFG(targetMethod);
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
         return cfg;
     }
@@ -1080,6 +1080,7 @@ public class InterCFG extends BaseCFG {
             // TODO: verify how the flag 'simplePathsOnly' affects the traversal
             List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
 
+            /*
             Set<Vertex> vertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
 
             paths.parallelStream().forEach(path -> path.getEdgeList().parallelStream().forEach(edge -> {
@@ -1090,11 +1091,10 @@ public class InterCFG extends BaseCFG {
             return vertices.parallelStream()
                     .filter(vertex -> vertex.containsInstruction(method, instructionIndex))
                     .findAny().orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
+             */
 
-            /*
-            // TODO: due to non-determinism (findAny()) the search randomly fails!
             // https://stackoverflow.com/questions/64929090/nested-parallel-stream-execution-in-java-findany-randomly-fails
-            return paths.parallelStream().map(path -> path.getEdgeList().parallelStream()
+            return paths.parallelStream().flatMap(path -> path.getEdgeList().parallelStream()
                     .map(edge -> {
                         Vertex source = edge.getSource();
                         Vertex target = edge.getTarget();
@@ -1106,9 +1106,8 @@ public class InterCFG extends BaseCFG {
                         } else {
                             return null;
                         }
-                    }).filter(Objects::nonNull)).findAny().flatMap(Stream::findAny)
+                    }).filter(Objects::nonNull)).findAny()
                     .orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
-             */
         }
     }
 }
