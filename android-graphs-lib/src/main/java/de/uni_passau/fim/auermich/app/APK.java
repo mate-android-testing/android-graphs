@@ -9,6 +9,7 @@ import org.jf.dexlib2.iface.DexFile;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.logging.Handler;
 
 public class APK {
 
@@ -30,6 +31,15 @@ public class APK {
 
     // TODO: provide overloaded decodeAPK methods (params: outputdir, decodeSources, decodeResources, decodeManifest,..)
     public boolean decodeAPK() {
+
+        // java.util.logging.LogManager.getLogManager().reset();
+
+        // set 3rd party library (apktool) logging to 'WARNING'
+        java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
+        rootLogger.setLevel(java.util.logging.Level.WARNING);
+        for (Handler h : rootLogger.getHandlers()) {
+            h.setLevel(java.util.logging.Level.WARNING);
+        }
 
         try {
             ApkDecoder decoder = new ApkDecoder(apkFile);

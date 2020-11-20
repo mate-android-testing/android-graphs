@@ -1080,6 +1080,7 @@ public class InterCFG extends BaseCFG {
             // TODO: verify how the flag 'simplePathsOnly' affects the traversal
             List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
 
+            // TODO: due to non-determinism (findAny()) the search randomly fails!
             return paths.parallelStream().map(path -> path.getEdgeList().parallelStream()
                     .map(edge -> {
                         Vertex source = edge.getSource();
