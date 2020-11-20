@@ -97,6 +97,7 @@ public final class Utility {
      * @param directory The directory to search for the dex files.
      * @return Returns a list of dex files found in the given directory.
      */
+    @SuppressWarnings("unused")
     public static File[] getDexFiles(File directory) {
 
         File[] matches = directory.listFiles(new FilenameFilter() {
@@ -553,10 +554,6 @@ public final class Utility {
         return Optional.empty();
     }
 
-    public static Optional<Method> searchForTargetMethod(List<DexFile> dexFile, String methodSignature) {
-        return null;
-    }
-
     /**
      * Checks whether the given instruction refers to an if or goto instruction.
      *
@@ -702,39 +699,6 @@ public final class Utility {
         return Optional.empty();
     }
 
-    /**
-     * Decodes a given APK using apktool.
-     */
-    public static String decodeAPK(File apkFile) {
-
-        String decodingOutputPath = null;
-
-        try {
-            // ApkDecoder decoder = new ApkDecoder(new Androlib());
-            ApkDecoder decoder = new ApkDecoder(apkFile);
-
-            // path where we want to decode the APK
-            String parentDir = apkFile.getParent();
-            String outputDir = parentDir + File.separator + "out";
-
-            LOGGER.debug("Decoding Output Dir: " + outputDir);
-            decoder.setOutDir(new File(outputDir));
-            decodingOutputPath = outputDir;
-
-            // whether to decode classes.dex into smali files: -s
-            decoder.setDecodeSources(ApkDecoder.DECODE_SOURCES_NONE);
-
-            // overwrites existing dir: -f
-            decoder.setForceDelete(true);
-
-            decoder.decode();
-        } catch (BrutException | IOException e) {
-            LOGGER.warn("Failed to decode APK file!");
-            LOGGER.warn(e.getMessage());
-        }
-        return decodingOutputPath;
-    }
-
     public static boolean isInnerClass(String methodSignature) {
         return methodSignature.contains("$");
     }
@@ -743,6 +707,7 @@ public final class Utility {
         return className.split("\\$")[0] + ";";
     }
 
+    @SuppressWarnings("unused")
     public static MethodAnalyzer getAnalyzer(DexFile dexFile, Method targetMethod) {
 
         MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
