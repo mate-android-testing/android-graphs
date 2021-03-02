@@ -1,7 +1,5 @@
 package de.uni_passau.fim.auermich.utility;
 
-import brut.androlib.ApkDecoder;
-import brut.common.BrutException;
 import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.graphs.BaseGraphBuilder;
