@@ -8,6 +8,7 @@ import de.uni_passau.fim.auermich.core.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.core.statement.BasicStatement;
 import de.uni_passau.fim.auermich.core.statement.BlockStatement;
 import de.uni_passau.fim.auermich.core.statement.Statement;
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.DexFileFactory;
@@ -87,6 +88,23 @@ public final class Utility {
 
     private Utility() {
         throw new UnsupportedOperationException("Utility class!");
+    }
+
+    /**
+     * Removes the given file, can be either a directory a simple file.
+     *
+     * @param toBeRemoved The file to be removed.
+     * @return Returns {@code true} if removing file succeeded, otherwise {@code false} is returned.
+     */
+    public static boolean removeFile(File toBeRemoved) {
+        try {
+            FileUtils.forceDelete(toBeRemoved);
+            return true;
+        } catch(IOException e) {
+            LOGGER.warn("Couldn't remove file: " + toBeRemoved);
+            LOGGER.warn(e.getMessage());
+            return false;
+        }
     }
 
     /**

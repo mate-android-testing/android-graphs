@@ -8,29 +8,53 @@ import org.jf.dexlib2.iface.DexFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.logging.Handler;
 
+/**
+ * A wrapper around an APK file.
+ */
 public class APK {
 
     private static final Logger LOGGER = LogManager.getLogger(APK.class);
 
+    /**
+     * The default decoding directory. This conforms to the directory when you invoke
+     * 'apktool d' without the optional parameter '-o <output-dir>'.
+     */
+    private static final String DEFAULT_DECODING_DIR = "out";
+
+    /**
+     * The path to the APK file itself.
+     */
     private final File apkFile;
+
+    /**
+     * References to the dex files contained in the APK.
+     */
     private final List<DexFile> dexFiles;
-    private final String decodingOutputPath;
 
+    /**
+     * The path to which the APK was decoded.
+     */
+    private File decodingOutputPath;
+
+    /**
+     * Constructs a new APK.
+     *
+     * @param apkFile The path to the APK file.
+     * @param dexFiles The dex files contained in the APK.
+     */
     public APK(File apkFile, List<DexFile> dexFiles) {
-        this(apkFile, dexFiles, apkFile.getParent() + File.separator + "out");
-    }
-
-    public APK(File apkFile, List<DexFile> dexFiles, String decodingOutputPath) {
         this.apkFile = apkFile;
         this.dexFiles = dexFiles;
-        this.decodingOutputPath = decodingOutputPath;
     }
 
-    // TODO: provide overloaded decodeAPK methods (params: outputdir, decodeSources, decodeResources, decodeManifest,..)
-    public boolean decodeAPK() {
+    /**
+     * Decodes the APK in the same directory as the APK file.
+     */
+    public void decodeAPK() {
 
         // java.util.logging.LogManager.getLogManager().reset();
 
@@ -44,11 +68,11 @@ public class APK {
         try {
             ApkDecoder decoder = new ApkDecoder(apkFile);
 
-            // path where we want to decode the APK
-            String outputDir = decodingOutputPath;
+            // path where we want to decode the APK (the same directory as the APK is in)
+            decodingOutputPath = new File(apkFile.getParent(), DEFAULT_DECODING_DIR);
 
-            LOGGER.debug("Decoding Output Dir: " + outputDir);
-            decoder.setOutDir(new File(outputDir));
+            LOGGER.debug("Decoding Output Dir: " + decodingOutputPath);
+            decoder.setOutDir(decodingOutputPath);
 
             // whether to decode classes.dex into smali files: -s
             decoder.setDecodeSources(ApkDecoder.DECODE_SOURCES_NONE);
@@ -58,23 +82,45 @@ public class APK {
 
             // FIXME: the APKDecoder has some issue with the file path length on Windows!
             decoder.decode();
+
         } catch (BrutException | IOException e) {
-            LOGGER.warn("Failed to decode APK file!");
-            LOGGER.warn(e.getMessage());
-            return false;
+            LOGGER.error("Failed to decode APK file!");
+            LOGGER.error(e.getMessage());
+            decodingOutputPath = null;
+            throw new IllegalStateException(e);
         }
-        return true;
     }
 
+    /**
+     * Returns the path of the APK file.
+     *
+     * @return Returns the path of the APK file.
+     */
     public File getApkFile() {
         return apkFile;
     }
 
+    /**
+     * Returns the dex files contained in the APK file.
+     *
+     * @return Returns a read-only view on the dex files.
+     */
     public List<DexFile> getDexFiles() {
-        return dexFiles;
+        return Collections.unmodifiableList(dexFiles);
     }
 
-    public String getDecodingOutputPath() {
+    /**
+     * Returns the output path of the decoding. Only call this method after
+     * {@link #decodeAPK()} has been invoked successfully!
+     *
+     * @return Returns the output path of the decoding.
+     */
+    public File getDecodingOutputPath() {
+
+        if (decodingOutputPath == null) {
+            throw new IllegalStateException("APK was not (properly) decoded previously!");
+        }
+
         return decodingOutputPath;
     }
 }

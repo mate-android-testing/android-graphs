@@ -14,6 +14,7 @@ import de.uni_passau.fim.auermich.core.statement.BlockStatement;
 import de.uni_passau.fim.auermich.core.statement.ReturnStatement;
 import de.uni_passau.fim.auermich.core.statement.Statement;
 import de.uni_passau.fim.auermich.core.utility.Utility;
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Opcode;
@@ -128,7 +129,7 @@ public class InterCFG extends BaseCFG {
             List<List<Statement>> blocks = splitBlockStatement(blockStatement, exclusionPattern);
 
             if (blocks.size() == 1) {
-                LOGGER.debug("Unchanged vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]" );
+                LOGGER.debug("Unchanged vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]");
                 // the vertex is not split, no need to delete and re-insert the vertex
                 continue;
             }
@@ -187,8 +188,8 @@ public class InterCFG extends BaseCFG {
                 } else {
 
                     /*
-                    * If there is a component invocation, e.g. a call to startActivity(), we
-                    * replace the targetCFG with the constructor of the respective component.
+                     * If there is a component invocation, e.g. a call to startActivity(), we
+                     * replace the targetCFG with the constructor of the respective component.
                      */
                     if (Utility.isComponentInvocation(targetMethod)) {
                         String component = Utility.isComponentInvocation(invokeStmt.getInstruction());
@@ -271,9 +272,9 @@ public class InterCFG extends BaseCFG {
      * integrates the fragment lifecycle.
      *
      * @param onCreateCFG The sub graph representing the onCreate method of the activity.
-     * @param fragments The name of fragments hosted by the given activity.
+     * @param fragments   The name of fragments hosted by the given activity.
      * @return Returns the sub graph defining the callbacks, which are either declared
-     *      directly inside the code or statically via the layout files.
+     * directly inside the code or statically via the layout files.
      */
     private BaseCFG addAndroidLifecycle(BaseCFG onCreateCFG, Collection<String> fragments) {
 
@@ -422,7 +423,7 @@ public class InterCFG extends BaseCFG {
      * calls onStart.
      *
      * @param newLifecycle The name of the next lifecycle event, e.g. onStart.
-     * @param predecessor The previous lifecycle, e.g. onCreate.
+     * @param predecessor  The previous lifecycle, e.g. onCreate.
      * @return Returns the sub graph representing the newly added lifecycle.
      */
     private BaseCFG addLifecycle(String newLifecycle, BaseCFG predecessor) {
@@ -447,7 +448,7 @@ public class InterCFG extends BaseCFG {
      * inside layout files as well as programmatically defined callbacks.
      *
      * @param callbackEntryPoints Maintains a mapping between a component and its callback entry point.
-     * @param apk The APK file describing the app.
+     * @param apk                 The APK file describing the app.
      */
     private void addCallbacks(Map<String, BaseCFG> callbackEntryPoints, APK apk) {
 
@@ -598,21 +599,23 @@ public class InterCFG extends BaseCFG {
         /*
          * We now need to find the layout file for a given component. Then, we need to
          * parse it in order to get possible callbacks. Finally, we need to add these callbacks
-         * to the 'callbacks' sub graph of the respecitve component.
+         * to the 'callbacks' sub graph of the respective component.
          */
 
         // we need to first decode the APK to access its resource files
-        if (!apk.decodeAPK()) {
-            return callbacks;
-        }
+        apk.decodeAPK();
 
         Multimap<String, String> componentCallbacks = TreeMultimap.create();
 
         // derive for each component the callbacks declared in the component's layout file
         componentResourceID.forEach(
                 (component, resourceID) -> {
-                    componentCallbacks.putAll(component, LayoutFile.findLayoutFile(apk.getDecodingOutputPath(),
-                            resourceID).parseCallbacks());
+
+                    LayoutFile layoutFile = LayoutFile.findLayoutFile(apk.getDecodingOutputPath(), resourceID);
+
+                    if (layoutFile != null) {
+                        componentCallbacks.putAll(component, layoutFile.parseCallbacks());
+                    }
                 });
 
         LOGGER.debug("Declared Callbacks via XML: " + componentCallbacks);
@@ -639,6 +642,8 @@ public class InterCFG extends BaseCFG {
                 }
             }
         }
+
+        LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
         return callbacks;
     }
 
@@ -646,10 +651,10 @@ public class InterCFG extends BaseCFG {
      * Splits a block statement after each invocation and adds a virtual return statement to
      * the next block. Ignores certain invocations, e.g. ART methods.
      *
-     * @param blockStatement The given block statement.
+     * @param blockStatement   The given block statement.
      * @param exclusionPattern Describes which invocations should be ignored for the splitting.
      * @return Returns a list of block statements, where a block statement is described by a list
-     *          of single statements.
+     * of single statements.
      */
     private List<List<Statement>> splitBlockStatement(BlockStatement blockStatement, Pattern exclusionPattern) {
 
@@ -679,9 +684,9 @@ public class InterCFG extends BaseCFG {
 
                 // don't resolve certain classes/methods, e.g. ART methods
                 if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
-                            || (Utility.isARTMethod(targetMethod) && excludeARTClasses
-                            // we have to resolve component invocations in any case
-                            && !Utility.isComponentInvocation(targetMethod))) {
+                        || (Utility.isARTMethod(targetMethod) && excludeARTClasses
+                        // we have to resolve component invocations in any case
+                        && !Utility.isComponentInvocation(targetMethod))) {
                     continue;
                 }
 
@@ -692,9 +697,9 @@ public class InterCFG extends BaseCFG {
                 block = new ArrayList<>();
 
                 /*
-                * If we deal with a component invocation, the target method should be replaced
-                * with the constructor of the component. Here, the return statement should also
-                * reflect this change.
+                 * If we deal with a component invocation, the target method should be replaced
+                 * with the constructor of the component. Here, the return statement should also
+                 * reflect this change.
                  */
                 if (Utility.isComponentInvocation(targetMethod)) {
                     String component = Utility.isComponentInvocation(analyzedInstruction);
@@ -846,7 +851,7 @@ public class InterCFG extends BaseCFG {
      * the name of activities and fragments are tracked. Also tracks vertices
      * containing invocations.
      *
-     * @param apk The APK file describing the app.
+     * @param apk            The APK file describing the app.
      * @param useBasicBlocks Whether to use basic blocks or not when constructing
      *                       the intra CFGs.
      */
@@ -869,9 +874,9 @@ public class InterCFG extends BaseCFG {
                 // as a side effect track whether the given class represents an activity or fragment
                 if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                     if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                            activities.add(classDef.toString());
+                        activities.add(classDef.toString());
                     } else if (Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                            fragments.add(classDef.toString());
+                        fragments.add(classDef.toString());
                     }
                 }
 
@@ -1024,7 +1029,7 @@ public class InterCFG extends BaseCFG {
 
     /**
      * Searches for the vertex described by the given trace in the graph.
-     *
+     * <p>
      * Searching an entry/exit vertex can be satisfied in O(1).
      * When a search of an intermediate vertex is requested, all directed
      * paths from the subgraph are traversed in a parallel manner.
@@ -1063,14 +1068,14 @@ public class InterCFG extends BaseCFG {
             Vertex exit = intraCFGs.get(method).getExit();
 
             /*
-            * If the 'AllDirectedPaths' algorithm appears to be too slow, we could alternatively use
-            * some traversal strategy supplied by JGraphT, see https://jgrapht.org/javadoc-1.4.0/org/jgrapht/traverse/package-summary.html.
-            * If this is still not good enough, we can roll out our own search algorithm. One could
-            * perform a parallel forward/backward search starting from the entry and exit vertex, respectively.
-            * If a forward/backward step falls out of the given method, i.e. a vertex of a different method is reached,
-            * we can directly jump from the entry vertex to the virtual return vertex in case of a forward step,
-            * otherwise (a backward step was performed) we can directly jump to the invoke vertex leading to
-            * the entry of the different method.
+             * If the 'AllDirectedPaths' algorithm appears to be too slow, we could alternatively use
+             * some traversal strategy supplied by JGraphT, see https://jgrapht.org/javadoc-1.4.0/org/jgrapht/traverse/package-summary.html.
+             * If this is still not good enough, we can roll out our own search algorithm. One could
+             * perform a parallel forward/backward search starting from the entry and exit vertex, respectively.
+             * If a forward/backward step falls out of the given method, i.e. a vertex of a different method is reached,
+             * we can directly jump from the entry vertex to the virtual return vertex in case of a forward step,
+             * otherwise (a backward step was performed) we can directly jump to the invoke vertex leading to
+             * the entry of the different method.
              */
 
             AllDirectedPaths<Vertex, Edge> allDirectedPaths = new AllDirectedPaths<>(graph);

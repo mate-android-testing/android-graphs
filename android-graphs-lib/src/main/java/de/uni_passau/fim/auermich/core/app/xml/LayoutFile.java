@@ -9,20 +9,31 @@ import org.dom4j.Node;
 import org.dom4j.io.SAXReader;
 
 import java.io.File;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+/**
+ * Mirrors a layout file (XML) contained in the res/layout/ folder of an APK.
+ */
 public class LayoutFile {
 
     private static final Logger LOGGER = LogManager.getLogger(LayoutFile.class);
 
+    /**
+     * The file path to the layout file in the res/layout/ folder.
+     */
     private final File layoutFile;
 
     private LayoutFile(File layoutFile) {
         this.layoutFile = layoutFile;
     }
 
+    /**
+     *
+     * @return
+     */
     public List<String> parseCallbacks() {
 
         List<String> callbacks = new ArrayList<>();
@@ -58,41 +69,59 @@ public class LayoutFile {
         return callbacks;
     }
 
-    public static LayoutFile findLayoutFile(String decodingOutputPath, String resourceID) {
+    /**
+     * Searches for a layout file based on a resource id. Traverses the public.xml file
+     * to find a match.
+     *
+     * @param decodingOutputPath The path where the APK was decoded.
+     * @param resourceID The resource id.
+     * @return Returns a layout file corresponding to the given resource id. If no such
+     *          file could be found, {@code null} is returned.
+     */
+    public static LayoutFile findLayoutFile(File decodingOutputPath, String resourceID) {
 
-        final String publicXMLPath = decodingOutputPath + File.separator + "res" + File.separator
-                + "values" + File.separator + "public.xml";
+        final File publicXMLPath = new File(decodingOutputPath,
+                Paths.get("res", "values", "public.xml").toString());
 
         SAXReader reader = new SAXReader();
         Document document = null;
 
         try {
-            document = reader.read(new File(publicXMLPath));
+            document = reader.read(publicXMLPath);
             Element rootElement = document.getRootElement();
 
-            Iterator itr = rootElement.elementIterator();
+            Iterator<Element> itr = rootElement.elementIterator();
             while (itr.hasNext()) {
 
-                // each node is a <public ... /> xml tag
+                /*
+                * Each node represents a 'public' tag of the following form:
+                *
+                *     <public type="layout" name="activity_main" id="0x7f09001c" />
+                *     <public type="layout" name="activity_second" id="0x7f09001d" />
+                 */
                 Node node = (Node) itr.next();
                 Element element = (Element) node;
 
-                // each <public /> tag contains the attributes type,name,id
                 String layoutFile = element.attributeValue("name");
                 String layoutResourceID = element.attributeValue("id");
 
-                // TODO: we could add a check for attribute type == layout
-
+                // check for match based on resource id
                 if (layoutResourceID.equals(resourceID)) {
-                    LOGGER.debug("Associated layout name: " + layoutFile);
-                    return new LayoutFile(new File(decodingOutputPath + File.separator + "res"
-                            + File.separator + "layout" + File.separator + layoutFile + ".xml"));
+                    // ensure that the match refers to a layout file
+                    if ("layout".equals(element.attributeValue("type"))) {
+                        LOGGER.debug("Associated layout name: " + layoutFile);
+                        return new LayoutFile(new File(decodingOutputPath,
+                                Paths.get("res", "layout", layoutFile + ".xml").toString()));
+                    }
                 }
             }
         } catch (DocumentException e) {
             LOGGER.error("Reading public.xml failed");
             LOGGER.error(e.getMessage());
+            throw new IllegalStateException(e);
         }
+
+        LOGGER.warn("Couldn't find a layout file for the resource id: " + resourceID);
         return null;
     }
 }
