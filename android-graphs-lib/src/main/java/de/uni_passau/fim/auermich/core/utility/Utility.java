@@ -98,6 +98,8 @@ public final class Utility {
      */
     public static boolean removeFile(File toBeRemoved) {
         try {
+            // FIXME: Certain files can't be properly deleted. This seems to be caused by some interplay between
+            //  the decoding of the APK and the removal afterwards. Those files seem to be locked temporarily.
             FileUtils.forceDelete(toBeRemoved);
             return true;
         } catch(IOException e) {

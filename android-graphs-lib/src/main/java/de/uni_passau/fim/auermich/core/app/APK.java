@@ -56,8 +56,6 @@ public class APK {
      */
     public void decodeAPK() {
 
-        // java.util.logging.LogManager.getLogManager().reset();
-
         // set 3rd party library (apktool) logging to 'WARNING'
         java.util.logging.Logger rootLogger = java.util.logging.Logger.getLogger("");
         rootLogger.setLevel(java.util.logging.Level.WARNING);
