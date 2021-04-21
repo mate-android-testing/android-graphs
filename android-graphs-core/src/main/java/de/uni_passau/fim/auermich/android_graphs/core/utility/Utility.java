@@ -44,7 +44,7 @@ public final class Utility {
      * It seems that certain resource classes are API dependent, e.g.
      * "R$interpolator" is only available in API 21.
      */
-    private static final Set<String> resourceClasses = new HashSet<String>() {{
+    private static final Set<String> RESOURCE_CLASSES = new HashSet<>() {{
         add("R$anim");
         add("R$attr");
         add("R$bool");
@@ -63,7 +63,7 @@ public final class Utility {
         add("R$array");
     }};
 
-    private static final Set<Opcode> invokeOpcodes = new HashSet<Opcode>() {{
+    private static final Set<Opcode> INVOKE_OPCODES = new HashSet<>() {{
         add(Opcode.INVOKE_CUSTOM_RANGE);
         add(Opcode.INVOKE_CUSTOM);
         add(Opcode.INVOKE_DIRECT_RANGE);
@@ -84,6 +84,15 @@ public final class Utility {
         add(Opcode.INVOKE_VIRTUAL);
         add(Opcode.INVOKE_VIRTUAL_QUICK_RANGE);
         add(Opcode.INVOKE_VIRTUAL_QUICK);
+    }};
+
+    /**
+     * The various API methods to invoke a component, e.g. an activity.
+     */
+    private static final Set<String> COMPONENT_INVOCATIONS = new HashSet<>() {{
+        add("Landroid/content/Context;->startActivity(Landroid/content/Intent;)V");
+        add("Landroid/content/Context;->startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
+        add("Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;");
     }};
 
     private Utility() {
@@ -423,16 +432,24 @@ public final class Utility {
     }
 
     /**
+     * Returns solely the method name from a fully qualified method name.
+     *
+     * @param fullQualifiedMethodName The fully qualified method name.
+     * @return Returns the method name from the fully qualified method name.
+     */
+    public static String getMethodName(final String fullQualifiedMethodName) {
+        return fullQualifiedMethodName.split(";->")[1];
+    }
+
+    /**
      * Checks whether the given method refers to the invocation of a component, e.g. an activity.
      *
      * @param method The method to be checked against.
      * @return Returns {@code true} if method refers to the invocation of a component,
      * otherwise {@code false} is returned.
      */
-    public static boolean isComponentInvocation(String method) {
-        // TODO: add missing invocations, e.g. startService() + use static class variable (set)
-        return method.endsWith("startActivity(Landroid/content/Intent;)V")
-                || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
+    public static boolean isComponentInvocation(final String method) {
+        return COMPONENT_INVOCATIONS.contains(method);
     }
 
     /**
@@ -444,7 +461,7 @@ public final class Utility {
      * @return Returns the constructor name of the target component if the instruction
      * refers to a component invocation, otherwise {@code null}.
      */
-    public static String isComponentInvocation(AnalyzedInstruction analyzedInstruction) {
+    public static String isComponentInvocation(final AnalyzedInstruction analyzedInstruction) {
 
         Instruction instruction = analyzedInstruction.getInstruction();
 
@@ -453,8 +470,8 @@ public final class Utility {
 
             String invokeTarget = ((ReferenceInstruction) instruction).getReference().toString();
 
-            if (invokeTarget.endsWith("startActivity(Landroid/content/Intent;)V")
-                    || invokeTarget.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
+            if (invokeTarget.endsWith("Landroid/content/Context;->startActivity(Landroid/content/Intent;)V")
+                    || invokeTarget.endsWith("Landroid/content/Context;->startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
 
                 if (analyzedInstruction.getPredecessors().isEmpty()) {
                     // there is no predecessor -> target activity name might be defined somewhere else or external
@@ -817,7 +834,7 @@ public final class Utility {
      */
     public static boolean isInvokeInstruction(AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
-        return invokeOpcodes.contains(instruction.getOpcode());
+        return INVOKE_OPCODES.contains(instruction.getOpcode());
     }
 
     /**
@@ -853,7 +870,7 @@ public final class Utility {
         }
 
         // check for inner R classes
-        for (String resourceClass : resourceClasses) {
+        for (String resourceClass : RESOURCE_CLASSES) {
             if (className.contains(resourceClass)) {
                 return true;
             }
