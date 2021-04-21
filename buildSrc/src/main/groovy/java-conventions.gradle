@@ -16,7 +16,7 @@ repositories {
     mavenCentral()
 }
 
-group 'de.uni-passau.fim.auermich'
+group 'de.uni-passau.fim.auermich.android-graphs'
 // version '1.0-SNAPSHOT'
 
 compileJava {

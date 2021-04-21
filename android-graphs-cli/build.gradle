@@ -5,20 +5,20 @@ plugins {
 }
 
 dependencies {
-    implementation project(':android-graphs-lib')
+    implementation project(':android-graphs-core')
 
     // https://mvnrepository.com/artifact/com.beust/jcommander
     implementation group: 'com.beust', name: 'jcommander', version: '1.81'
 }
 
 application {
-    mainClass.set("de.uni_passau.fim.auermich.cli.Cli")
+    mainClass.set("de.uni_passau.fim.auermich.android_graphs.cli.Main")
 }
 
 task customFatJar(type: Jar) {
 
     manifest {
-        attributes "Main-Class": "de.uni_passau.fim.auermich.cli.Cli"
+        attributes "Main-Class": "de.uni_passau.fim.auermich.android_graphs.cli.Main"
     }
 
     archiveName(rootProject.name + '-cli.jar')
