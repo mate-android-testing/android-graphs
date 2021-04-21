@@ -30,6 +30,7 @@ dependencies {
     // https://mvnrepository.com/artifact/org.apktool/apktool-lib
     // implementation group: 'org.apktool', name: 'apktool-lib', version: '2.5.1-dev', ext: 'pom'
 
+    // https://stackoverflow.com/questions/61195038/excluding-dependency-from-implementation-files
     implementation files('libs/apktool-cli-all.jar')
 }
 
