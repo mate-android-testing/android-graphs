@@ -119,6 +119,8 @@ public class InterCFG extends BaseCFG {
 
                         if (fragment != null) {
                             activityFragments.put(Utility.getClassName(blockStatement.getMethod()), fragment);
+                        } else {
+                            LOGGER.warn("Couldn't derive fragment for target method: " + targetMethod);
                         }
                     }
                 }
@@ -192,8 +194,21 @@ public class InterCFG extends BaseCFG {
                      */
                     if (Utility.isComponentInvocation(targetMethod)) {
                         String component = Utility.isComponentInvocation(invokeStmt.getInstruction());
-                        if (component != null && intraCFGs.containsKey(component)) {
-                            targetCFG = intraCFGs.get(component);
+                        if (component != null) {
+                            if (intraCFGs.containsKey(component)) {
+                                targetCFG = intraCFGs.get(component);
+                            } else {
+                                // TODO: track whether this can really happen
+                                LOGGER.warn("Target method " + targetMethod + " not contained in dex files!");
+                                targetCFG = dummyIntraCFG(targetMethod);
+                                intraCFGs.put(targetMethod, targetCFG);
+                                addSubGraph(targetCFG);
+                            }
+                        } else {
+                            LOGGER.warn("Couldn't derive component for target method: " + targetMethod);
+                            targetCFG = dummyIntraCFG(targetMethod);
+                            intraCFGs.put(targetMethod, targetCFG);
+                            addSubGraph(targetCFG);
                         }
                     } else {
 
@@ -202,7 +217,7 @@ public class InterCFG extends BaseCFG {
                          * not included in the classes.dex file for yet unknown reasons. Basically,
                          * these classes should be just treated like other classes from the ART.
                          */
-                        LOGGER.debug("Target method " + targetMethod + " not contained in dex files!");
+                        LOGGER.warn("Target method " + targetMethod + " not contained in dex files!");
                         targetCFG = dummyIntraCFG(targetMethod);
                         intraCFGs.put(targetMethod, targetCFG);
                         addSubGraph(targetCFG);

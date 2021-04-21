@@ -102,7 +102,7 @@ public final class Utility {
             //  the decoding of the APK and the removal afterwards. Those files seem to be locked temporarily.
             FileUtils.forceDelete(toBeRemoved);
             return true;
-        } catch(IOException e) {
+        } catch (IOException e) {
             LOGGER.warn("Couldn't remove file: " + toBeRemoved);
             LOGGER.warn(e.getMessage());
             return false;
@@ -281,7 +281,7 @@ public final class Utility {
      *
      * @param analyzedInstruction The given instruction.
      * @return Returns the name of the fragment or {@code null} if the fragment name
-     *      couldn't be derived.
+     * couldn't be derived.
      */
     public static String isFragmentInvocation(AnalyzedInstruction analyzedInstruction) {
 
@@ -309,6 +309,7 @@ public final class Utility {
                 // we are interested in register E (refers to the fragment)
                 int fragmentRegisterID = invokeVirtual.getRegisterE();
 
+                // TODO: avoid 'redundant' recursion steps
                 // go over all predecessors
                 Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
                 predecessors.forEach(pred -> fragments.addAll(isFragmentAddInvocationRecursive(pred, fragmentRegisterID)));
@@ -324,6 +325,7 @@ public final class Utility {
                 // we are interested in register E (refers to the fragment)
                 int fragmentRegisterID = invokeVirtual.getRegisterE();
 
+                // TODO: avoid 'redundant' recursion steps
                 // go over all predecessors
                 Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
                 predecessors.forEach(pred -> fragments.addAll(isFragmentReplaceInvocationRecursive(pred, fragmentRegisterID)));
@@ -337,6 +339,7 @@ public final class Utility {
                 // we are interested in register E (refers to the fragment)
                 int fragmentRegisterID = invokeVirtual.getRegisterE();
 
+                // TODO: avoid 'redundant' recursion steps
                 // go over all predecessors
                 Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
                 predecessors.forEach(pred -> fragments.addAll(isFragmentAddInvocationRecursive(pred, fragmentRegisterID)));
@@ -395,7 +398,7 @@ public final class Utility {
 
         List<String> fragments = new ArrayList<>();
 
-        // basic case
+        // base case
         if (pred.getInstructionIndex() == -1) {
             return fragments;
         }
@@ -434,6 +437,7 @@ public final class Utility {
 
     /**
      * Checks whether the given instruction refers to the invocation of a component.
+     * A component is an activity or service for instance.
      * Only call this method when isComponentInvocation() returns {@code true}.
      *
      * @param analyzedInstruction The given instruction.
@@ -447,10 +451,10 @@ public final class Utility {
         // check for invoke/invoke-range instruction
         if (Utility.isInvokeInstruction(analyzedInstruction)) {
 
-            String methodSignature = ((ReferenceInstruction) instruction).getReference().toString();
+            String invokeTarget = ((ReferenceInstruction) instruction).getReference().toString();
 
-            if (methodSignature.endsWith("startActivity(Landroid/content/Intent;)V")
-                    || methodSignature.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
+            if (invokeTarget.endsWith("startActivity(Landroid/content/Intent;)V")
+                    || invokeTarget.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
 
                 if (analyzedInstruction.getPredecessors().isEmpty()) {
                     // there is no predecessor -> target activity name might be defined somewhere else or external
@@ -479,7 +483,7 @@ public final class Utility {
                         }
                     }
                 }
-            } else if (methodSignature.equals("Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
+            } else if (invokeTarget.equals("Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
 
                 // invoke-virtual {p0, p1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
 
@@ -986,8 +990,8 @@ public final class Utility {
      * Convenient function to construct an intraCFG. Should be used
      * for the construction requested by mate server.
      *
-     * @param apkPath The path to the APK file.
-     * @param method The FQN name of the method.
+     * @param apkPath        The path to the APK file.
+     * @param method         The FQN name of the method.
      * @param useBasicBlocks Whether to use basic blocks or not.
      * @return Returns an intraCFG for the specified method.
      */
@@ -1033,8 +1037,8 @@ public final class Utility {
      * Convenient function to construct an interCFG. Should be used
      * for the construction requested by mate server.
      *
-     * @param apkPath The path to the APK file.
-     * @param useBasicBlocks Whether to use basic blocks or not.
+     * @param apkPath           The path to the APK file.
+     * @param useBasicBlocks    Whether to use basic blocks or not.
      * @param excludeARTClasses Whether to exclude ART classes or not.
      * @return Returns an interCFG.
      */
