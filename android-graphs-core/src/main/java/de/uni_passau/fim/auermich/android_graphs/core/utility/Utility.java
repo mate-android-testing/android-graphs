@@ -105,7 +105,7 @@ public final class Utility {
      * @param toBeRemoved The file to be removed.
      * @return Returns {@code true} if removing file succeeded, otherwise {@code false} is returned.
      */
-    public static boolean removeFile(File toBeRemoved) {
+    public static boolean removeFile(final File toBeRemoved) {
         try {
             // FIXME: Certain files can't be properly deleted. This seems to be caused by some interplay between
             //  the decoding of the APK and the removal afterwards. Those files seem to be locked temporarily.
@@ -125,7 +125,7 @@ public final class Utility {
      * @return Returns a list of dex files found in the given directory.
      */
     @SuppressWarnings("unused")
-    public static File[] getDexFiles(File directory) {
+    public static File[] getDexFiles(final File directory) {
 
         File[] matches = directory.listFiles(new FilenameFilter() {
             public boolean accept(File dir, String name) {
@@ -143,7 +143,7 @@ public final class Utility {
      * @param analyzedInstruction The instruction referring to an invocation of setContentView() or inflate().
      * @return Returns the layout resource for the given class (if any).
      */
-    public static String getLayoutResourceID(ClassDef classDef, AnalyzedInstruction analyzedInstruction) {
+    public static String getLayoutResourceID(final ClassDef classDef, final AnalyzedInstruction analyzedInstruction) {
 
         Instruction35c invokeVirtual = (Instruction35c) analyzedInstruction.getInstruction();
         String methodReference = invokeVirtual.getReference().toString();
@@ -275,7 +275,7 @@ public final class Utility {
      * @return Returns {@code true} if method refers to the invocation of a component,
      * otherwise {@code false} is returned.
      */
-    public static boolean isFragmentInvocation(String method) {
+    public static boolean isFragmentInvocation(final String method) {
         return method.contains("Landroid/support/v4/app/FragmentTransaction;->" +
                 "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")
                 || method.contains("Landroid/app/FragmentTransaction;->" +
@@ -292,7 +292,7 @@ public final class Utility {
      * @return Returns the name of the fragment or {@code null} if the fragment name
      * couldn't be derived.
      */
-    public static String isFragmentInvocation(AnalyzedInstruction analyzedInstruction) {
+    public static String isFragmentInvocation(final AnalyzedInstruction analyzedInstruction) {
 
         LOGGER.debug("Try deriving name of fragment...");
 
@@ -369,7 +369,8 @@ public final class Utility {
      * @param fragmentRegisterID The register potentially holding a fragment.
      * @return Returns a list of fragments or an empty list if no fragment was found.
      */
-    private static List<String> isFragmentReplaceInvocationRecursive(AnalyzedInstruction pred, int fragmentRegisterID) {
+    private static List<String> isFragmentReplaceInvocationRecursive(final AnalyzedInstruction pred,
+                                                                     final int fragmentRegisterID) {
 
         List<String> fragments = new ArrayList<>();
 
@@ -403,7 +404,8 @@ public final class Utility {
      * @param fragmentRegisterID The register potentially holding a fragment.
      * @return Returns a list of fragments or an empty list if no fragment was found.
      */
-    private static List<String> isFragmentAddInvocationRecursive(AnalyzedInstruction pred, int fragmentRegisterID) {
+    private static List<String> isFragmentAddInvocationRecursive(final AnalyzedInstruction pred,
+                                                                 final int fragmentRegisterID) {
 
         List<String> fragments = new ArrayList<>();
 
@@ -539,10 +541,11 @@ public final class Utility {
      * @param methodSignature The given method signature.
      * @return Returns the class name.
      */
-    public static String getClassName(String methodSignature) {
+    public static String getClassName(final String methodSignature) {
         return methodSignature.split("->")[0];
     }
 
+    // TODO: Check whether there is any difference to method.toString()!
     /**
      * Derives a unique method signature in order to avoid
      * name clashes originating from overloaded/inherited methods
@@ -551,7 +554,7 @@ public final class Utility {
      * @param method The method to derive its method signature.
      * @return Returns the method signature of the given {@param method}.
      */
-    public static String deriveMethodSignature(Method method) {
+    public static String deriveMethodSignature(final Method method) {
 
         String className = method.getDefiningClass();
         String methodName = method.getName();
@@ -573,7 +576,7 @@ public final class Utility {
         return builder.toString();
     }
 
-    public static Optional<DexFile> containsTargetMethod(List<DexFile> dexFiles, String methodSignature) {
+    public static Optional<DexFile> containsTargetMethod(final List<DexFile> dexFiles, final String methodSignature) {
 
         String className = methodSignature.split("->")[0];
 
@@ -600,7 +603,7 @@ public final class Utility {
      * @return Returns {@code true} if the instruction is a branch or goto instruction,
      * otherwise {@code false} is returned.
      */
-    public static boolean isJumpInstruction(AnalyzedInstruction analyzedInstruction) {
+    public static boolean isJumpInstruction(final AnalyzedInstruction analyzedInstruction) {
         return isBranchingInstruction(analyzedInstruction) || isGotoInstruction(analyzedInstruction);
     }
 
@@ -613,7 +616,7 @@ public final class Utility {
      * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
      * otherwise {@code false} is returned.
      */
-    public static boolean isSwitchPayloadInstruction(AnalyzedInstruction analyzedInstruction) {
+    public static boolean isSwitchPayloadInstruction(final AnalyzedInstruction analyzedInstruction) {
         // TODO: may handle the actual parse-switch and packed-switch instructions (not the payload instructions)
         // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
         EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH_PAYLOAD, Opcode.SPARSE_SWITCH_PAYLOAD);
@@ -632,7 +635,7 @@ public final class Utility {
      * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
      * otherwise {@code false} is returned.
      */
-    public static boolean isSwitchInstruction(AnalyzedInstruction analyzedInstruction) {
+    public static boolean isSwitchInstruction(final AnalyzedInstruction analyzedInstruction) {
         // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
         EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH, Opcode.SPARSE_SWITCH);
         if (opcodes.contains(analyzedInstruction.getInstruction().getOpcode())) {
@@ -650,7 +653,7 @@ public final class Utility {
      * @return Returns {@code true} if the instruction is a goto instruction,
      * otherwise {@code false} is returned.
      */
-    public static boolean isGotoInstruction(AnalyzedInstruction analyzedInstruction) {
+    public static boolean isGotoInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
         EnumSet<Format> gotoInstructions = EnumSet.of(Format.Format10t, Format.Format20t, Format.Format30t);
         return gotoInstructions.contains(instruction.getOpcode().format);
@@ -663,7 +666,7 @@ public final class Utility {
      * @return Returns {@code true} if the instruction is a branching instruction,
      * otherwise {@code false} is returned.
      */
-    public static boolean isBranchingInstruction(AnalyzedInstruction analyzedInstruction) {
+    public static boolean isBranchingInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
         EnumSet<Format> branchingInstructions = EnumSet.of(Format.Format21t, Format.Format22t);
         return branchingInstructions.contains(instruction.getOpcode().format);
@@ -676,7 +679,7 @@ public final class Utility {
      * @return Returns {@code true} if the given instruction is a return or throw statement,
      * otherwise {@code false} is returned.
      */
-    public static boolean isTerminationStatement(AnalyzedInstruction instruction) {
+    public static boolean isTerminationStatement(final AnalyzedInstruction instruction) {
         // TODO: should we handle the throw-verification-error instruction?
         return isReturnStatement(instruction) || instruction.getInstruction().getOpcode() == Opcode.THROW;
     }
@@ -688,7 +691,7 @@ public final class Utility {
      * @return Returns {@code true} if the given instruction is a return statement, otherwise
      * {@code false} is returned.
      */
-    public static boolean isReturnStatement(AnalyzedInstruction analyzedInstruction) {
+    public static boolean isReturnStatement(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
         EnumSet<Opcode> returnStmts = EnumSet.of(Opcode.RETURN, Opcode.RETURN_WIDE, Opcode.RETURN_OBJECT,
                 Opcode.RETURN_VOID, Opcode.RETURN_VOID_BARRIER, Opcode.RETURN_VOID_NO_BARRIER);
@@ -702,7 +705,7 @@ public final class Utility {
      * @param method  The target method.
      * @return Returns a list of {@code AnalyzedInstruction} included in the target method.
      */
-    public static List<AnalyzedInstruction> getAnalyzedInstructions(DexFile dexFile, Method method) {
+    public static List<AnalyzedInstruction> getAnalyzedInstructions(final DexFile dexFile, final Method method) {
 
         MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
                 true, ClassPath.NOT_ART), method,
@@ -718,7 +721,7 @@ public final class Utility {
      * @param methodSignature The signature of the target method.
      * @return Returns an optional containing either the target method or not.
      */
-    public static Optional<Method> searchForTargetMethod(DexFile dexFile, String methodSignature) {
+    public static Optional<Method> searchForTargetMethod(final DexFile dexFile, final String methodSignature) {
 
         // TODO: search for target method based on className + method signature
         String className = methodSignature.split("->")[0];
@@ -738,16 +741,31 @@ public final class Utility {
         return Optional.empty();
     }
 
-    public static boolean isInnerClass(String methodSignature) {
+    /**
+     * Checks whether the given method signature represents an inner class invocation.
+     *
+     * @param methodSignature The method signature to be checked against.
+     * @return Returns {@code true} if the method signature refers to a inner class invocation,
+     *          otherwise {@code false} is returned.
+     */
+    public static boolean isInnerClass(final String methodSignature) {
         return methodSignature.contains("$");
     }
 
-    public static String getOuterClass(String className) {
+    /**
+     * Returns the outer class name from the given class.
+     * Should be only called in case {@link #isInnerClass(String)} returns {@code true}.
+     *
+     * @param className The class name to be checked.
+     * @return Returns the outer class name.
+     */
+    public static String getOuterClass(final String className) {
+        assert isInnerClass(className);
         return className.split("\\$")[0] + ";";
     }
 
     @SuppressWarnings("unused")
-    public static MethodAnalyzer getAnalyzer(DexFile dexFile, Method targetMethod) {
+    public static MethodAnalyzer getAnalyzer(final DexFile dexFile, final Method targetMethod) {
 
         MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
                 true, ClassPath.NOT_ART), targetMethod,
@@ -830,10 +848,7 @@ public final class Utility {
      * @return Returns {@code true} if the class name refers to an array type,
      *          otherwise {@code false} is returned.
      */
-    public static boolean isArrayType(String className) {
-        if (className.startsWith("[")) {
-            LOGGER.debug("Array type: " + className);
-        }
+    public static boolean isArrayType(final String className) {
         return className.startsWith("[");
     }
 
@@ -844,7 +859,7 @@ public final class Utility {
      * @return Returns {@code true} if the block statement contains an
      * invoke instruction, otherwise {@code false} is returned.
      */
-    public static boolean containsInvoke(BlockStatement blockStatement) {
+    public static boolean containsInvoke(final BlockStatement blockStatement) {
 
         for (Statement statement : blockStatement.getStatements()) {
             if (statement instanceof BasicStatement) {
@@ -864,7 +879,7 @@ public final class Utility {
      * @return Returns {@code true} if the given instruction is an invoke statement,
      * otherwise {@code false} is returned.
      */
-    public static boolean isInvokeInstruction(AnalyzedInstruction analyzedInstruction) {
+    public static boolean isInvokeInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
         return INVOKE_OPCODES.contains(instruction.getOpcode());
     }
@@ -876,9 +891,8 @@ public final class Utility {
      * @return Returns {@code true} if the given class represents the dynamically generated
      * BuildConfig class, otherwise {@code false} is returned.
      */
-    public static boolean isBuildConfigClass(ClassDef classDef) {
+    public static boolean isBuildConfigClass(final ClassDef classDef) {
         String className = Utility.dottedClassName(classDef.toString());
-        // TODO: check solely the last token (the actual class name)
         return className.endsWith("BuildConfig");
     }
 
@@ -890,10 +904,9 @@ public final class Utility {
      * @return Returns {@code true} if the given class represents the R class or any
      * inner class of it, otherwise {@code false} is returned.
      */
-    public static boolean isResourceClass(ClassDef classDef) {
+    public static boolean isResourceClass(final ClassDef classDef) {
 
         String className = Utility.dottedClassName(classDef.toString());
-
         String[] tokens = className.split("\\.");
 
         // check whether it is the R class itself
@@ -909,6 +922,7 @@ public final class Utility {
         }
 
         // TODO: can be removed, just for illustration how to process annotations
+        /*
         Set<? extends Annotation> annotations = classDef.getAnnotations();
 
         for (Annotation annotation : annotations) {
@@ -925,7 +939,7 @@ public final class Utility {
                 }
             }
         }
-
+         */
         return false;
     }
 
@@ -936,7 +950,7 @@ public final class Utility {
      * @return Returns {@code true} if the given method is an ART method,
      * otherwise {@code false}.
      */
-    public static boolean isARTMethod(String method) {
+    public static boolean isARTMethod(final String method) {
 
         // TODO: add further patterns, e.g.:
         // getSupportFragmentManager()
@@ -964,7 +978,7 @@ public final class Utility {
      * @return Returns {@code true} if the current class is an activity,
      * otherwise {@code false}.
      */
-    public static boolean isActivity(List<ClassDef> classes, ClassDef currentClass) {
+    public static boolean isActivity(final List<ClassDef> classes, final ClassDef currentClass) {
 
         // TODO: this approach might be quite time-consuming, may find a better solution
 
@@ -1002,7 +1016,7 @@ public final class Utility {
      * @return Returns {@code true} if the current class is a fragment,
      * otherwise {@code false}.
      */
-    public static boolean isFragment(List<ClassDef> classes, ClassDef currentClass) {
+    public static boolean isFragment(final List<ClassDef> classes, final ClassDef currentClass) {
 
         // TODO: this approach might be quite time-consuming, may find a better solution
 
@@ -1044,7 +1058,7 @@ public final class Utility {
      * @param useBasicBlocks Whether to use basic blocks or not.
      * @return Returns an intraCFG for the specified method.
      */
-    public static BaseCFG constructIntraCFG(File apkPath, String method, boolean useBasicBlocks) {
+    public static BaseCFG constructIntraCFG(final File apkPath, String method, final boolean useBasicBlocks) {
 
         MultiDexContainer<? extends DexBackedDexFile> apk = null;
 
@@ -1091,7 +1105,8 @@ public final class Utility {
      * @param excludeARTClasses Whether to exclude ART classes or not.
      * @return Returns an interCFG.
      */
-    public static BaseCFG constructInterCFG(File apkPath, boolean useBasicBlocks, boolean excludeARTClasses) {
+    public static BaseCFG constructInterCFG(final File apkPath, final boolean useBasicBlocks,
+                                            final boolean excludeARTClasses) {
 
         MultiDexContainer<? extends DexBackedDexFile> apk = null;
 
