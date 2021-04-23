@@ -87,6 +87,19 @@ public final class Utility {
         add("Landroid/webkit/WebViewFragment;");
     }};
 
+    /**
+     * The recognized ART methods.
+     */
+    private static final Set<String> ART_METHODS = new HashSet<>() {{
+        add("startActivity(Landroid/content/Intent;)V");
+        add("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
+        add("findViewById(I)Landroid/view/View;");
+        add("setContentView(I)V");
+        add("setContentView(Landroid/view/View;)V");
+        add("setContentView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V");
+        add("getSupportFragmentManager()Landroid/support/v4/app/FragmentManager;");
+    }};
+
     private static final Set<Opcode> INVOKE_OPCODES = new HashSet<>() {{
         add(Opcode.INVOKE_CUSTOM_RANGE);
         add(Opcode.INVOKE_CUSTOM);
@@ -977,28 +990,17 @@ public final class Utility {
     /**
      * Checks whether the given method is an (inherited) ART method, e.g. startActivity().
      *
-     * @param method The method signature.
+     * @param fullyQualifiedMethodName The method signature.
      * @return Returns {@code true} if the given method is an ART method,
      * otherwise {@code false}.
      */
-    public static boolean isARTMethod(final String method) {
-
+    public static boolean isARTMethod(final String fullyQualifiedMethodName) {
         // TODO: add further patterns, e.g.:
         // getSupportFragmentManager()
         // setContentView()
         // startService()
-
-        if (method.endsWith("startActivity(Landroid/content/Intent;)V")
-                || method.endsWith("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")
-                || method.endsWith("findViewById(I)Landroid/view/View;")
-                || method.endsWith("setContentView(I)V")
-                || method.endsWith("setContentView(Landroid/view/View;)V")
-                || method.endsWith("setContentView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V")
-                || method.endsWith("getSupportFragmentManager()Landroid/support/v4/app/FragmentManager;")) {
-            return true;
-        } else {
-            return false;
-        }
+        String method = getMethodName(fullyQualifiedMethodName);
+        return ART_METHODS.contains(method);
     }
 
     /**
