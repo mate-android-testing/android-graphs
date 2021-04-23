@@ -63,6 +63,17 @@ public final class Utility {
         add("R$array");
     }};
 
+    /**
+     * The recognized activity classes.
+     */
+    private static final Set<String> ACTIVITY_CLASSES = new HashSet<>() {{
+        add("Landroid/app/Activity;");
+        add("Landroidx/appcompat/app/AppCompatActivity;");
+        add("Landroid/support/v7/app/AppCompatActivity;");
+        add("Landroid/support/v7/app/ActionBarActivity;");
+        add("Landroid/support/v4/app/FragmentActivity;");
+    }};
+
     private static final Set<Opcode> INVOKE_OPCODES = new HashSet<>() {{
         add(Opcode.INVOKE_CUSTOM_RANGE);
         add(Opcode.INVOKE_CUSTOM);
@@ -996,11 +1007,7 @@ public final class Utility {
 
             abort = true;
 
-            if (superClass.equals("Landroid/app/Activity;")
-                    || superClass.equals("Landroidx/appcompat/app/AppCompatActivity;")
-                    || superClass.equals("Landroid/support/v7/app/AppCompatActivity;")
-                    || superClass.equals("Landroid/support/v7/app/ActionBarActivity;")
-                    || superClass.equals("Landroid/support/v4/app/FragmentActivity;")) {
+            if (ACTIVITY_CLASSES.contains(superClass)) {
                 return true;
             } else {
                 // step up in the class hierarchy
