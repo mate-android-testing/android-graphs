@@ -95,6 +95,18 @@ public final class Utility {
         add("Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;");
     }};
 
+    /**
+     * The various API methods to add or replace a fragment.
+     */
+    private static final Set<String> FRAGMENT_INVOCATIONS = new HashSet<>() {{
+        add("Landroid/support/v4/app/FragmentTransaction;->" +
+                "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;");
+        add("Landroid/app/FragmentTransaction;->" +
+                "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;");
+        add("Landroidx/fragment/app/FragmentTransaction;->" +
+                "add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;");
+    }};
+
     private Utility() {
         throw new UnsupportedOperationException("Utility class!");
     }
@@ -276,12 +288,7 @@ public final class Utility {
      * otherwise {@code false} is returned.
      */
     public static boolean isFragmentInvocation(final String method) {
-        return method.contains("Landroid/support/v4/app/FragmentTransaction;->" +
-                "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")
-                || method.contains("Landroid/app/FragmentTransaction;->" +
-                "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")
-                || method.contains("Landroidx/fragment/app/FragmentTransaction;->" +
-                "add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;");
+        return FRAGMENT_INVOCATIONS.contains(method);
     }
 
     /**
