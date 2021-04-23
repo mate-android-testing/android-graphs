@@ -778,6 +778,7 @@ public class InterCFG extends BaseCFG {
 
             // don't resolve certain classes/methods, e.g. ART methods
             if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                    || Utility.isArrayType(className)
                     || (Utility.isARTMethod(targetMethod) && excludeARTClasses
                     // we have to resolve component invocations in any case
                     && !Utility.isComponentInvocation(targetMethod))) {
