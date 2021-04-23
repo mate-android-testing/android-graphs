@@ -800,9 +800,41 @@ public final class Utility {
      * @return The transformed class name.
      */
     public static String dottedClassName(String className) {
-        className = className.substring(className.indexOf('L') + 1, className.indexOf(';'));
-        className = className.replace('/', '.');
-        return className;
+
+        if (className.startsWith("[")) {
+            // array type
+            int index = className.indexOf('L');
+            if (index == -1) {
+                // primitive array type, e.g [I or [[I
+                return className;
+            } else {
+                // complex array type, e.g. [Ljava/lang/Integer;
+                int beginClassName = className.indexOf('L');
+                className = className.substring(0, beginClassName)
+                        + className.substring(beginClassName + 1, className.indexOf(';'));
+                className = className.replace('/', '.');
+                return className;
+            }
+        } else {
+            className = className.substring(className.indexOf('L') + 1, className.indexOf(';'));
+            className = className.replace('/', '.');
+            return className;
+        }
+    }
+
+    /**
+     * Checks whether the given class name represents an array type, e.g. [Ljava/lang/Integer;.
+     * Handles both dalvik and java based class names.
+     *
+     * @param className The class name to be checked.
+     * @return Returns {@code true} if the class name refers to an array type,
+     *          otherwise {@code false} is returned.
+     */
+    public static boolean isArrayType(String className) {
+        if (className.startsWith("[")) {
+            LOGGER.debug("Array type: " + className);
+        }
+        return className.startsWith("[");
     }
 
     /**
