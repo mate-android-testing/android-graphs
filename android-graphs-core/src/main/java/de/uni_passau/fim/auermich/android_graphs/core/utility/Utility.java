@@ -74,6 +74,19 @@ public final class Utility {
         add("Landroid/support/v4/app/FragmentActivity;");
     }};
 
+    /**
+     * The recognized fragment classes, see https://developer.android.com/reference/android/app/Fragment.
+     */
+    private static final Set<String> FRAGMENT_CLASSES = new HashSet<>() {{
+        add("Landroid/app/Fragment;");
+        add("Landroidx/fragment/app/Fragment;");
+        add("Landroid/support/v4/app/Fragment;");
+        add("Landroid/app/DialogFragment;");
+        add("Landroid/app/ListFragment;");
+        add("Landroid/preference/PreferenceFragment;");
+        add("Landroid/webkit/WebViewFragment;");
+    }};
+
     private static final Set<Opcode> INVOKE_OPCODES = new HashSet<>() {{
         add(Opcode.INVOKE_CUSTOM_RANGE);
         add(Opcode.INVOKE_CUSTOM);
@@ -1041,14 +1054,7 @@ public final class Utility {
 
             abort = true;
 
-            // https://developer.android.com/reference/android/app/Fragment
-            if (superClass.equals("Landroid/app/Fragment;")
-                    || superClass.equals("Landroidx/fragment/app/Fragment;")
-                    || superClass.equals("Landroid/support/v4/app/Fragment;")
-                    || superClass.equals("Landroid/app/DialogFragment;")
-                    || superClass.equals("Landroid/app/ListFragment;")
-                    || superClass.equals("Landroid/preference/PreferenceFragment;")
-                    || superClass.equals("Landroid/webkit/WebViewFragment;")) {
+            if (FRAGMENT_CLASSES.contains(superClass)) {
                 return true;
             } else {
                 // step up in the class hierarchy
