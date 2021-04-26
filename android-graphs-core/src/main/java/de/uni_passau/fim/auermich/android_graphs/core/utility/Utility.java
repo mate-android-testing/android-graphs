@@ -220,6 +220,7 @@ public final class Utility {
             int layoutResIDRegister = invokeVirtual.getRegisterD();
 
             boolean foundLayoutResID = false;
+            assert !analyzedInstruction.getPredecessors().isEmpty();
             AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
 
             while (!foundLayoutResID) {
@@ -230,14 +231,20 @@ public final class Utility {
                 // the predecessor should be either const, const/4 or const/16 and holds the XML ID
                 if (pred instanceof NarrowLiteralInstruction
                         && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
-                        || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
+                        || pred.getOpcode() == Opcode.CONST_16 || pred.getOpcode() == Opcode.CONST_HIGH16)
+                        && predecessor.setsRegister(layoutResIDRegister)) {
                     foundLayoutResID = true;
                     LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
                     int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
                     return "0x" + Integer.toHexString(resourceID);
                 }
 
-                predecessor = predecessor.getPredecessors().first();
+                if (predecessor.getPredecessors().isEmpty()) {
+                    // couldn't find layout resource id
+                    return null;
+                } else {
+                    predecessor = predecessor.getPredecessors().first();
+                }
             }
         } else if (methodReference.endsWith("setContentView(Landroid/view/View;)V")
                 // ensure that setContentView() refers to the given class
@@ -284,6 +291,7 @@ public final class Utility {
             int layoutResIDRegister = invokeVirtual.getRegisterD();
 
             boolean foundLayoutResID = false;
+            assert !analyzedInstruction.getPredecessors().isEmpty();
             AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
 
             while (!foundLayoutResID) {
@@ -294,14 +302,20 @@ public final class Utility {
                 // the predecessor should be either const, const/4 or const/16 and holds the XML ID
                 if (pred instanceof NarrowLiteralInstruction
                         && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
-                        || pred.getOpcode() == Opcode.CONST_16) && predecessor.setsRegister(layoutResIDRegister)) {
+                        || pred.getOpcode() == Opcode.CONST_16 || pred.getOpcode() == Opcode.CONST_HIGH16)
+                        && predecessor.setsRegister(layoutResIDRegister)) {
                     foundLayoutResID = true;
                     LOGGER.debug("XML ID: " + (((NarrowLiteralInstruction) pred).getNarrowLiteral()));
                     int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
                     return "0x" + Integer.toHexString(resourceID);
                 }
 
-                predecessor = predecessor.getPredecessors().first();
+                if (predecessor.getPredecessors().isEmpty()) {
+                    // couldn't find layout resource id
+                    return null;
+                } else {
+                    predecessor = predecessor.getPredecessors().first();
+                }
             }
         } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;")) {
 
