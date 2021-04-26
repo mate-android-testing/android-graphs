@@ -449,12 +449,12 @@ public class InterCFG extends BaseCFG {
         } else {
             // use custom lifecycle CFG
             lifecyle = dummyIntraCFG(newLifecycle);
+            intraCFGs.put(newLifecycle, lifecyle);
             addSubGraph(lifecyle);
         }
 
         addEdge(predecessor.getExit(), lifecyle.getEntry());
         return lifecyle;
-
     }
 
     /**
