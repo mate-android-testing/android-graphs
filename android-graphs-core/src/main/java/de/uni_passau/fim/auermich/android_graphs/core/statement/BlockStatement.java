@@ -1,5 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.statement;
 
+import com.google.common.base.Joiner;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -48,21 +50,7 @@ public class BlockStatement extends Statement implements Cloneable {
 
     @Override
     public String toString() {
-
-        StringBuilder builder = new StringBuilder();
-
-        for (Statement statement : statements) {
-            builder.append(statement);
-            builder.append(System.lineSeparator());
-        }
-
-        // remove last new line
-        builder.setLength(builder.length() -1);
-        // builder.deleteCharAt(builder.length() - 1);
-        return builder.toString();
-
-        // doesn't seem to work as expected unfortunately
-        // return String.join(System.lineSeparator(), statements.toString());
+        return Joiner.on(System.lineSeparator()).join(statements);
     }
 
     @Override
