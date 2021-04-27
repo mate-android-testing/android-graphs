@@ -52,7 +52,10 @@ public class InterCFG extends BaseCFG {
     // track the set of fragments
     private Set<String> fragments = new HashSet<>();
 
-    // maintain the individual intra CFGs
+    /**
+     * Maintains a reference to the individual intra CFGs.
+     * NOTE: Only a reference to the entry and exit vertex is hold!
+     */
     Map<String, BaseCFG> intraCFGs = new HashMap<>();
 
     // necessary for the copy constructor
@@ -173,7 +176,7 @@ public class InterCFG extends BaseCFG {
                     // LOGGER.debug("Number of successors: " + successors.size());
                     for (Vertex successor : successors) {
                         // handle self-references afterwards
-                        if(!successor.equals(invokeVertex)) {
+                        if (!successor.equals(invokeVertex)) {
                             addEdge(blockVertex, successor);
                         }
                     }
@@ -242,11 +245,11 @@ public class InterCFG extends BaseCFG {
             }
 
             /*
-            * If an invoke vertex defines a self-reference, it appears as both predecessor and successor.
-            * However, as we split the vertex after each invoke statement, the self-reference gets corrupted.
-            * Thus, we add only those predecessors and successors that don't constitute a self-reference,
-            * and handle self-references afterwards. We only need to add a single edge between the last block
-            * and the first block of the original invoke vertex.
+             * If an invoke vertex defines a self-reference, it appears as both predecessor and successor.
+             * However, as we split the vertex after each invoke statement, the self-reference gets corrupted.
+             * Thus, we add only those predecessors and successors that don't constitute a self-reference,
+             * and handle self-references afterwards. We only need to add a single edge between the last block
+             * and the first block of the original invoke vertex.
              */
             if (predecessors.contains(invokeVertex) || successors.contains(invokeVertex)) {
                 LOGGER.debug("Self-Reference for vertex: " + invokeVertex);
@@ -932,6 +935,7 @@ public class InterCFG extends BaseCFG {
                         BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
                         addSubGraph(intraCFG);
                         addInvokeVertices(intraCFG.getInvokeVertices());
+                        // only hold a reference to the entry and exit vertex
                         intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
                     }
                 }
