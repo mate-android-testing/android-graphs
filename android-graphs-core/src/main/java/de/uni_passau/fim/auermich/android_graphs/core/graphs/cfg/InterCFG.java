@@ -160,9 +160,11 @@ public class InterCFG extends BaseCFG {
 
                 // first block, add original predecessors to first block
                 if (i == 0) {
-                    // LOGGER.debug("Number of predecessors: " + predecessors.size());
                     for (Vertex predecessor : predecessors) {
-                        addEdge(predecessor, blockVertex);
+                        // handle self-references afterwards
+                        if (!predecessor.equals(invokeVertex)) {
+                            addEdge(predecessor, blockVertex);
+                        }
                     }
                 }
 
@@ -170,7 +172,10 @@ public class InterCFG extends BaseCFG {
                 if (i == blocks.size() - 1) {
                     // LOGGER.debug("Number of successors: " + successors.size());
                     for (Vertex successor : successors) {
-                        addEdge(blockVertex, successor);
+                        // handle self-references afterwards
+                        if(!successor.equals(invokeVertex)) {
+                            addEdge(blockVertex, successor);
+                        }
                     }
                     // the last block doesn't contain any invoke instruction -> no target CFG
                     break;
@@ -234,6 +239,19 @@ public class InterCFG extends BaseCFG {
             // add edge from each targetCFG's exit vertex to the return vertex (next block)
             for (int i = 0; i < exitVertices.size(); i++) {
                 addEdge(exitVertices.get(i), blockVertices.get(i + 1));
+            }
+
+            /*
+            * If an invoke vertex defines a self-reference, it appears as both predecessor and successor.
+            * However, as we split the vertex after each invoke statement, the self-reference gets corrupted.
+            * Thus, we add only those predecessors and successors that don't constitute a self-reference,
+            * and handle self-references afterwards. We only need to add a single edge between the last block
+            * and the first block of the original invoke vertex.
+             */
+            if (predecessors.contains(invokeVertex) || successors.contains(invokeVertex)) {
+                LOGGER.debug("Self-Reference for vertex: " + invokeVertex);
+                // add edge from last block to first block
+                addEdge(blockVertices.get(blockVertices.size() - 1), blockVertices.get(0));
             }
         }
 
