@@ -24,6 +24,7 @@ com.google.ads.*
 com.google.analytics.*
 com.google.android.gms.*
 com.google.tagmanager.*
+com.google.common.*
 com.mercuryintermedia.*
 com.nineoldandroids.*
 com.pushio.*
