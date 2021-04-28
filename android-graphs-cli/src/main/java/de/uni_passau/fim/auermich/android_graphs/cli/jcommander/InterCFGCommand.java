@@ -20,11 +20,18 @@ public class InterCFGCommand {
     @Parameter(names = {"-art"}, description = "Whether ART classes should be resolved.")
     private boolean art = false;
 
+    @Parameter(names = {"-oaut", "-only-aut"}, description = "Whether only AUT classes should be resolved.")
+    private boolean resolveOnlyAUTClasses = false;
+
     @Parameter(names = { "-m", "-metric" }, description = "Metric.")
     private String metric;
 
     @Parameter(names = { "-b", "-basic-blocks" }, description = "Whether to use basic blocks or not.")
     private boolean useBasicBlocks = false;
+
+    public boolean resolveOnlyAUTClasses() {
+        return resolveOnlyAUTClasses;
+    }
 
     public boolean resolveARTClasses() {
         return art;

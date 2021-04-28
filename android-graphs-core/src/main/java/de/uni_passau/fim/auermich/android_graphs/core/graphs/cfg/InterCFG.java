@@ -48,6 +48,9 @@ public class InterCFG extends BaseCFG {
     // whether for ART classes solely a dummy intra CFG should be generated
     private boolean excludeARTClasses;
 
+    // whether only classes of AUT should be included and resolved
+    private boolean resolveOnlyAUTClasses;
+
     // track the set of activities
     private Set<String> activities = new HashSet<>();
 
@@ -65,9 +68,11 @@ public class InterCFG extends BaseCFG {
         super(graphName);
     }
 
-    public InterCFG(String graphName, APK apk, boolean useBasicBlocks, boolean excludeARTClasses) {
+    public InterCFG(String graphName, APK apk, boolean useBasicBlocks,
+                    boolean excludeARTClasses, boolean resolveOnlyAUTClasses) {
         super(graphName);
         this.excludeARTClasses = excludeARTClasses;
+        this.resolveOnlyAUTClasses = resolveOnlyAUTClasses;
         constructCFG(apk, useBasicBlocks);
     }
 
@@ -109,6 +114,8 @@ public class InterCFG extends BaseCFG {
         // collect the callback entry points
         Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
 
+        final String packageName = apk.getManifest().getPackageName();
+
         // resolve the invoke vertices and connect the sub graphs with each other
         for (Vertex invokeVertex : getInvokeVertices()) {
 
@@ -140,7 +147,7 @@ public class InterCFG extends BaseCFG {
             }
 
             // split vertex into blocks (split after each invoke instruction + insert virtual return statement)
-            List<List<Statement>> blocks = splitBlockStatement(blockStatement, exclusionPattern);
+            List<List<Statement>> blocks = splitBlockStatement(blockStatement, packageName, exclusionPattern);
 
             if (blocks.size() == 1) {
                 LOGGER.debug("Unchanged vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]");
@@ -692,11 +699,13 @@ public class InterCFG extends BaseCFG {
      * the next block. Ignores certain invocations, e.g. ART methods.
      *
      * @param blockStatement   The given block statement.
+     * @param packageName      The package name of the AUT.
      * @param exclusionPattern Describes which invocations should be ignored for the splitting.
      * @return Returns a list of block statements, where a block statement is described by a list
      * of single statements.
      */
-    private List<List<Statement>> splitBlockStatement(BlockStatement blockStatement, Pattern exclusionPattern) {
+    private List<List<Statement>> splitBlockStatement(BlockStatement blockStatement, String packageName,
+                                                      Pattern exclusionPattern) {
 
         List<List<Statement>> blocks = new ArrayList<>();
 
@@ -721,6 +730,13 @@ public class InterCFG extends BaseCFG {
                 Instruction instruction = analyzedInstruction.getInstruction();
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
                 String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
+
+                // don't resolve non AUT classes if requested
+                if (resolveOnlyAUTClasses && !className.startsWith(packageName)
+                        // we have to resolve component invocations in any case, see the code below
+                        && !Utility.isComponentInvocation(targetMethod)) {
+                    continue;
+                }
 
                 // don't resolve certain classes/methods, e.g. ART methods
                 if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
@@ -781,6 +797,8 @@ public class InterCFG extends BaseCFG {
         // collect the callback entry points
         Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
 
+        final String packageName = apk.getManifest().getPackageName();
+
         // resolve the invoke vertices and connect the sub graphs with each other
         for (Vertex invokeVertex : getInvokeVertices()) {
 
@@ -800,6 +818,13 @@ public class InterCFG extends BaseCFG {
                 if (fragment != null) {
                     activityFragments.put(Utility.getClassName(invokeStmt.getMethod()), fragment);
                 }
+            }
+
+            // don't resolve non AUT classes if requested
+            if (resolveOnlyAUTClasses && !className.startsWith(packageName)
+                    // we have to resolve component invocations in any case, see the code below
+                    && !Utility.isComponentInvocation(targetMethod)) {
+                continue;
             }
 
             // don't resolve certain classes/methods, e.g. ART methods
@@ -829,6 +854,11 @@ public class InterCFG extends BaseCFG {
                     String component = Utility.isComponentInvocation(invokeStmt.getInstruction());
                     if (component != null && intraCFGs.containsKey(component)) {
                         targetCFG = intraCFGs.get(component);
+                    } else {
+                        LOGGER.warn("Target method " + targetMethod + " not contained in dex files!");
+                        targetCFG = dummyIntraCFG(targetMethod);
+                        intraCFGs.put(targetMethod, targetCFG);
+                        addSubGraph(targetCFG);
                     }
                 } else {
 
@@ -907,6 +937,11 @@ public class InterCFG extends BaseCFG {
 
                 String className = Utility.dottedClassName(classDef.toString());
 
+                if (resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
+                    // don't resolve classes not belonging to AUT
+                    continue;
+                }
+
                 if (Utility.isResourceClass(classDef) || Utility.isBuildConfigClass(classDef)) {
                     LOGGER.debug("Skipping resource/build class: " + className);
                     // skip R + BuildConfig classes
@@ -921,6 +956,8 @@ public class InterCFG extends BaseCFG {
                         fragments.add(classDef.toString());
                     }
                 }
+
+                LOGGER.debug("Current Graph Size: " + size());
 
                 for (Method method : classDef.getMethods()) {
 

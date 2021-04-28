@@ -33,6 +33,8 @@ public class BaseGraphBuilder {
 
     private boolean excludeARTClasses = false;
 
+    private boolean resolveOnlyAUTClasses = false;
+
     /* END OPTIONAL FIELDS */
 
     public BaseGraphBuilder(GraphType type, List<DexFile> dexFiles) {
@@ -60,23 +62,25 @@ public class BaseGraphBuilder {
         return this;
     }
 
+    public BaseGraphBuilder withResolveOnlyAUTClasses() {
+        this.resolveOnlyAUTClasses = true;
+        return this;
+    }
+
     public BaseGraph build() {
         switch (type) {
             case INTRACFG:
-
-                // constraints:
                 Objects.requireNonNull(name, "CFG method name is mandatory!");
                 Optional<DexFile> dexFile = Utility.containsTargetMethod(dexFiles, name);
                 if (!dexFile.isPresent()) {
                     throw new IllegalArgumentException("Method not present in dex files!");
                 }
-
                 return new IntraCFG(name, dexFile.get(), useBasicBlocks);
             case INTERCFG:
                 Objects.requireNonNull(name, "CFG name is mandatory!");
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
                 APK apk = new APK(apkFile, dexFiles);
-                return new InterCFG(name, apk, useBasicBlocks, excludeARTClasses);
+                return new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
             default:
                 throw new UnsupportedOperationException("Graph type not yet supported!");
         }

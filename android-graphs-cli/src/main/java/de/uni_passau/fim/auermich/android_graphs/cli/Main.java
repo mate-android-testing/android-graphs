@@ -68,6 +68,7 @@ public final class Main {
      *             The 'inter' sub commando can handle the following arguments:
      *             The switch -b specifies whether basic blocks should be used. (optional)
      *             The switch -art specifies whether ART classes should be resolved. (optional)
+     *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
      *
      * @throws IOException Should never happen.
      */
@@ -211,6 +212,10 @@ public final class Main {
 
                         if (!interCFGCmd.resolveARTClasses()) {
                             builder = builder.withExcludeARTClasses();
+                        }
+
+                        if (interCFGCmd.resolveOnlyAUTClasses()) {
+                            builder = builder.withResolveOnlyAUTClasses();
                         }
 
                         BaseGraph baseGraph = builder.build();
