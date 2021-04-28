@@ -956,9 +956,7 @@ public class InterCFG extends BaseCFG {
                         fragments.add(classDef.toString());
                     }
                 }
-
-                LOGGER.debug("Current Graph Size: " + size());
-
+                
                 for (Method method : classDef.getMethods()) {
 
                     String methodSignature = Utility.deriveMethodSignature(method);
