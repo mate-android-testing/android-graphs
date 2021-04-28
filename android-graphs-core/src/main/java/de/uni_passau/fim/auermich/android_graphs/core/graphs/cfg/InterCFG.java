@@ -5,6 +5,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
+import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.LayoutFile;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
@@ -33,6 +34,7 @@ import org.jgrapht.alg.shortestpath.AllDirectedPaths;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 
+import java.io.File;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -71,6 +73,12 @@ public class InterCFG extends BaseCFG {
 
     private void constructCFG(APK apk, boolean useBasicBlocks) {
 
+        // decode APK to access manifest and other resource files
+        apk.decodeAPK();
+
+        // parse manifest
+        apk.setManifest(Manifest.parse(new File(apk.getDecodingOutputPath(), "AndroidManifest.xml")));
+
         // create the individual intraCFGs and add them as sub graphs
         constructIntraCFGs(apk, useBasicBlocks);
 
@@ -79,6 +87,8 @@ public class InterCFG extends BaseCFG {
         } else {
             constructCFG(apk);
         }
+
+        LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
     }
 
     /**
@@ -637,9 +647,6 @@ public class InterCFG extends BaseCFG {
          * to the 'callbacks' sub graph of the respective component.
          */
 
-        // we need to first decode the APK to access its resource files
-        apk.decodeAPK();
-
         Multimap<String, String> componentCallbacks = TreeMultimap.create();
 
         // derive for each component the callbacks declared in the component's layout file
@@ -677,8 +684,6 @@ public class InterCFG extends BaseCFG {
                 }
             }
         }
-
-        LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
         return callbacks;
     }
 

@@ -251,7 +251,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
                 mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
         
         // TODO: check whether this path still works within the jar executable
-        Path resourceDirectory = Paths.get("android-graphs-core","src", "test", "resources");
+        Path resourceDirectory = Paths.get("android-graphs-core","src", "main", "resources");
         File file = new File(resourceDirectory.toFile(), "graph.png");
 
         try {

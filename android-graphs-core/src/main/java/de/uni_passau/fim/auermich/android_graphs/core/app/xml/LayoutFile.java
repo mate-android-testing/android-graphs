@@ -45,7 +45,7 @@ public class LayoutFile {
             document = reader.read(layoutFile);
             Element rootElement = document.getRootElement();
 
-            Iterator itr = rootElement.elementIterator();
+            Iterator<Element> itr = rootElement.elementIterator();
             while (itr.hasNext()) {
 
                 // each node is a widget, e.g. a button, textView, ...
