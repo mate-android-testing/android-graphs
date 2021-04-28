@@ -2,6 +2,7 @@ package de.uni_passau.fim.auermich.android_graphs.core.app;
 
 import brut.androlib.ApkDecoder;
 import brut.common.BrutException;
+import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.DexFile;
@@ -41,6 +42,11 @@ public class APK {
     private File decodingOutputPath;
 
     /**
+     * References the AndroidManifest.xml.
+     */
+    private Manifest manifest;
+
+    /**
      * Constructs a new APK.
      *
      * @param apkFile The path to the APK file.
@@ -49,6 +55,28 @@ public class APK {
     public APK(File apkFile, List<DexFile> dexFiles) {
         this.apkFile = apkFile;
         this.dexFiles = dexFiles;
+    }
+
+    /**
+     * Updates the manifest.
+     *
+     * @param manifest The new manifest.
+     */
+    public void setManifest(final Manifest manifest) {
+        this.manifest = manifest;
+    }
+
+    /**
+     * Returns the manifest. Only call this method after you have set
+     * the manifest via {@link #setManifest(Manifest)}!
+     *
+     * @return Returns the manifest.
+     */
+    public Manifest getManifest() {
+        if (manifest == null) {
+            throw new IllegalStateException("Manifest was not (properly) parsed previously!");
+        }
+        return manifest;
     }
 
     /**
