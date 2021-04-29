@@ -20,7 +20,6 @@ import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
 import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
-import org.jf.dexlib2.dexbacked.value.DexBackedTypeEncodedValue;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.NarrowLiteralInstruction;
