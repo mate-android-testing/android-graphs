@@ -9,8 +9,8 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.EntryStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.ExitStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statement.*;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
@@ -21,13 +21,19 @@ import org.jgrapht.alg.shortestpath.BidirectionalDijkstraShortestPath;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
+import org.jgrapht.nio.Attribute;
+import org.jgrapht.nio.DefaultAttribute;
+import org.jgrapht.nio.dot.*;
+import org.w3c.dom.Document;
+
 
 import javax.imageio.ImageIO;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
-import java.net.URL;
+import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -230,10 +236,71 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     /**
-     * Draws the CFG where vertices are encoded as (instruction id, instruction opcode).
+     * Converts a graph into a DOT file.
+     *
+     * @param output The file path of the DOT file.
      */
-    @Override
-    public void drawGraph() {
+    private void convertGraphToDOT(File output) {
+
+        DOTExporter<Vertex, Edge> exporter = new DOTExporter<>(Utility::convertVertexToDOTNode);
+        exporter.setVertexAttributeProvider((vertex) -> {
+            // the label is what we see when we render the graph
+            Map<String, Attribute> map = new LinkedHashMap<>();
+            map.put("label", DefaultAttribute.createAttribute(Utility.convertVertexToDOTLabel(vertex)));
+            return map;
+        });
+
+        try {
+            Writer writer = new FileWriter(output);
+            exporter.exportGraph(graph, writer);
+        } catch (IOException e) {
+            LOGGER.warn(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Converts the graph into a SVG file.
+     * This conversion works for medium-sized graphs (<5000 vertices) best, while
+     * for larger graphs it takes too long.
+     *
+     * @param outputFile The file path of the resulting SVG file.
+     */
+    private void convertGraphToSVG(File outputFile) {
+
+        JGraphXAdapter<Vertex, Edge> graphXAdapter
+                = new JGraphXAdapter<>(graph);
+        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
+        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
+
+        // mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
+        // ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
+
+        layout.execute(graphXAdapter.getDefaultParent());
+
+        Document svg =
+                mxCellRenderer.createSvgDocument(graphXAdapter, null, 1, Color.WHITE, null);
+
+        try {
+            Transformer transformer = TransformerFactory.newInstance().newTransformer();
+            Source input = new DOMSource(svg);
+            Result output = new StreamResult(outputFile);
+            transformer.transform(input, output);
+        } catch (TransformerException e) {
+            LOGGER.warn(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Converts the graph into a PNG file using a hierarchical layout.
+     * This method should be only used for small graphs, i.e. not more than 1000 (max 2000) vertices.
+     *
+     * @param output The file path of the resulting PNG file.
+     */
+    private void convertGraphToPNG(File output) {
 
         JGraphXAdapter<Vertex, Edge> graphXAdapter
                 = new JGraphXAdapter<>(graph);
@@ -249,17 +316,36 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
 
         BufferedImage image =
                 mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
-        
-        // TODO: check whether this path still works within the jar executable
-        Path resourceDirectory = Paths.get("android-graphs-core","src", "main", "resources");
-        File file = new File(resourceDirectory.toFile(), "graph.png");
 
         try {
-            file.createNewFile();
-            ImageIO.write(image, "PNG", file);
+            output.createNewFile();
+            ImageIO.write(image, "PNG", output);
         } catch (IOException e) {
             LOGGER.warn(e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    /**
+     * Draws the CFG where vertices are encoded as (instruction id, instruction opcode).
+     */
+    @Override
+    public void drawGraph() {
+
+        // TODO: check whether this path still works within the jar executable
+        Path resourceDirectory = Paths.get("android-graphs-core","src", "main", "resources");
+
+        if (size() <= 1000) {
+            File output = new File(resourceDirectory.toFile(), "graph.png");
+            convertGraphToPNG(output);
+        } else if (size() <= 5000) {
+            // can theoretically render large graphs to SVG, but this takes quite some time
+            File output = new File(resourceDirectory.toFile(), "graph.svg");
+            convertGraphToSVG(output);
+        } else {
+            // too 'large' graphs can't be handled by the JGraphXAdapter class
+            File output = new File(resourceDirectory.toFile(), "graph.dot");
+            convertGraphToDOT(output);
         }
     }
 

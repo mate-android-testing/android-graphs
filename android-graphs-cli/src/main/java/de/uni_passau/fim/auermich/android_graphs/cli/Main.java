@@ -222,7 +222,7 @@ public final class Main {
 
                         LOGGER.debug("Size of graph: " + baseGraph.size());
 
-                        if (mainCmd.isDraw() && baseGraph.size() < 1000) {
+                        if (mainCmd.isDraw()) {
                             LOGGER.debug("Drawing graph!");
                             baseGraph.drawGraph();
                         }
