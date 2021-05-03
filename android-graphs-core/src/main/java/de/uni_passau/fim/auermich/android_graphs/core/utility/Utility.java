@@ -62,6 +62,7 @@ public final class Utility {
         add("R$interpolator");
         add("R$menu");
         add("R$array");
+        add("R$xml");
     }};
 
     /**
