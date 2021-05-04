@@ -136,9 +136,9 @@ public final class Utility {
      * The various API methods to invoke a component, e.g. an activity.
      */
     private static final Set<String> COMPONENT_INVOCATIONS = new HashSet<>() {{
-        add("Landroid/content/Context;->startActivity(Landroid/content/Intent;)V");
-        add("Landroid/content/Context;->startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
-        add("Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;");
+        add("startActivity(Landroid/content/Intent;)V");
+        add("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
+        add("startService(Landroid/content/Intent;)Landroid/content/ComponentName;");
     }};
 
     /**
@@ -503,22 +503,28 @@ public final class Utility {
     /**
      * Returns solely the method name from a fully qualified method name.
      *
-     * @param fullQualifiedMethodName The fully qualified method name.
+     * @param fullyQualifiedMethodName The fully qualified method name.
      * @return Returns the method name from the fully qualified method name.
      */
-    public static String getMethodName(final String fullQualifiedMethodName) {
-        return fullQualifiedMethodName.split(";->")[1];
+    public static String getMethodName(final String fullyQualifiedMethodName) {
+        return fullyQualifiedMethodName.split(";->")[1];
     }
 
     /**
      * Checks whether the given method refers to the invocation of a component, e.g. an activity.
      *
-     * @param method The method to be checked against.
+     * @param fullyQualifiedMethodName The method to be checked against.
      * @return Returns {@code true} if method refers to the invocation of a component,
      * otherwise {@code false} is returned.
      */
-    public static boolean isComponentInvocation(final String method) {
-        return COMPONENT_INVOCATIONS.contains(method);
+    public static boolean isComponentInvocation(final Set<String> components, final String fullyQualifiedMethodName) {
+
+        String clazz = Utility.getClassName(fullyQualifiedMethodName);
+        String method = Utility.getMethodName(fullyQualifiedMethodName);
+
+        // component invocations require a context object, this can be the application context or a component
+        return COMPONENT_INVOCATIONS.contains(method)
+                && (clazz.equals("Landroid/content/Context;") || components.contains(clazz));
     }
 
     /**
@@ -538,9 +544,12 @@ public final class Utility {
         if (Utility.isInvokeInstruction(analyzedInstruction)) {
 
             String invokeTarget = ((ReferenceInstruction) instruction).getReference().toString();
+            String method = Utility.getMethodName(invokeTarget);
 
-            if (invokeTarget.endsWith("Landroid/content/Context;->startActivity(Landroid/content/Intent;)V")
-                    || invokeTarget.endsWith("Landroid/content/Context;->startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
+            if (method.equals("startActivity(Landroid/content/Intent;)V")
+                    || method.equals("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
+
+                LOGGER.debug("Backtracking activity invocation!");
 
                 if (analyzedInstruction.getPredecessors().isEmpty()) {
                     // there is no predecessor -> target activity name might be defined somewhere else or external
@@ -569,7 +578,9 @@ public final class Utility {
                         }
                     }
                 }
-            } else if (invokeTarget.equals("Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
+            } else if (method.equals("startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
+
+                LOGGER.debug("Backtracking service invocation!");
 
                 // invoke-virtual {p0, p1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
 

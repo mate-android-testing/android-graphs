@@ -60,6 +60,9 @@ public class InterCFG extends BaseCFG {
     // track the set of services
     private Set<String> services = new HashSet<>();
 
+    // track the set of components
+    private Set<String> components = new HashSet<>();
+
     /**
      * Maintains a reference to the individual intra CFGs.
      * NOTE: Only a reference to the entry and exit vertex is hold!
@@ -220,7 +223,7 @@ public class InterCFG extends BaseCFG {
                      * If there is a component invocation, e.g. a call to startActivity(), we
                      * replace the targetCFG with the constructor of the respective component.
                      */
-                    if (Utility.isComponentInvocation(targetMethod)) {
+                    if (Utility.isComponentInvocation(components, targetMethod)) {
                         String component = Utility.isComponentInvocation(invokeStmt.getInstruction());
                         if (component != null) {
                             if (intraCFGs.containsKey(component)) {
@@ -737,7 +740,7 @@ public class InterCFG extends BaseCFG {
                 // don't resolve non AUT classes if requested
                 if (resolveOnlyAUTClasses && !className.startsWith(packageName)
                         // we have to resolve component invocations in any case, see the code below
-                        && !Utility.isComponentInvocation(targetMethod)) {
+                        && !Utility.isComponentInvocation(components, targetMethod)) {
                     continue;
                 }
 
@@ -746,7 +749,7 @@ public class InterCFG extends BaseCFG {
                         || Utility.isArrayType(className)
                         || (Utility.isARTMethod(targetMethod) && excludeARTClasses
                         // we have to resolve component invocations in any case, see the code below
-                        && !Utility.isComponentInvocation(targetMethod))) {
+                        && !Utility.isComponentInvocation(components, targetMethod))) {
                     continue;
                 }
 
@@ -761,7 +764,7 @@ public class InterCFG extends BaseCFG {
                  * with the constructor of the component. Here, the return statement should also
                  * reflect this change.
                  */
-                if (Utility.isComponentInvocation(targetMethod)) {
+                if (Utility.isComponentInvocation(components, targetMethod)) {
                     String component = Utility.isComponentInvocation(analyzedInstruction);
                     if (component != null && intraCFGs.containsKey(component)) {
                         targetMethod = component;
@@ -826,7 +829,7 @@ public class InterCFG extends BaseCFG {
             // don't resolve non AUT classes if requested
             if (resolveOnlyAUTClasses && !className.startsWith(packageName)
                     // we have to resolve component invocations in any case, see the code below
-                    && !Utility.isComponentInvocation(targetMethod)) {
+                    && !Utility.isComponentInvocation(components, targetMethod)) {
                 continue;
             }
 
@@ -835,7 +838,7 @@ public class InterCFG extends BaseCFG {
                     || Utility.isArrayType(className)
                     || (Utility.isARTMethod(targetMethod) && excludeARTClasses
                     // we have to resolve component invocations in any case
-                    && !Utility.isComponentInvocation(targetMethod))) {
+                    && !Utility.isComponentInvocation(components, targetMethod))) {
                 continue;
             }
 
@@ -853,7 +856,7 @@ public class InterCFG extends BaseCFG {
                  * If there is a component invocation, e.g. a call to startActivity(), we
                  * replace the targetCFG with the constructor of the respective component.
                  */
-                if (Utility.isComponentInvocation(targetMethod)) {
+                if (Utility.isComponentInvocation(components, targetMethod)) {
                     String component = Utility.isComponentInvocation(invokeStmt.getInstruction());
                     if (component != null && intraCFGs.containsKey(component)) {
                         targetCFG = intraCFGs.get(component);
@@ -986,6 +989,9 @@ public class InterCFG extends BaseCFG {
                 }
             }
         }
+
+        components.addAll(activities);
+        components.addAll(services);
 
         LOGGER.debug("Generated CFGs: " + intraCFGs.size());
         LOGGER.debug("List of activities: " + activities);
