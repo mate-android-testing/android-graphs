@@ -57,6 +57,9 @@ public class InterCFG extends BaseCFG {
     // track the set of fragments
     private Set<String> fragments = new HashSet<>();
 
+    // track the set of services
+    private Set<String> services = new HashSet<>();
+
     /**
      * Maintains a reference to the individual intra CFGs.
      * NOTE: Only a reference to the entry and exit vertex is hold!
@@ -954,6 +957,8 @@ public class InterCFG extends BaseCFG {
                         activities.add(classDef.toString());
                     } else if (Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         fragments.add(classDef.toString());
+                    } else if (Utility.isService(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                        services.add(classDef.toString());
                     }
                 }
                 
@@ -985,6 +990,7 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("Generated CFGs: " + intraCFGs.size());
         LOGGER.debug("List of activities: " + activities);
         LOGGER.debug("List of fragments: " + fragments);
+        LOGGER.debug("List of services: " + services);
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
     }
 

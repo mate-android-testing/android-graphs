@@ -90,6 +90,13 @@ public final class Utility {
     }};
 
     /**
+     * The recognized service classes, see https://developer.android.com/reference/android/app/Service.
+     */
+    private static final Set<String> SERVICE_CLASSES = new HashSet<>() {{
+        add("Landroid/app/Service;");
+    }};
+
+    /**
      * The recognized ART methods.
      */
     private static final Set<String> ART_METHODS = new HashSet<>() {{
@@ -1331,4 +1338,37 @@ public final class Utility {
         return (BaseCFG) baseGraph;
     }
 
+    /**
+     * Checks whether the given class represents a service by checking against the super class.
+     *
+     * @param classes      The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is a service,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isService(final List<ClassDef> classes, final ClassDef currentClass) {
+
+        // TODO: this approach might be quite time-consuming, may find a better solution
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            if (SERVICE_CLASSES.contains(superClass)) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
 }
