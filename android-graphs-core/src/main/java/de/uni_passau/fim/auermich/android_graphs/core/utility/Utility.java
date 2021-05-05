@@ -1,15 +1,18 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
 import com.google.common.collect.Lists;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Service;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BasicStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BlockStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.ReturnStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -139,6 +142,7 @@ public final class Utility {
         add("startActivity(Landroid/content/Intent;)V");
         add("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
         add("startService(Landroid/content/Intent;)Landroid/content/ComponentName;");
+        add("bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z");
     }};
 
     /**
@@ -513,18 +517,20 @@ public final class Utility {
     /**
      * Checks whether the given method refers to the invocation of a component, e.g. an activity.
      *
+     * @param components The set of recognized components.
      * @param fullyQualifiedMethodName The method to be checked against.
      * @return Returns {@code true} if method refers to the invocation of a component,
      * otherwise {@code false} is returned.
      */
-    public static boolean isComponentInvocation(final Set<String> components, final String fullyQualifiedMethodName) {
+    public static boolean isComponentInvocation(final Set<Component> components, final String fullyQualifiedMethodName) {
 
         String clazz = Utility.getClassName(fullyQualifiedMethodName);
         String method = Utility.getMethodName(fullyQualifiedMethodName);
 
         // component invocations require a context object, this can be the application context or a component
         return COMPONENT_INVOCATIONS.contains(method)
-                && (clazz.equals("Landroid/content/Context;") || components.contains(clazz));
+                && (clazz.equals("Landroid/content/Context;")
+                || components.stream().map(Component::getName).anyMatch(name -> name.equals(clazz)));
     }
 
     /**
@@ -532,11 +538,13 @@ public final class Utility {
      * A component is an activity or service for instance.
      * Only call this method when isComponentInvocation() returns {@code true}.
      *
+     * @param components The set of recognized components.
      * @param analyzedInstruction The given instruction.
      * @return Returns the constructor name of the target component if the instruction
      * refers to a component invocation, otherwise {@code null}.
      */
-    public static String isComponentInvocation(final AnalyzedInstruction analyzedInstruction) {
+    public static String isComponentInvocation(final Set<Component> components,
+                                               final AnalyzedInstruction analyzedInstruction) {
 
         Instruction instruction = analyzedInstruction.getInstruction();
 
@@ -549,7 +557,7 @@ public final class Utility {
             if (method.equals("startActivity(Landroid/content/Intent;)V")
                     || method.equals("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
 
-                LOGGER.debug("Backtracking activity invocation!");
+                LOGGER.debug("Backtracking startActivity() invocation!");
 
                 if (analyzedInstruction.getPredecessors().isEmpty()) {
                     // there is no predecessor -> target activity name might be defined somewhere else or external
@@ -565,9 +573,14 @@ public final class Utility {
                 while (pred.getInstructionIndex() != -1) {
                     Instruction predecessor = pred.getInstruction();
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
-                        String targetActivity = ((Instruction21c) predecessor).getReference().toString();
-                        // return the full-qualified name of the constructor
-                        return targetActivity + "-><init>()V";
+
+                        String activityName = ((Instruction21c) predecessor).getReference().toString();
+                        Optional<Component> activity = getComponentByName(components, activityName);
+
+                        if (activity.isPresent()) {
+                            // return the full-qualified name of the constructor
+                            return activity.get().getName() + "-><init>()V";
+                        }
                     } else {
                         if (analyzedInstruction.getPredecessors().isEmpty()) {
                             // there is no predecessor -> target activity name might be defined somewhere else or external
@@ -580,7 +593,7 @@ public final class Utility {
                 }
             } else if (method.equals("startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
 
-                LOGGER.debug("Backtracking service invocation!");
+                LOGGER.debug("Backtracking startService() invocation!");
 
                 // invoke-virtual {p0, p1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
 
@@ -595,9 +608,69 @@ public final class Utility {
                 while (pred.getInstructionIndex() != -1) {
                     Instruction predecessor = pred.getInstruction();
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
-                        String service = ((Instruction21c) predecessor).getReference().toString();
-                        // return the full-qualified name of the constructor
-                        return service + "-><init>()V";
+
+                        String serviceName = ((Instruction21c) predecessor).getReference().toString();
+
+                        // track as a side effect that the service was invoked through startService()
+                        Optional<Component> component = getComponentByName(components, serviceName);
+
+                        if (component.isPresent()) {
+                            Service service = (Service) component.get();
+                            service.setStarted(true);
+
+                            // return the full-qualified name of the constructor
+                            return service.getName() + "-><init>()V";
+                        }
+                    } else {
+                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                            // there is no predecessor -> target activity name might be defined somewhere else or external
+                            return null;
+                        } else {
+                            // TODO: may use recursive search over all predecessors
+                            pred = pred.getPredecessors().first();
+                        }
+                    }
+                }
+            } else if (method.equals("bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z")) {
+
+                LOGGER.debug("Backtracking bindService() invocation!");
+
+                /*
+                * We need to perform backtracking and extract the service name from the intent. A typical call
+                * looks as follows:
+                *
+                * invoke-virtual {p0, v0, v1, v2}, Lcom/base/myapplication/MainActivity;
+                *                       ->bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z
+                *
+                * The intent object is the first (explicit) parameter and refers to v0 in above case. Typically,
+                * the intent is generated locally and we are able to extract the service name by looking for the
+                * last const-class instruction, which is handed over to the intent constructor as parameter.
+                 */
+
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> all arguments of the invoke call are method parameters
+                    return null;
+                }
+
+                // go back until we find const-class instruction which holds the service name
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                while (pred.getInstructionIndex() != -1) {
+                    Instruction predecessor = pred.getInstruction();
+                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+
+                        String serviceName = ((Instruction21c) predecessor).getReference().toString();
+
+                        // track as a side effect that the service was invoked through bindService()
+                        Optional<Component> component = getComponentByName(components, serviceName);
+
+                        if (component.isPresent()) {
+                            Service service = (Service) component.get();
+                            service.setBound(true);
+
+                            // return the full-qualified name of the constructor
+                            return service.getName() + "-><init>()V";
+                        }
                     } else {
                         if (analyzedInstruction.getPredecessors().isEmpty()) {
                             // there is no predecessor -> target activity name might be defined somewhere else or external
@@ -611,6 +684,17 @@ public final class Utility {
             }
         }
         return null;
+    }
+
+    /**
+     * Returns the component that has the given name.
+     *
+     * @param components The set of components.
+     * @param componentName The name of the component we search for.
+     * @return Returns the component matching the given name.
+     */
+    public static Optional<Component> getComponentByName(final Set<Component> components, String componentName) {
+        return components.stream().filter(c -> c.getName().equals(componentName)).findFirst();
     }
 
     /**
@@ -955,10 +1039,11 @@ public final class Utility {
         }
 
         if (methodSignature.startsWith("callbacks")) {
+            String className = methodSignature.split("callbacks")[1].trim();
             if (vertex.isEntryVertex()) {
-                return "entry_callbacks";
+                return "<entry_callbacks_" + className + ">";
             } else {
-                return "exit_callbacks";
+                return "<exit_callbacks_" + className + ">";
             }
         }
 

@@ -1,9 +1,9 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BasicStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BlockStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Format;

@@ -1,10 +1,10 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BasicStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BlockStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.ExitStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Format;

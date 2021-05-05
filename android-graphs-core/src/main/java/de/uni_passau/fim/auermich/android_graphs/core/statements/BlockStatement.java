@@ -1,4 +1,4 @@
-package de.uni_passau.fim.auermich.android_graphs.core.statement;
+package de.uni_passau.fim.auermich.android_graphs.core.statements;
 
 import com.google.common.base.Joiner;
 

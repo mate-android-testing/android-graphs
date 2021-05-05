@@ -5,16 +5,17 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
-import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.LayoutFile;
+import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BasicStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BlockStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.ReturnStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Opcode;
@@ -38,7 +39,6 @@ import java.io.File;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class InterCFG extends BaseCFG {
 
@@ -51,17 +51,8 @@ public class InterCFG extends BaseCFG {
     // whether only classes of AUT should be included and resolved
     private boolean resolveOnlyAUTClasses;
 
-    // track the set of activities
-    private Set<String> activities = new HashSet<>();
-
-    // track the set of fragments
-    private Set<String> fragments = new HashSet<>();
-
-    // track the set of services
-    private Set<String> services = new HashSet<>();
-
     // track the set of components
-    private Set<String> components = new HashSet<>();
+    private Set<Component> components = new HashSet<>();
 
     /**
      * Maintains a reference to the individual intra CFGs.
@@ -114,9 +105,6 @@ public class InterCFG extends BaseCFG {
         // exclude certain classes and methods from graph
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
-        // collect all fragments of an activity
-        Multimap<String, String> activityFragments = TreeMultimap.create();
-
         // collect the callback entry points
         Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
 
@@ -127,29 +115,10 @@ public class InterCFG extends BaseCFG {
 
             BlockStatement blockStatement = (BlockStatement) invokeVertex.getStatement();
 
-            // track fragment invocations
+            // record which activity is hosting which fragments
             for (Statement statement : blockStatement.getStatements()) {
-
-                // every statement within a block statement is a basic statement
                 BasicStatement basicStmt = (BasicStatement) statement;
-
-                if (Utility.isInvokeInstruction(basicStmt.getInstruction())) {
-
-                    Instruction instruction = basicStmt.getInstruction().getInstruction();
-                    String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-
-                    // track which fragments are hosted by which activity
-                    if (Utility.isFragmentInvocation(targetMethod)) {
-                        // try to derive the fragment name
-                        String fragment = Utility.isFragmentInvocation(basicStmt.getInstruction());
-
-                        if (fragment != null) {
-                            activityFragments.put(Utility.getClassName(blockStatement.getMethod()), fragment);
-                        } else {
-                            LOGGER.warn("Couldn't derive fragment for target method: " + targetMethod);
-                        }
-                    }
-                }
+                checkForFragmentInvocation(components, basicStmt);
             }
 
             // split vertex into blocks (split after each invoke instruction + insert virtual return statement)
@@ -224,10 +193,10 @@ public class InterCFG extends BaseCFG {
                      * replace the targetCFG with the constructor of the respective component.
                      */
                     if (Utility.isComponentInvocation(components, targetMethod)) {
-                        String component = Utility.isComponentInvocation(invokeStmt.getInstruction());
-                        if (component != null) {
-                            if (intraCFGs.containsKey(component)) {
-                                targetCFG = intraCFGs.get(component);
+                        String componentConstructor = Utility.isComponentInvocation(components, invokeStmt.getInstruction());
+                        if (componentConstructor != null) {
+                            if (intraCFGs.containsKey(componentConstructor)) {
+                                targetCFG = intraCFGs.get(componentConstructor);
                             } else {
                                 // TODO: track whether this can really happen
                                 LOGGER.warn("Target method " + targetMethod + " not contained in dex files!");
@@ -281,27 +250,160 @@ public class InterCFG extends BaseCFG {
             }
         }
 
-        // add activity and fragment lifecycle as well as global entry point for activities
-        activities.forEach(activity -> {
-            String onCreateMethod = activity + "->onCreate(Landroid/os/Bundle;)V";
-
-            // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
-            if (!intraCFGs.containsKey(onCreateMethod)) {
-                BaseCFG onCreate = dummyIntraCFG(onCreateMethod);
-                intraCFGs.put(onCreateMethod, onCreate);
-                addSubGraph(onCreate);
-            }
-
-            BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
-            LOGGER.debug("Activity " + activity + " defines the following fragments: " + activityFragments.get(activity));
-
-            BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
-            callbackEntryPoints.put(activity, callbackEntryPoint);
-            addGlobalEntryPoint(onCreateCFG);
-        });
+        // add lifecycle of components + global entry points
+        addLifecycle(components, callbackEntryPoints);
 
         // add the callbacks specified either through XML or directly in code
         addCallbacks(callbackEntryPoints, apk);
+    }
+
+    /**
+     * Tracks whether the given statement refers to a fragment invocation. If this is the case,
+     * the activity hosting the fragment is updated with this information.
+     *
+     * @param components The set of components.
+     * @param basicStmt The statement wrapping a single instruction.
+     */
+    private void checkForFragmentInvocation(final Set<Component> components, BasicStatement basicStmt) {
+
+        if (Utility.isInvokeInstruction(basicStmt.getInstruction())) {
+
+            Instruction instruction = basicStmt.getInstruction().getInstruction();
+            String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+
+            // track which fragments are hosted by which activity
+            if (Utility.isFragmentInvocation(targetMethod)) {
+                // try to derive the fragment name
+                String fragmentName = Utility.isFragmentInvocation(basicStmt.getInstruction());
+
+                if (fragmentName != null) {
+                    String activityName = Utility.getClassName(basicStmt.getMethod());
+
+                    Optional<Component> activityComponent = Utility.getComponentByName(components, activityName);
+                    Optional<Component> fragmentComponent = Utility.getComponentByName(components, fragmentName);
+
+                    if (activityComponent.isPresent() && fragmentComponent.isPresent()) {
+                        Activity activity = (Activity) activityComponent.get();
+                        Fragment fragment = (Fragment) fragmentComponent.get();
+                        activity.addHostingFragment(fragment);
+                    }
+                } else {
+                    LOGGER.warn("Couldn't derive fragment for target method: " + targetMethod);
+                }
+            }
+        }
+    }
+
+    /**
+     * Adds the lifecycle to the given components. In addition, the callback entry points are tracked
+     * and the global entry points are defined for activities.
+     *
+     * @param components The set of components.
+     * @param callbackEntryPoints The set of callback entry points.
+     */
+    private void addLifecycle(final Set<Component> components, Map<String, BaseCFG> callbackEntryPoints) {
+
+        // add activity and fragment lifecycle as well as global entry point for activities
+        components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activityComponent -> {
+            Activity activity = (Activity) activityComponent;
+            BaseCFG callbackEntryPoint = addAndroidActivityLifecycle(activity, activity.getHostingFragments());
+            callbackEntryPoints.put(activity.getName(), callbackEntryPoint);
+            String onCreateMethod = activity.getName() + "->onCreate(Landroid/os/Bundle;)V";
+            addGlobalEntryPoint(intraCFGs.get(onCreateMethod));
+        });
+
+        // add service lifecycle
+        components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(service -> {
+            addAndroidServiceLifecycle((Service) service);
+        });
+    }
+
+    /**
+     * Adds the lifecycle of started and/or bound services.
+     *
+     * @param service The service for which the lifecycle should be added.
+     */
+    private void addAndroidServiceLifecycle(Service service) {
+
+        String constructor = service.getName() + "-><init>()V";
+
+        if (!intraCFGs.containsKey(constructor)) {
+            LOGGER.warn("Service without explicit constructor: " + service);
+        } else {
+
+            // TODO: onCreate() is optional, it's not mandatory to overwrite it, may neglect it
+            BaseCFG ctr = intraCFGs.get(constructor);
+            String onCreateMethod = service.getName() + "->onCreate()V";
+
+            // the constructor directly invokes onCreate()
+            BaseCFG onCreate = addLifecycle(onCreateMethod, ctr);
+
+            /*
+            * The method onStartCommand() is only invoked if the service is invoked via Context.startService(), see:
+            * https://developer.android.com/reference/android/app/Service#onStartCommand(android.content.Intent,%20int,%20int)
+            * If there is a custom onStartCommand() present, we include it, otherwise it's ignored.
+             */
+            BaseCFG nextLifeCycle = onCreate;
+            String onStartCommandMethod = service.getName() + "->onStartCommand(Landroid/content/Intent;II)I";
+            if (intraCFGs.containsKey(onStartCommandMethod)) {
+                nextLifeCycle = addLifecycle(onStartCommandMethod, onCreate);
+            }
+
+            /*
+             * The method onStart() is deprecated and only invoked by onStartCommand() for backward compatibility, see
+             * https://developer.android.com/reference/android/app/Service#onStart(android.content.Intent,%20int)
+             * If there is a custom onStart() present, we include it, otherwise it's ignored.
+             */
+            String onStartMethod = service.getName() + "->onStart(Landroid/content/Intent;I)V";
+            if (intraCFGs.containsKey(onStartMethod)) {
+                nextLifeCycle = addLifecycle(onStartMethod, nextLifeCycle);
+            }
+
+            BaseCFG callbacksCFG = dummyIntraCFG("callbacks " + service.getName());
+            addSubGraph(callbacksCFG);
+
+            // there is always an edge from onCreate()/onStartCommand()/onStart() to the callbacks entry point
+            addEdge(nextLifeCycle.getExit(), callbacksCFG.getEntry());
+
+            /*
+            * If the service is a bound service, i.e. called by bindService(), there is an edge
+            * from onCreate() to the callbacks entry point. In particular, bindService() doesn't invoke
+            * onStartCommand() nor onStart().
+             */
+            if (service.isBound()) {
+                addEdge(onCreate.getExit(), callbacksCFG.getEntry());
+            }
+
+            // Every service must provide overwrite onBind() independent whether it is a started or bound service.
+            String onBindMethod = service.getName() + "->onBind(Landroid/content/Intent;)Landroid/os/IBinder;";
+            BaseCFG onBind = intraCFGs.get(onBindMethod);
+            addEdge(callbacksCFG.getEntry(), onBind.getEntry());
+            addEdge(onBind.getExit(), callbacksCFG.getExit());
+
+            // the service may overwrite onUnBind()
+            String onUnbindMethod = service.getName() + "->onUnbind(Landroid/content/Intent;)Z";
+            if (intraCFGs.containsKey(onUnbindMethod)) {
+                BaseCFG onUnbind = intraCFGs.get(onUnbindMethod);
+                addEdge(callbacksCFG.getEntry(), onUnbind.getEntry());
+                addEdge(onUnbind.getExit(), callbacksCFG.getExit());
+            }
+
+            // multiple callbacks might be invoked consecutively
+            addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
+
+            // the service may overwrite onDestroy()
+            String onDestroyMethod = service.getName() + "->onDestroy()V";
+            if (intraCFGs.containsKey(onDestroyMethod)) {
+                BaseCFG onDestroy = intraCFGs.get(onDestroyMethod);
+                addEdge(callbacksCFG.getExit(), onDestroy.getEntry());
+            }
+
+            // TODO: integrate binder class for bound services
+
+            // TODO: If onStartCommand() is present, we need to add another incoming edge to it from
+            //  the startService() call. This is the case, if the service is invoked multiple times.
+            //  Check predecessor of onStartCommand entry for 'startService() invoke call!
+        }
     }
 
     /**
@@ -329,35 +431,47 @@ public class InterCFG extends BaseCFG {
      * Connects all lifecycle methods with each other for a given activity. Also
      * integrates the fragment lifecycle.
      *
-     * @param onCreateCFG The sub graph representing the onCreate method of the activity.
+     * @param activity The activity for which the lifecycle should be added.
      * @param fragments   The name of fragments hosted by the given activity.
      * @return Returns the sub graph defining the callbacks, which are either declared
      * directly inside the code or statically via the layout files.
      */
-    private BaseCFG addAndroidLifecycle(BaseCFG onCreateCFG, Collection<String> fragments) {
+    private BaseCFG addAndroidActivityLifecycle(final Activity activity, final Set<Fragment> fragments) {
+
+        String onCreateMethod = activity.getName() + "->onCreate(Landroid/os/Bundle;)V";
+
+        // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
+        if (!intraCFGs.containsKey(onCreateMethod)) {
+            BaseCFG onCreate = dummyIntraCFG(onCreateMethod);
+            intraCFGs.put(onCreateMethod, onCreate);
+            addSubGraph(onCreate);
+        }
+
+        BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
+        LOGGER.debug("Activity " + activity + " defines the following fragments: " + fragments);
 
         String methodName = onCreateCFG.getMethodName();
         String className = Utility.getClassName(methodName);
 
         // if there are fragments, onCreate invokes onAttach, onCreate and onCreateView
-        for (String fragment : fragments) {
+        for (Fragment fragment : fragments) {
 
             // TODO: there is a deprecated onAttach using an activity instance as parameter
-            String onAttachFragment = fragment + "->onAttach(Landroid/content/Context;)V";
+            String onAttachFragment = fragment.getName() + "->onAttach(Landroid/content/Context;)V";
             BaseCFG onAttachFragmentCFG = addLifecycle(onAttachFragment, onCreateCFG);
 
-            String onCreateFragment = fragment + "->onCreate(Landroid/os/Bundle;)V";
+            String onCreateFragment = fragment.getName() + "->onCreate(Landroid/os/Bundle;)V";
             BaseCFG onCreateFragmentCFG = addLifecycle(onCreateFragment, onAttachFragmentCFG);
 
-            String onCreateViewFragment = fragment + "->onCreateView(Landroid/view/LayoutInflater;" +
+            String onCreateViewFragment = fragment.getName() + "->onCreateView(Landroid/view/LayoutInflater;" +
                     "Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;";
             BaseCFG onCreateViewFragmentCFG = addLifecycle(onCreateViewFragment, onCreateFragmentCFG);
 
-            String onActivityCreatedFragment = fragment + "->onActivityCreated(Landroid/os/Bundle;)V";
+            String onActivityCreatedFragment = fragment.getName() + "->onActivityCreated(Landroid/os/Bundle;)V";
             BaseCFG onActivityCreatedFragmentCFG = addLifecycle(onActivityCreatedFragment, onCreateViewFragmentCFG);
 
             // according to https://developer.android.com/reference/android/app/Fragment -> onViewStateRestored
-            String onViewStateRestoredFragment = fragment + "->onViewStateRestored(Landroid/os/Bundle;)V";
+            String onViewStateRestoredFragment = fragment.getName() + "->onViewStateRestored(Landroid/os/Bundle;)V";
             BaseCFG onViewStateRestoredFragmentCFG = addLifecycle(onViewStateRestoredFragment, onActivityCreatedFragmentCFG);
 
             // go back to onCreate() exit
@@ -369,8 +483,8 @@ public class InterCFG extends BaseCFG {
         BaseCFG onStartCFG = addLifecycle(onStart, onCreateCFG);
 
         // if there are fragments, onStart() is invoked
-        for (String fragment : fragments) {
-            String onStartFragment = fragment + "->onStart()V";
+        for (Fragment fragment : fragments) {
+            String onStartFragment = fragment.getName() + "->onStart()V";
             BaseCFG onStartFragmentCFG = addLifecycle(onStartFragment, onStartCFG);
 
             // go back to onStart() exit
@@ -381,8 +495,8 @@ public class InterCFG extends BaseCFG {
         BaseCFG onResumeCFG = addLifecycle(onResume, onStartCFG);
 
         // if there are fragments, onResume() is invoked
-        for (String fragment : fragments) {
-            String onResumeFragment = fragment + "->onResume()V";
+        for (Fragment fragment : fragments) {
+            String onResumeFragment = fragment.getName() + "->onResume()V";
             BaseCFG onResumeFragmentCFG = addLifecycle(onResumeFragment, onResumeCFG);
 
             // go back to onResume() exit
@@ -416,9 +530,9 @@ public class InterCFG extends BaseCFG {
         BaseCFG onPauseCFG = addLifecycle(onPause, callbacksCFG);
 
         // if there are fragments, onPause() is invoked
-        for (String fragment : fragments) {
+        for (Fragment fragment : fragments) {
 
-            String onPauseFragment = fragment + "->onPause()V";
+            String onPauseFragment = fragment.getName() + "->onPause()V";
             BaseCFG onPauseFragmentCFG = addLifecycle(onPauseFragment, onPauseCFG);
 
             // go back to onPause() exit
@@ -429,9 +543,9 @@ public class InterCFG extends BaseCFG {
         BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
 
         // if there are fragments, onStop() is invoked
-        for (String fragment : fragments) {
+        for (Fragment fragment : fragments) {
 
-            String onStopFragment = fragment + "->onStop()V";
+            String onStopFragment = fragment.getName() + "->onStop()V";
             BaseCFG onStopFragmentCFG = addLifecycle(onStopFragment, onStopCFG);
 
             // go back to onStop() exit
@@ -442,21 +556,21 @@ public class InterCFG extends BaseCFG {
         BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
 
         // if there are fragments, onDestroy, onDestroyView and onDetach are invoked
-        for (String fragment : fragments) {
+        for (Fragment fragment : fragments) {
 
-            String onDestroyViewFragment = fragment + "->onDestroyView()V";
+            String onDestroyViewFragment = fragment.getName() + "->onDestroyView()V";
             BaseCFG onDestroyViewFragmentCFG = addLifecycle(onDestroyViewFragment, onDestroyCFG);
 
             // onDestroyView() can also invoke onCreateView()
-            String onCreateViewFragment = fragment + "->onCreateView(Landroid/view/LayoutInflater;" +
+            String onCreateViewFragment = fragment.getName() + "->onCreateView(Landroid/view/LayoutInflater;" +
                     "Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;";
             BaseCFG onCreateViewFragmentCFG = intraCFGs.get(onCreateViewFragment);
             addEdge(onDestroyViewFragmentCFG.getExit(), onCreateViewFragmentCFG.getEntry());
 
-            String onDestroyFragment = fragment + "->onDestroy()V";
+            String onDestroyFragment = fragment.getName() + "->onDestroy()V";
             BaseCFG onDestroyFragmentCFG = addLifecycle(onDestroyFragment, onDestroyViewFragmentCFG);
 
-            String onDetachFragment = fragment + "->onDetach()V";
+            String onDetachFragment = fragment.getName() + "->onDetach()V";
             BaseCFG onDetachFragmentCFG = addLifecycle(onDetachFragment, onDestroyFragmentCFG);
 
             // go back to onDestroy() exit
@@ -765,9 +879,9 @@ public class InterCFG extends BaseCFG {
                  * reflect this change.
                  */
                 if (Utility.isComponentInvocation(components, targetMethod)) {
-                    String component = Utility.isComponentInvocation(analyzedInstruction);
-                    if (component != null && intraCFGs.containsKey(component)) {
-                        targetMethod = component;
+                    String componentConstructor = Utility.isComponentInvocation(components, analyzedInstruction);
+                    if (componentConstructor != null && intraCFGs.containsKey(componentConstructor)) {
+                        targetMethod = componentConstructor;
                     }
                 }
 
@@ -797,9 +911,6 @@ public class InterCFG extends BaseCFG {
         // exclude certain classes and methods from graph
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
-        // collect all fragments of an activity
-        Multimap<String, String> activityFragments = TreeMultimap.create();
-
         // collect the callback entry points
         Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
 
@@ -817,14 +928,7 @@ public class InterCFG extends BaseCFG {
             String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
 
             // track which fragments are hosted by which activity
-            if (Utility.isFragmentInvocation(targetMethod)) {
-                // try to derive the fragment name
-                String fragment = Utility.isFragmentInvocation(invokeStmt.getInstruction());
-
-                if (fragment != null) {
-                    activityFragments.put(Utility.getClassName(invokeStmt.getMethod()), fragment);
-                }
-            }
+            checkForFragmentInvocation(components, invokeStmt);
 
             // don't resolve non AUT classes if requested
             if (resolveOnlyAUTClasses && !className.startsWith(packageName)
@@ -857,9 +961,9 @@ public class InterCFG extends BaseCFG {
                  * replace the targetCFG with the constructor of the respective component.
                  */
                 if (Utility.isComponentInvocation(components, targetMethod)) {
-                    String component = Utility.isComponentInvocation(invokeStmt.getInstruction());
-                    if (component != null && intraCFGs.containsKey(component)) {
-                        targetCFG = intraCFGs.get(component);
+                    String componentConstructor = Utility.isComponentInvocation(components, invokeStmt.getInstruction());
+                    if (componentConstructor != null && intraCFGs.containsKey(componentConstructor)) {
+                        targetCFG = intraCFGs.get(componentConstructor);
                     } else {
                         LOGGER.warn("Target method " + targetMethod + " not contained in dex files!");
                         targetCFG = dummyIntraCFG(targetMethod);
@@ -901,24 +1005,8 @@ public class InterCFG extends BaseCFG {
             }
         }
 
-        // add activity and fragment lifecycle as well as global entry point for activities
-        activities.forEach(activity -> {
-            String onCreateMethod = activity + "->onCreate(Landroid/os/Bundle;)V";
-
-            // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
-            if (!intraCFGs.containsKey(onCreateMethod)) {
-                BaseCFG onCreate = dummyIntraCFG(onCreateMethod);
-                intraCFGs.put(onCreateMethod, onCreate);
-                addSubGraph(onCreate);
-            }
-
-            BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
-            LOGGER.debug("Activity " + activity + " defines the following fragments: " + activityFragments.get(activity));
-
-            BaseCFG callbackEntryPoint = addAndroidLifecycle(onCreateCFG, activityFragments.get(activity));
-            callbackEntryPoints.put(activity, callbackEntryPoint);
-            addGlobalEntryPoint(onCreateCFG);
-        });
+        // add lifecycle of components + global entry points
+        addLifecycle(components, callbackEntryPoints);
 
         // add the callbacks specified either through XML or directly in code
         addCallbacks(callbackEntryPoints, apk);
@@ -957,11 +1045,11 @@ public class InterCFG extends BaseCFG {
                 // as a side effect track whether the given class represents an activity or fragment
                 if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                     if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        activities.add(classDef.toString());
+                        components.add(new Activity(classDef.toString(), ComponentType.ACTIVITY));
                     } else if (Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        fragments.add(classDef.toString());
+                        components.add(new Fragment(classDef.toString(), ComponentType.FRAGMENT));
                     } else if (Utility.isService(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        services.add(classDef.toString());
+                        components.add(new Service(classDef.toString(), ComponentType.SERVICE));
                     }
                 }
                 
@@ -990,69 +1078,11 @@ public class InterCFG extends BaseCFG {
             }
         }
 
-        components.addAll(activities);
-        components.addAll(services);
-
         LOGGER.debug("Generated CFGs: " + intraCFGs.size());
-        LOGGER.debug("List of activities: " + activities);
-        LOGGER.debug("List of fragments: " + fragments);
-        LOGGER.debug("List of services: " + services);
+        LOGGER.debug("List of activities: " + components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY));
+        LOGGER.debug("List of fragments: " + components.stream().filter(c -> c.getComponentType() == ComponentType.FRAGMENT));
+        LOGGER.debug("List of services: " + components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE));
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
-    }
-
-    @SuppressWarnings("unused")
-    private void constructIntraCFGsParallel(APK apk, boolean useBasicBlocks) {
-
-        LOGGER.debug("Constructing IntraCFGs!");
-
-        final Pattern exclusionPattern = Utility.readExcludePatterns();
-
-        apk.getDexFiles().parallelStream().forEach(dexFile -> {
-
-            dexFile.getClasses().parallelStream().forEach(classDef -> {
-
-                String className = Utility.dottedClassName(classDef.toString());
-
-                // as a side effect track whether the given class represents an activity or fragment
-                if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
-                    if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        synchronized (this) {
-                            LOGGER.debug("Activity detected!");
-                            activities.add(classDef.toString());
-                        }
-                    } else if (Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        synchronized (this) {
-                            LOGGER.debug("Fragment detected!");
-                            fragments.add(classDef.toString());
-                        }
-                    }
-                }
-
-                StreamSupport.stream(classDef.getMethods().spliterator(), true).forEach(method -> {
-
-                    String methodSignature = Utility.deriveMethodSignature(method);
-                    LOGGER.debug("Method: " + methodSignature);
-
-                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
-                            || Utility.isARTMethod(methodSignature)) {
-                        if (!excludeARTClasses) {
-                            // dummy CFG consisting only of entry, exit vertex and edge between
-                            synchronized (this) {
-                                BaseCFG intraCFG = dummyIntraCFG(method);
-                                addSubGraph(intraCFG);
-                                intraCFGs.put(methodSignature, intraCFG);
-                            }
-                        }
-                    } else {
-                        synchronized (this) {
-                            BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
-                            addSubGraph(intraCFG);
-                            intraCFGs.put(methodSignature, intraCFG);
-                        }
-                    }
-                });
-            });
-        });
     }
 
     /**

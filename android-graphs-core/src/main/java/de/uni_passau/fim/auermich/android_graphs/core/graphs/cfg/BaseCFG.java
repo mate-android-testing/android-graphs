@@ -9,7 +9,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.*;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.*;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -338,6 +338,8 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         if (size() <= 1000) {
             File output = new File(resourceDirectory.toFile(), "graph.png");
             convertGraphToPNG(output);
+            File output2 = new File(resourceDirectory.toFile(), "graph.dot");
+            convertGraphToDOT(output2);
         } else if (size() <= 5000) {
             // can theoretically render large graphs to SVG, but this takes quite some time
             File output = new File(resourceDirectory.toFile(), "graph.svg");

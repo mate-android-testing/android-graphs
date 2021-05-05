@@ -1,29 +1,30 @@
-package de.uni_passau.fim.auermich.android_graphs.core.statement;
+package de.uni_passau.fim.auermich.android_graphs.core.statements;
 
 import java.util.Objects;
 
-public class ExitStatement extends Statement implements Cloneable {
+public class EntryStatement extends Statement implements Cloneable {
 
-    public ExitStatement(String method) {
+    public EntryStatement(String method) {
         super(method);
-        type = StatementType.EXIT_STATEMENT;
+        type = StatementType.ENTRY_STATEMENT;
     }
 
     @Override
     public String toString() {
-        return "exit " + method;
+        return "entry " + method;
     }
 
     @Override
     public boolean equals(Object o) {
+
         if (o == this)
             return true;
 
-        if (!(o instanceof ExitStatement)) {
+        if (!(o instanceof EntryStatement)) {
             return false;
         }
 
-        ExitStatement other = (ExitStatement) o;
+        EntryStatement other = (EntryStatement) o;
 
         // unique method signature + instruction id
         return this.method.equals(other.method)
@@ -35,8 +36,8 @@ public class ExitStatement extends Statement implements Cloneable {
         return Objects.hash(method);
     }
 
-    public ExitStatement clone() {
-        return (ExitStatement) super.clone();
+    public EntryStatement clone() {
+        return (EntryStatement) super.clone();
     }
 
 }

@@ -2,9 +2,9 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
 import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BasicStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.BlockStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statement.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
