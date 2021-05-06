@@ -350,6 +350,29 @@ public class InterCFG extends BaseCFG {
             String onStartCommandMethod = service.getName() + "->onStartCommand(Landroid/content/Intent;II)I";
             if (intraCFGs.containsKey(onStartCommandMethod)) {
                 nextLifeCycle = addLifecycle(onStartCommandMethod, onCreate);
+
+                if (service.isStarted()) {
+                    // a started service calls directly onStartCommand() if the service has been already initialised
+                    BaseCFG onStartCommand = nextLifeCycle;
+                    getIncomingEdges(ctr.getEntry()).forEach(e -> {
+
+                        Statement invokeStmt = e.getSource().getStatement();
+                        BasicStatement basicStmt = null;
+
+                        if (invokeStmt.getType() == Statement.StatementType.BASIC_STATEMENT) {
+                            basicStmt = (BasicStatement) invokeStmt;
+                        } else {
+                            // basic block -> last stmt contains the invoke instruction
+                            basicStmt = (BasicStatement) ((BlockStatement) invokeStmt).getLastStatement();
+                        }
+
+                        Instruction invoke = basicStmt.getInstruction().getInstruction();
+                        String method = Utility.getMethodName(((ReferenceInstruction) invoke).getReference().toString());
+                        if (method.equals("startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
+                            addEdge(e.getSource(), onStartCommand.getEntry());
+                        }
+                    });
+                }
             }
 
             /*
