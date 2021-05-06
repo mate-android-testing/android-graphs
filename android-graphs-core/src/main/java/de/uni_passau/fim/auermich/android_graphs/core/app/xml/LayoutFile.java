@@ -31,8 +31,11 @@ public class LayoutFile {
     }
 
     /**
+     * Looks up a layout file for declared callbacks. A callback is defined through the
+     * tag 'onClick' and its value references the method name. A layout file hosts multiple views, e.g. buttons,
+     * thus there can be multiple callbacks.
      *
-     * @return
+     * @return Returns the callbacks (method names) declared in the layout file.
      */
     public List<String> parseCallbacks() {
 

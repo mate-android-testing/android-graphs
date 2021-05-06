@@ -210,7 +210,7 @@ public class InterCFG extends BaseCFG {
         addLifecycle(components, callbackEntryPoints);
 
         // add the callbacks specified either through XML or directly in code
-        addCallbacks(callbackEntryPoints, apk);
+        addCallbacks(apk, callbackEntryPoints);
     }
 
     /**
@@ -622,30 +622,30 @@ public class InterCFG extends BaseCFG {
      * Adds callbacks to the respective components. We both consider callbacks defined
      * inside layout files as well as programmatically defined callbacks.
      *
-     * @param callbackEntryPoints Maintains a mapping between a component and its callback entry point.
      * @param apk                 The APK file describing the app.
+     * @param callbackEntryPoints Maintains a mapping between a component and its callback entry point.
      */
-    private void addCallbacks(Map<String, BaseCFG> callbackEntryPoints, APK apk) {
+    private void addCallbacks(APK apk, Map<String, BaseCFG> callbackEntryPoints) {
 
-        // get callbacks directly declared in code
+        // retrieve callbacks declared in code
         Multimap<String, BaseCFG> callbacks = lookUpCallbacks();
 
-        // add for each android component, e.g. activity, its callbacks/listeners to its callbacks subgraph (the callback entry point)
+        // add for each android component callbacks declared in code to its 'callbacks' subgraph
         for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
-            callbacks.get(callbackEntryPoint.getKey()).forEach(cfg -> {
-                addEdge(callbackEntryPoint.getValue().getEntry(), cfg.getEntry());
-                addEdge(cfg.getExit(), callbackEntryPoint.getValue().getExit());
+            callbacks.get(callbackEntryPoint.getKey()).forEach(callback -> {
+                addEdge(callbackEntryPoint.getValue().getEntry(), callback.getEntry());
+                addEdge(callback.getExit(), callbackEntryPoint.getValue().getExit());
             });
         }
 
-        // get callbacks declared in XML files
+        // retrieve callbacks declared in XML files
         Multimap<String, BaseCFG> callbacksXML = lookUpCallbacksXML(apk);
 
-        // add for each android component callbacks declared in XML to its callbacks subgraph (the callback entry point)
+        // add for each android component callbacks declared in XML to its 'callbacks' subgraph
         for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
-            callbacksXML.get(callbackEntryPoint.getKey()).forEach(cfg -> {
-                addEdge(callbackEntryPoint.getValue().getEntry(), cfg.getEntry());
-                addEdge(cfg.getExit(), callbackEntryPoint.getValue().getExit());
+            callbacksXML.get(callbackEntryPoint.getKey()).forEach(callback -> {
+                addEdge(callbackEntryPoint.getValue().getEntry(), callback.getEntry());
+                addEdge(callback.getExit(), callbackEntryPoint.getValue().getExit());
             });
         }
     }
@@ -669,6 +669,9 @@ public class InterCFG extends BaseCFG {
          * the outer class, we need to inspect the FQN of the inner class, which is of the following form:
          *       Lmy/package/OuterClassName$InnerClassName;
          * This means, we need to split the FQN at the '$' symbol to retrieve the name of the outer class.
+         *
+         * NOTE: This is solely an heuristic, we assume that the listener is defined within the class
+         * that makes use of it, which is the typical behaviour.
          */
 
         // key: FQN of component defining a callback (may define several ones)
@@ -702,6 +705,10 @@ public class InterCFG extends BaseCFG {
 
     /**
      * Looks up callbacks declared in XML layout files and associates them to its defining component.
+     * First, the onCreate() and/or onCreateView() methods of activities and fragments are looked up for invocations
+     * of setContentView() or inflate(), respectively. Next, the resource ids are extracted by backtracking the
+     * former invocations. Then, we map the resource ids to layout files and parse the callbacks within those files.
+     * Finally, the declared callbacks are looked up in the graph and mapped to its defining component.
      *
      * @return Returns a mapping between a component (its class name) and its callbacks (actually the
      * corresponding intra CFGs). Each component may define multiple callbacks.
@@ -717,15 +724,15 @@ public class InterCFG extends BaseCFG {
         // stores for each component its resource id in hexadecimal representation
         Map<String, String> componentResourceID = new HashMap<>();
 
-        Pattern exclusionPattern = Utility.readExcludePatterns();
-
         for (DexFile dexFile : apk.getDexFiles()) {
-
             for (ClassDef classDef : dexFile.getClasses()) {
 
                 String className = Utility.dottedClassName(classDef.toString());
 
-                if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
+                if (className.startsWith(apk.getManifest().getPackageName())
+                        && (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)
+                        || Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef))) {
+                    // only activities and fragments of the application can define callbacks
 
                     // track outer/inner class relations
                     if (Utility.isInnerClass(classDef.toString())) {
@@ -792,18 +799,18 @@ public class InterCFG extends BaseCFG {
 
         LOGGER.debug("Declared Callbacks via XML: " + componentCallbacks);
 
-        // associate each component with its intraCFGs representing callbacks
+        // lookup the which class defines the callback method
         for (String component : componentCallbacks.keySet()) {
             for (String callbackName : componentCallbacks.get(component)) {
                 // TODO: may need to distinguish between different callbacks, e.g. onClick, onLongClick, ...
                 // callbacks can have a custom method name but the rest of the method signature is fixed
                 String callback = component + "->" + callbackName + "(Landroid/view/View;)V";
 
-                // first check whether the callback is declared directly in its defining component
+                // check whether the callback is defined within the component
                 if (intraCFGs.containsKey(callback)) {
                     callbacks.put(component, intraCFGs.get(callback));
                 } else {
-                    // check for outer class defining the callback in its code base
+                    // it is possible that the outer class defines the callback
                     if (Utility.isInnerClass(component)) {
                         String outerClassName = Utility.getOuterClass(component);
                         callback = callback.replace(component, outerClassName);
@@ -980,7 +987,7 @@ public class InterCFG extends BaseCFG {
         addLifecycle(components, callbackEntryPoints);
 
         // add the callbacks specified either through XML or directly in code
-        addCallbacks(callbackEntryPoints, apk);
+        addCallbacks(apk, callbackEntryPoints);
     }
 
     /**
@@ -1013,7 +1020,7 @@ public class InterCFG extends BaseCFG {
                     continue;
                 }
 
-                // as a side effect track whether the given class represents an activity or fragment
+                // as a side effect track whether the given class represents an activity, service or fragment
                 if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                     if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Activity(classDef.toString(), ComponentType.ACTIVITY));
