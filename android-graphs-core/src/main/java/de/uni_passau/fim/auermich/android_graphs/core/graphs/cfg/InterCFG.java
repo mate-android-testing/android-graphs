@@ -176,62 +176,18 @@ public class InterCFG extends BaseCFG {
                     break;
                 }
 
-                // get target method CFG
+                // look up the CFG matching the invocation target
                 BasicStatement invokeStmt = (BasicStatement) ((BlockStatement) blockStmt).getLastStatement();
-                Instruction instruction = invokeStmt.getInstruction().getInstruction();
-                String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+                BaseCFG targetCFG = lookupTargetCFG(invokeStmt);
 
-                // the CFG that corresponds to the invoke call
-                BaseCFG targetCFG = null;
-
-                if (intraCFGs.containsKey(targetMethod)) {
-                    targetCFG = intraCFGs.get(targetMethod);
-                } else {
-
-                    /*
-                     * If there is a component invocation, e.g. a call to startActivity(), we
-                     * replace the targetCFG with the constructor of the respective component.
-                     */
-                    if (Utility.isComponentInvocation(components, targetMethod)) {
-                        String componentConstructor = Utility.isComponentInvocation(components, invokeStmt.getInstruction());
-                        if (componentConstructor != null) {
-                            if (intraCFGs.containsKey(componentConstructor)) {
-                                targetCFG = intraCFGs.get(componentConstructor);
-                            } else {
-                                // TODO: track whether this can really happen
-                                LOGGER.warn("Target method " + targetMethod + " not contained in dex files!");
-                                targetCFG = dummyIntraCFG(targetMethod);
-                                intraCFGs.put(targetMethod, targetCFG);
-                                addSubGraph(targetCFG);
-                            }
-                        } else {
-                            LOGGER.warn("Couldn't derive component for target method: " + targetMethod);
-                            targetCFG = dummyIntraCFG(targetMethod);
-                            intraCFGs.put(targetMethod, targetCFG);
-                            addSubGraph(targetCFG);
-                        }
-                    } else {
-
-                        /*
-                         * There are some Android specific classes, e.g. android/view/View, which are
-                         * not included in the classes.dex file for yet unknown reasons. Basically,
-                         * these classes should be just treated like other classes from the ART.
-                         */
-                        LOGGER.warn("Target method " + targetMethod + " not contained in dex files!");
-                        targetCFG = dummyIntraCFG(targetMethod);
-                        intraCFGs.put(targetMethod, targetCFG);
-                        addSubGraph(targetCFG);
-                    }
-                }
-
-                // add edge to entry of target CFG
+                // the invoke vertex defines an edge to the invocation target
                 addEdge(blockVertex, targetCFG.getEntry());
 
-                // save exit vertex -> there is an edge to the return vertex
+                // save exit vertex -> there is an edge to the return vertex part of the next basic block
                 exitVertices.add(targetCFG.getExit());
             }
 
-            // add edge from each targetCFG's exit vertex to the return vertex (next block)
+            // connect the exit of the invocation target with the virtual return vertex
             for (int i = 0; i < exitVertices.size(); i++) {
                 addEdge(exitVertices.get(i), blockVertices.get(i + 1));
             }
@@ -255,6 +211,53 @@ public class InterCFG extends BaseCFG {
 
         // add the callbacks specified either through XML or directly in code
         addCallbacks(callbackEntryPoints, apk);
+    }
+
+    /**
+     * Looks up the target CFG matching the invoke statement.
+     * As a side effect, component invocation, e.g. calls to startActivity(), are replaced
+     * by the invoked component's constructor.
+     *
+     * @param invokeStmt The invoke statement defining the target.
+     * @return Returns the CFG matching the given invoke target.
+     */
+    private BaseCFG lookupTargetCFG(final BasicStatement invokeStmt) {
+
+        Instruction instruction = invokeStmt.getInstruction().getInstruction();
+        String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+
+        if (intraCFGs.containsKey(targetMethod)) {
+            return intraCFGs.get(targetMethod);
+        } else {
+            /*
+             * If there is a component invocation, e.g. a call to startActivity(), we
+             * replace the targetCFG with the constructor of the respective component.
+             */
+            if (Utility.isComponentInvocation(components, targetMethod)) {
+                String componentConstructor = Utility.isComponentInvocation(components, invokeStmt.getInstruction());
+                if (componentConstructor != null) {
+                    if (intraCFGs.containsKey(componentConstructor)) {
+                        return intraCFGs.get(componentConstructor);
+                    } else {
+                        LOGGER.warn("Constructor " + componentConstructor + " not contained in dex files!");
+                    }
+                } else {
+                    LOGGER.warn("Couldn't derive component constructor for method: " + targetMethod);
+                }
+            } else {
+                /*
+                 * There are some Android specific classes, e.g. android/view/View, which are
+                 * not included in the classes.dex file.
+                 */
+                LOGGER.warn("Method " + targetMethod + " not contained in dex files!");
+            }
+        }
+
+        // we provide a dummy CFG for those invocations we couldn't derive the target
+        BaseCFG targetCFG = dummyIntraCFG(targetMethod);
+        intraCFGs.put(targetMethod, targetCFG);
+        addSubGraph(targetCFG);
+        return targetCFG;
     }
 
     /**
@@ -927,9 +930,6 @@ public class InterCFG extends BaseCFG {
             String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
             String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
 
-            // track which fragments are hosted by which activity
-            checkForFragmentInvocation(components, invokeStmt);
-
             // don't resolve non AUT classes if requested
             if (resolveOnlyAUTClasses && !className.startsWith(packageName)
                     // we have to resolve component invocations in any case, see the code below
@@ -946,57 +946,28 @@ public class InterCFG extends BaseCFG {
                 continue;
             }
 
-            // there might be multiple (two) successors in a try-catch block
+            // track which fragments are hosted by which activity
+            checkForFragmentInvocation(components, invokeStmt);
+
+            // there might be multiple successors in a try-catch block
             Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
 
-            // the CFG that corresponds to the invoke call
-            BaseCFG targetCFG = null;
-
-            if (intraCFGs.containsKey(targetMethod)) {
-                targetCFG = intraCFGs.get(targetMethod);
-            } else {
-
-                /*
-                 * If there is a component invocation, e.g. a call to startActivity(), we
-                 * replace the targetCFG with the constructor of the respective component.
-                 */
-                if (Utility.isComponentInvocation(components, targetMethod)) {
-                    String componentConstructor = Utility.isComponentInvocation(components, invokeStmt.getInstruction());
-                    if (componentConstructor != null && intraCFGs.containsKey(componentConstructor)) {
-                        targetCFG = intraCFGs.get(componentConstructor);
-                    } else {
-                        LOGGER.warn("Target method " + targetMethod + " not contained in dex files!");
-                        targetCFG = dummyIntraCFG(targetMethod);
-                        intraCFGs.put(targetMethod, targetCFG);
-                        addSubGraph(targetCFG);
-                    }
-                } else {
-
-                    /*
-                     * There are some Android specific classes, e.g. android/view/View, which are
-                     * not included in the classes.dex file for yet unknown reasons. Basically,
-                     * these classes should be just treated like other classes from the ART.
-                     */
-                    LOGGER.debug("Target method " + targetMethod + " not contained in dex files!");
-                    targetCFG = dummyIntraCFG(targetMethod);
-                    intraCFGs.put(targetMethod, targetCFG);
-                    addSubGraph(targetCFG);
-                }
-            }
+            // get the CFG matching the invocation target
+            BaseCFG targetCFG = lookupTargetCFG(invokeStmt);
 
             // remove edges between invoke vertex and original successors
             removeEdges(getOutgoingEdges(invokeVertex));
 
-            // add edge to entry of target CFG
+            // the invocation vertex defines an edge to the target CFG
             addEdge(invokeVertex, targetCFG.getEntry());
 
-            // add virtual return vertex
+            // insert virtual return vertex
             ReturnStatement returnStmt = new ReturnStatement(invokeVertex.getMethod(), targetCFG.getMethodName(),
                     invokeStmt.getInstructionIndex());
             Vertex returnVertex = new Vertex(returnStmt);
             addVertex(returnVertex);
 
-            // add edge to virtual return vertex
+            // add edge from exit of target CFG to virtual return vertex
             addEdge(targetCFG.getExit(), returnVertex);
 
             // add edge from virtual return vertex to each original successor
@@ -1061,7 +1032,6 @@ public class InterCFG extends BaseCFG {
                             || Utility.isARTMethod(methodSignature)) {
                         // only construct dummy CFG for non ART classes
                         if (!excludeARTClasses) {
-                            // dummy CFG consisting only of entry, exit vertex and edge between
                             BaseCFG intraCFG = dummyIntraCFG(method);
                             addSubGraph(intraCFG);
                             intraCFGs.put(methodSignature, intraCFG);

@@ -338,8 +338,6 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         if (size() <= 1000) {
             File output = new File(resourceDirectory.toFile(), "graph.png");
             convertGraphToPNG(output);
-            File output2 = new File(resourceDirectory.toFile(), "graph.dot");
-            convertGraphToDOT(output2);
         } else if (size() <= 5000) {
             // can theoretically render large graphs to SVG, but this takes quite some time
             File output = new File(resourceDirectory.toFile(), "graph.svg");
