@@ -20,4 +20,32 @@ public class Activity extends AbstractComponent {
     public Set<Fragment> getHostingFragments() {
         return Collections.unmodifiableSet(hostingFragments);
     }
+
+    public String onCreateMethod() {
+        return getName() + "->onCreate(Landroid/os/Bundle;)V";
+    }
+
+    public String onStartMethod() {
+        return getName() + "->onStart()V";
+    }
+
+    public String onResumeMethod() {
+        return getName() + "->onResume()V";
+    }
+
+    public String onPauseMethod() {
+        return getName() + "->onPause()V";
+    }
+
+    public String onStopMethod() {
+        return getName() + "->onStop()V";
+    }
+
+    public String onDestroyMethod() {
+        return getName() + "->onDestroy()V";
+    }
+
+    public String onRestartMethod() {
+        return getName() + "->onRestart()V";
+    }
 }

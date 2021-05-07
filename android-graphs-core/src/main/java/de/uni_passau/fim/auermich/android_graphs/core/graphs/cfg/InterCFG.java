@@ -311,8 +311,7 @@ public class InterCFG extends BaseCFG {
             Activity activity = (Activity) activityComponent;
             BaseCFG callbackEntryPoint = addAndroidActivityLifecycle(activity, activity.getHostingFragments());
             callbackEntryPoints.put(activity.getName(), callbackEntryPoint);
-            String onCreateMethod = activity.getName() + "->onCreate(Landroid/os/Bundle;)V";
-            addGlobalEntryPoint(intraCFGs.get(onCreateMethod));
+            addGlobalEntryPoint(activity);
         });
 
         // add service lifecycle
@@ -460,24 +459,13 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds for each component (activity) a global entry point to the respective constructor. Additionally, an edge
-     * is created between constructor CFG and the onCreate CFG since the constructor is called prior to onCreate().
+     * Adds for each component (activity) a global entry point to the respective constructor.
      *
-     * @param onCreateCFG The set of onCreate methods (the respective CFGs).
+     * @param activity The activity for which a global entry point should be defined.
      */
-    private void addGlobalEntryPoint(BaseCFG onCreateCFG) {
-
-        // each component defines a default constructor, which is called prior to onCreate()
-        String className = Utility.getClassName(onCreateCFG.getMethodName());
-        String constructorName = className + "-><init>()V";
-
-        if (intraCFGs.containsKey(constructorName)) {
-            BaseCFG constructor = intraCFGs.get(constructorName);
-            addEdge(constructor.getExit(), onCreateCFG.getEntry());
-
-            // add global entry point to constructor
-            addEdge(getEntry(), constructor.getEntry());
-        }
+    private void addGlobalEntryPoint(Activity activity) {
+        BaseCFG activityConstructor = intraCFGs.get(activity.getDefaultConstructor());
+        addEdge(getEntry(), activityConstructor.getEntry());
     }
 
     /**
@@ -491,7 +479,7 @@ public class InterCFG extends BaseCFG {
      */
     private BaseCFG addAndroidActivityLifecycle(final Activity activity, final Set<Fragment> fragments) {
 
-        String onCreateMethod = activity.getName() + "->onCreate(Landroid/os/Bundle;)V";
+        String onCreateMethod = activity.onCreateMethod();
 
         // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
         if (!intraCFGs.containsKey(onCreateMethod)) {
@@ -503,8 +491,8 @@ public class InterCFG extends BaseCFG {
         BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
         LOGGER.debug("Activity " + activity + " defines the following fragments: " + fragments);
 
-        String methodName = onCreateCFG.getMethodName();
-        String className = Utility.getClassName(methodName);
+        // connect onCreate with the default constructor
+        addEdge(intraCFGs.get(activity.getDefaultConstructor()).getExit(), onCreateCFG.getEntry());
 
         // if there are fragments, onCreate invokes onAttach, onCreate and onCreateView
         for (Fragment fragment : fragments) {
@@ -532,7 +520,7 @@ public class InterCFG extends BaseCFG {
         }
 
         // onCreate directly invokes onStart()
-        String onStart = className + "->onStart()V";
+        String onStart = activity.onStartMethod();
         BaseCFG onStartCFG = addLifecycle(onStart, onCreateCFG);
 
         // if there are fragments, onStart() is invoked
@@ -544,7 +532,7 @@ public class InterCFG extends BaseCFG {
             addEdge(onStartFragmentCFG.getExit(), onStartCFG.getExit());
         }
 
-        String onResume = className + "->onResume()V";
+        String onResume = activity.onResumeMethod();
         BaseCFG onResumeCFG = addLifecycle(onResume, onStartCFG);
 
         // if there are fragments, onResume() is invoked
@@ -569,7 +557,7 @@ public class InterCFG extends BaseCFG {
         // TODO: right now all callbacks are handled central, no distinction between callbacks from activities and fragments
 
         // add callbacks sub graph
-        BaseCFG callbacksCFG = dummyIntraCFG("callbacks " + className);
+        BaseCFG callbacksCFG = dummyIntraCFG("callbacks " + activity.getName());
         addSubGraph(callbacksCFG);
 
         // callbacks can be invoked after onResume() has finished
@@ -579,7 +567,7 @@ public class InterCFG extends BaseCFG {
         addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
 
         // onPause() can be invoked after some callback
-        String onPause = className + "->onPause()V";
+        String onPause = activity.onPauseMethod();
         BaseCFG onPauseCFG = addLifecycle(onPause, callbacksCFG);
 
         // if there are fragments, onPause() is invoked
@@ -592,7 +580,7 @@ public class InterCFG extends BaseCFG {
             addEdge(onPauseFragmentCFG.getExit(), onPauseCFG.getExit());
         }
 
-        String onStop = className + "->onStop()V";
+        String onStop = activity.onStopMethod();
         BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
 
         // if there are fragments, onStop() is invoked
@@ -605,7 +593,7 @@ public class InterCFG extends BaseCFG {
             addEdge(onStopFragmentCFG.getExit(), onStopCFG.getExit());
         }
 
-        String onDestroy = className + "->onDestroy()V";
+        String onDestroy = activity.onDestroyMethod();
         BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
 
         // if there are fragments, onDestroy, onDestroyView and onDetach are invoked
@@ -634,7 +622,7 @@ public class InterCFG extends BaseCFG {
         addEdge(onPauseCFG.getExit(), onResumeCFG.getEntry());
 
         // onStop can also invoke onRestart()
-        String onRestart = className + "->onRestart()V";
+        String onRestart = activity.onRestartMethod();
         BaseCFG onRestartCFG = addLifecycle(onRestart, onStopCFG);
 
         // onRestart invokes onStart()
