@@ -24,4 +24,9 @@ public abstract class AbstractComponent implements Component {
     public String toString() {
         return name;
     }
+
+    @Override
+    public String getDefaultConstructor() {
+        return name + "-><init>()V";
+    }
 }

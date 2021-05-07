@@ -2,9 +2,13 @@ package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
 public class Service extends AbstractComponent {
 
+    // whether the service is invoked via startService() or bindService() or both
     private boolean isBound;
     private boolean isStarted;
+
+    // only used in combination with bound services
     private String binder;
+    private String serviceConnection;
 
     public Service(String name, ComponentType type) {
         super(name, type);
@@ -32,5 +36,13 @@ public class Service extends AbstractComponent {
 
     public void setBinder(String binder) {
         this.binder = binder;
+    }
+
+    public String getServiceConnection() {
+        return serviceConnection;
+    }
+
+    public void setServiceConnection(String serviceConnection) {
+        this.serviceConnection = serviceConnection;
     }
 }

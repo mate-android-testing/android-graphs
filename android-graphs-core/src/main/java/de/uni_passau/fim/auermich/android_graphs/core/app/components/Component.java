@@ -5,4 +5,6 @@ public interface Component {
     String getName();
 
     ComponentType getComponentType();
+
+    String getDefaultConstructor();
 }

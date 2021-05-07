@@ -328,7 +328,7 @@ public class InterCFG extends BaseCFG {
      */
     private void addAndroidServiceLifecycle(Service service) {
 
-        String constructor = service.getName() + "-><init>()V";
+        String constructor = service.getDefaultConstructor();
 
         if (!intraCFGs.containsKey(constructor)) {
             LOGGER.warn("Service without explicit constructor: " + service);
@@ -388,6 +388,9 @@ public class InterCFG extends BaseCFG {
             BaseCFG callbacksCFG = dummyIntraCFG("callbacks " + service.getName());
             addSubGraph(callbacksCFG);
 
+            // multiple callbacks might be invoked consecutively
+            addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
+
             // there is always an edge from onCreate()/onStartCommand()/onStart() to the callbacks entry point
             addEdge(nextLifeCycle.getExit(), callbacksCFG.getEntry());
 
@@ -406,6 +409,37 @@ public class InterCFG extends BaseCFG {
             addEdge(callbacksCFG.getEntry(), onBind.getEntry());
             addEdge(onBind.getExit(), callbacksCFG.getExit());
 
+            /*
+            * If we deal with a bound service, onBind() invokes directly onServiceConnected() of
+            * the service connection object.
+             */
+            if (service.isBound() && service.getServiceConnection() != null) {
+
+                String serviceConnection = service.getServiceConnection();
+                BaseCFG serviceConnectionConstructor = intraCFGs.get(Utility.getDefaultConstructor(serviceConnection));
+
+                // add callbacks subgraph
+                BaseCFG serviceConnectionCallbacks = dummyIntraCFG("callbacks " + serviceConnection);
+                addSubGraph(serviceConnectionCallbacks);
+                addEdge(serviceConnectionCallbacks.getExit(), serviceConnectionCallbacks.getEntry());
+
+                // connect constructor with callback entry point
+                addEdge(serviceConnectionConstructor.getExit(), serviceConnectionCallbacks.getEntry());
+
+                // integrate callback methods onServiceConnected() and onServiceDisconnected()
+                BaseCFG onServiceConnected = intraCFGs.get(serviceConnection
+                        + "->onServiceConnected(Landroid/content/ComponentName;Landroid/os/IBinder;)V");
+                BaseCFG onServiceDisconnected = intraCFGs.get(serviceConnection
+                        + "->onServiceDisconnected(Landroid/content/ComponentName;)V");
+                addEdge(serviceConnectionCallbacks.getEntry(), onServiceConnected.getEntry());
+                addEdge(serviceConnectionCallbacks.getEntry(), onServiceDisconnected.getEntry());
+                addEdge(onServiceConnected.getExit(), serviceConnectionCallbacks.getExit());
+                addEdge(onServiceDisconnected.getExit(), serviceConnectionCallbacks.getExit());
+
+                // connect onBind() with onServiceConnected()
+                addEdge(onBind.getExit(), onServiceConnected.getEntry());
+            }
+
             // the service may overwrite onUnBind()
             String onUnbindMethod = service.getName() + "->onUnbind(Landroid/content/Intent;)Z";
             if (intraCFGs.containsKey(onUnbindMethod)) {
@@ -413,9 +447,6 @@ public class InterCFG extends BaseCFG {
                 addEdge(callbacksCFG.getEntry(), onUnbind.getEntry());
                 addEdge(onUnbind.getExit(), callbacksCFG.getExit());
             }
-
-            // multiple callbacks might be invoked consecutively
-            addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
 
             // the service may overwrite onDestroy()
             String onDestroyMethod = service.getName() + "->onDestroy()V";
@@ -425,10 +456,6 @@ public class InterCFG extends BaseCFG {
             }
 
             // TODO: integrate binder class for bound services
-
-            // TODO: If onStartCommand() is present, we need to add another incoming edge to it from
-            //  the startService() call. This is the case, if the service is invoked multiple times.
-            //  Check predecessor of onStartCommand entry for 'startService() invoke call!
         }
     }
 

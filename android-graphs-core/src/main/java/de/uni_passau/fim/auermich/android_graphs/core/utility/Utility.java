@@ -30,6 +30,7 @@ import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.NarrowLiteralInstruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
+import org.jf.dexlib2.iface.instruction.formats.Instruction22c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 
 import java.io.*;
@@ -517,7 +518,7 @@ public final class Utility {
     /**
      * Checks whether the given method refers to the invocation of a component, e.g. an activity.
      *
-     * @param components The set of recognized components.
+     * @param components               The set of recognized components.
      * @param fullyQualifiedMethodName The method to be checked against.
      * @return Returns {@code true} if method refers to the invocation of a component,
      * otherwise {@code false} is returned.
@@ -538,7 +539,7 @@ public final class Utility {
      * A component is an activity or service for instance.
      * Only call this method when isComponentInvocation() returns {@code true}.
      *
-     * @param components The set of recognized components.
+     * @param components          The set of recognized components.
      * @param analyzedInstruction The given instruction.
      * @return Returns the constructor name of the target component if the instruction
      * refers to a component invocation, otherwise {@code null}.
@@ -546,11 +547,10 @@ public final class Utility {
     public static String isComponentInvocation(final Set<Component> components,
                                                final AnalyzedInstruction analyzedInstruction) {
 
-        Instruction instruction = analyzedInstruction.getInstruction();
-
         // check for invoke/invoke-range instruction
         if (Utility.isInvokeInstruction(analyzedInstruction)) {
 
+            Instruction instruction = analyzedInstruction.getInstruction();
             String invokeTarget = ((ReferenceInstruction) instruction).getReference().toString();
             String method = Utility.getMethodName(invokeTarget);
 
@@ -636,15 +636,23 @@ public final class Utility {
                 LOGGER.debug("Backtracking bindService() invocation!");
 
                 /*
-                * We need to perform backtracking and extract the service name from the intent. A typical call
-                * looks as follows:
-                *
-                * invoke-virtual {p0, v0, v1, v2}, Lcom/base/myapplication/MainActivity;
-                *                       ->bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z
-                *
-                * The intent object is the first (explicit) parameter and refers to v0 in above case. Typically,
-                * the intent is generated locally and we are able to extract the service name by looking for the
-                * last const-class instruction, which is handed over to the intent constructor as parameter.
+                 * We need to perform backtracking and extract the service name from the intent. A typical call
+                 * looks as follows:
+                 *
+                 * invoke-virtual {p0, v0, v1, v2}, Lcom/base/myapplication/MainActivity;
+                 *                       ->bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z
+                 *
+                 * The intent object is the first (explicit) parameter and refers to v0 in above case. Typically,
+                 * the intent is generated locally and we are able to extract the service name by looking for the
+                 * last const-class instruction, which is handed over to the intent constructor as parameter.
+                 * In addition, we also look for the service connection object that is used. This refers to v1
+                 * in the above example. Typically, v1 is set as follows:
+                 *
+                 * iget-object v1, p0, Lcom/base/myapplication/MainActivity;
+                 *                       ->serviceConnection:Lcom/base/myapplication/MainActivity$MyServiceConnection;
+                 *
+                 * NOTE: In a typical scenario, we first encounter the iget-object instruction in order to derive the
+                 * service connection object, and afterwards the service object itself.
                  */
 
                 if (analyzedInstruction.getPredecessors().isEmpty()) {
@@ -652,33 +660,39 @@ public final class Utility {
                     return null;
                 }
 
+                String serviceConnection = null;
+
                 // go back until we find const-class instruction which holds the service name
                 AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
                 while (pred.getInstructionIndex() != -1) {
                     Instruction predecessor = pred.getInstruction();
+
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
 
                         String serviceName = ((Instruction21c) predecessor).getReference().toString();
-
-                        // track as a side effect that the service was invoked through bindService()
                         Optional<Component> component = getComponentByName(components, serviceName);
 
                         if (component.isPresent()) {
                             Service service = (Service) component.get();
                             service.setBound(true);
 
-                            // return the full-qualified name of the constructor
-                            return service.getName() + "-><init>()V";
+                            if (serviceConnection != null) {
+                                service.setServiceConnection(serviceConnection);
+                            }
+                            return service.getDefaultConstructor();
                         }
+                    } else if (predecessor.getOpcode() == Opcode.IGET_OBJECT) {
+                        // TODO: check that instruction sets the register declared in the invoke instruction
+                        Instruction22c serviceConnectionObject = ((Instruction22c) predecessor);
+                        serviceConnection = Utility.getObjectType(serviceConnectionObject.getReference().toString());
+                    }
+
+                    // consider next predecessor if available
+                    if (analyzedInstruction.getPredecessors().isEmpty()) {
+                        return null;
                     } else {
-                        if (analyzedInstruction.getPredecessors().isEmpty()) {
-                            // there is no predecessor -> target activity name might be defined somewhere else or external
-                            return null;
-                        } else {
-                            // TODO: may use recursive search over all predecessors
-                            pred = pred.getPredecessors().first();
-                        }
+                        pred = pred.getPredecessors().first();
                     }
                 }
             }
@@ -687,9 +701,39 @@ public final class Utility {
     }
 
     /**
+     * Returns the object type of a given reference. A typical reference looks as follows:
+     * <p>
+     * Lcom/base/application/MainActivity;->serviceConnection:Lcom/base/application/MainActivity$MyServiceConnection;
+     * <p>
+     * The above example represents a reference to the instance variable 'serviceConnection' of the 'MainActivity'
+     * class, where the object type (class) is 'MyServiceConnection'.
+     *
+     * @param reference The reference.
+     * @return Returns the object type (class) of the reference.
+     */
+    public static String getObjectType(String reference) {
+        return reference.split(":")[1];
+    }
+
+    /**
+     * Returns the method signature of the default constructor for a given class.
+     *
+     * @param clazz The name of the class.
+     * @return Returns the default constructor signature.
+     */
+    public static String getDefaultConstructor(String clazz) {
+        if (Utility.isInnerClass(clazz)) {
+            String outerClass = Utility.getOuterClass(clazz);
+            return clazz + "-><init>(" + outerClass + ")V";
+        } else {
+            return clazz + "-><init>()V";
+        }
+    }
+
+    /**
      * Returns the component that has the given name.
      *
-     * @param components The set of components.
+     * @param components    The set of components.
      * @param componentName The name of the component we search for.
      * @return Returns the component matching the given name.
      */
@@ -708,6 +752,7 @@ public final class Utility {
     }
 
     // TODO: Check whether there is any difference to method.toString()!
+
     /**
      * Derives a unique method signature in order to avoid
      * name clashes originating from overloaded/inherited methods
@@ -908,7 +953,7 @@ public final class Utility {
      *
      * @param methodSignature The method signature to be checked against.
      * @return Returns {@code true} if the method signature refers to a inner class invocation,
-     *          otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isInnerClass(final String methodSignature) {
         return methodSignature.contains("$");
@@ -1008,7 +1053,7 @@ public final class Utility {
      *
      * @param className The class name to be checked.
      * @return Returns {@code true} if the class name refers to an array type,
-     *          otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isArrayType(final String className) {
         return className.startsWith("[");
