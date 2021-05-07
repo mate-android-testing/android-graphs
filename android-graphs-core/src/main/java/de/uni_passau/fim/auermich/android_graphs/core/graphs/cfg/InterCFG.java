@@ -335,7 +335,7 @@ public class InterCFG extends BaseCFG {
 
             // TODO: onCreate() is optional, it's not mandatory to overwrite it, may neglect it
             BaseCFG ctr = intraCFGs.get(constructor);
-            String onCreateMethod = service.getName() + "->onCreate()V";
+            String onCreateMethod = service.onCreateMethod();
 
             // the constructor directly invokes onCreate()
             BaseCFG onCreate = addLifecycle(onCreateMethod, ctr);
@@ -346,7 +346,7 @@ public class InterCFG extends BaseCFG {
             * If there is a custom onStartCommand() present, we include it, otherwise it's ignored.
              */
             BaseCFG nextLifeCycle = onCreate;
-            String onStartCommandMethod = service.getName() + "->onStartCommand(Landroid/content/Intent;II)I";
+            String onStartCommandMethod = service.onStartCommandMethod();
             if (intraCFGs.containsKey(onStartCommandMethod)) {
                 nextLifeCycle = addLifecycle(onStartCommandMethod, onCreate);
 
@@ -379,7 +379,7 @@ public class InterCFG extends BaseCFG {
              * https://developer.android.com/reference/android/app/Service#onStart(android.content.Intent,%20int)
              * If there is a custom onStart() present, we include it, otherwise it's ignored.
              */
-            String onStartMethod = service.getName() + "->onStart(Landroid/content/Intent;I)V";
+            String onStartMethod = service.onStartMethod();
             if (intraCFGs.containsKey(onStartMethod)) {
                 nextLifeCycle = addLifecycle(onStartMethod, nextLifeCycle);
             }
@@ -403,7 +403,7 @@ public class InterCFG extends BaseCFG {
             }
 
             // Every service must provide overwrite onBind() independent whether it is a started or bound service.
-            String onBindMethod = service.getName() + "->onBind(Landroid/content/Intent;)Landroid/os/IBinder;";
+            String onBindMethod = service.onBindMethod();
             BaseCFG onBind = intraCFGs.get(onBindMethod);
             addEdge(callbacksCFG.getEntry(), onBind.getEntry());
             addEdge(onBind.getExit(), callbacksCFG.getExit());
@@ -440,7 +440,7 @@ public class InterCFG extends BaseCFG {
             }
 
             // the service may overwrite onUnBind()
-            String onUnbindMethod = service.getName() + "->onUnbind(Landroid/content/Intent;)Z";
+            String onUnbindMethod = service.onUnbindMethod();
             if (intraCFGs.containsKey(onUnbindMethod)) {
                 BaseCFG onUnbind = intraCFGs.get(onUnbindMethod);
                 addEdge(callbacksCFG.getEntry(), onUnbind.getEntry());
@@ -448,7 +448,7 @@ public class InterCFG extends BaseCFG {
             }
 
             // the service may overwrite onDestroy()
-            String onDestroyMethod = service.getName() + "->onDestroy()V";
+            String onDestroyMethod = service.onDestroyMethod();
             if (intraCFGs.containsKey(onDestroyMethod)) {
                 BaseCFG onDestroy = intraCFGs.get(onDestroyMethod);
                 addEdge(callbacksCFG.getExit(), onDestroy.getEntry());

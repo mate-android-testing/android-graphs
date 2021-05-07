@@ -45,4 +45,28 @@ public class Service extends AbstractComponent {
     public void setServiceConnection(String serviceConnection) {
         this.serviceConnection = serviceConnection;
     }
+
+    public String onCreateMethod() {
+        return getName() + "->onCreate()V";
+    }
+
+    public String onStartCommandMethod() {
+        return getName() + "->onStartCommand(Landroid/content/Intent;II)I";
+    }
+
+    public String onStartMethod() {
+        return getName() + "->onStart(Landroid/content/Intent;I)V";
+    }
+
+    public String onBindMethod() {
+        return getName() + "->onBind(Landroid/content/Intent;)Landroid/os/IBinder;";
+    }
+
+    public String onUnbindMethod() {
+        return getName() + "->onUnbind(Landroid/content/Intent;)Z";
+    }
+
+    public String onDestroyMethod() {
+        return getName() + "->onDestroy()V";
+    }
 }

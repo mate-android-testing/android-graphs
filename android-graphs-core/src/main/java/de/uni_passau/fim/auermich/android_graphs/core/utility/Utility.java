@@ -579,7 +579,7 @@ public final class Utility {
 
                         if (activity.isPresent()) {
                             // return the full-qualified name of the constructor
-                            return activity.get().getName() + "-><init>()V";
+                            return activity.get().getDefaultConstructor();
                         }
                     } else {
                         if (analyzedInstruction.getPredecessors().isEmpty()) {
@@ -619,7 +619,7 @@ public final class Utility {
                             service.setStarted(true);
 
                             // return the full-qualified name of the constructor
-                            return service.getName() + "-><init>()V";
+                            return service.getDefaultConstructor();
                         }
                     } else {
                         if (analyzedInstruction.getPredecessors().isEmpty()) {
