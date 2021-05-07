@@ -498,21 +498,20 @@ public class InterCFG extends BaseCFG {
         for (Fragment fragment : fragments) {
 
             // TODO: there is a deprecated onAttach using an activity instance as parameter
-            String onAttachFragment = fragment.getName() + "->onAttach(Landroid/content/Context;)V";
+            String onAttachFragment = fragment.onAttachMethod();
             BaseCFG onAttachFragmentCFG = addLifecycle(onAttachFragment, onCreateCFG);
 
-            String onCreateFragment = fragment.getName() + "->onCreate(Landroid/os/Bundle;)V";
+            String onCreateFragment = fragment.onCreateMethod();
             BaseCFG onCreateFragmentCFG = addLifecycle(onCreateFragment, onAttachFragmentCFG);
 
-            String onCreateViewFragment = fragment.getName() + "->onCreateView(Landroid/view/LayoutInflater;" +
-                    "Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;";
+            String onCreateViewFragment = fragment.onCreateViewMethod();
             BaseCFG onCreateViewFragmentCFG = addLifecycle(onCreateViewFragment, onCreateFragmentCFG);
 
-            String onActivityCreatedFragment = fragment.getName() + "->onActivityCreated(Landroid/os/Bundle;)V";
+            String onActivityCreatedFragment = fragment.onActivityCreatedMethod();
             BaseCFG onActivityCreatedFragmentCFG = addLifecycle(onActivityCreatedFragment, onCreateViewFragmentCFG);
 
             // according to https://developer.android.com/reference/android/app/Fragment -> onViewStateRestored
-            String onViewStateRestoredFragment = fragment.getName() + "->onViewStateRestored(Landroid/os/Bundle;)V";
+            String onViewStateRestoredFragment = fragment.onViewStateRestoredMethod();
             BaseCFG onViewStateRestoredFragmentCFG = addLifecycle(onViewStateRestoredFragment, onActivityCreatedFragmentCFG);
 
             // go back to onCreate() exit
@@ -525,7 +524,7 @@ public class InterCFG extends BaseCFG {
 
         // if there are fragments, onStart() is invoked
         for (Fragment fragment : fragments) {
-            String onStartFragment = fragment.getName() + "->onStart()V";
+            String onStartFragment = fragment.onStartMethod();
             BaseCFG onStartFragmentCFG = addLifecycle(onStartFragment, onStartCFG);
 
             // go back to onStart() exit
@@ -537,7 +536,7 @@ public class InterCFG extends BaseCFG {
 
         // if there are fragments, onResume() is invoked
         for (Fragment fragment : fragments) {
-            String onResumeFragment = fragment.getName() + "->onResume()V";
+            String onResumeFragment = fragment.onResumeMethod();
             BaseCFG onResumeFragmentCFG = addLifecycle(onResumeFragment, onResumeCFG);
 
             // go back to onResume() exit
@@ -573,7 +572,7 @@ public class InterCFG extends BaseCFG {
         // if there are fragments, onPause() is invoked
         for (Fragment fragment : fragments) {
 
-            String onPauseFragment = fragment.getName() + "->onPause()V";
+            String onPauseFragment = fragment.onPauseMethod();
             BaseCFG onPauseFragmentCFG = addLifecycle(onPauseFragment, onPauseCFG);
 
             // go back to onPause() exit
@@ -586,7 +585,7 @@ public class InterCFG extends BaseCFG {
         // if there are fragments, onStop() is invoked
         for (Fragment fragment : fragments) {
 
-            String onStopFragment = fragment.getName() + "->onStop()V";
+            String onStopFragment = fragment.onStopMethod();
             BaseCFG onStopFragmentCFG = addLifecycle(onStopFragment, onStopCFG);
 
             // go back to onStop() exit
@@ -599,19 +598,18 @@ public class InterCFG extends BaseCFG {
         // if there are fragments, onDestroy, onDestroyView and onDetach are invoked
         for (Fragment fragment : fragments) {
 
-            String onDestroyViewFragment = fragment.getName() + "->onDestroyView()V";
+            String onDestroyViewFragment = fragment.onDestroyViewMethod();
             BaseCFG onDestroyViewFragmentCFG = addLifecycle(onDestroyViewFragment, onDestroyCFG);
 
             // onDestroyView() can also invoke onCreateView()
-            String onCreateViewFragment = fragment.getName() + "->onCreateView(Landroid/view/LayoutInflater;" +
-                    "Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;";
+            String onCreateViewFragment = fragment.onCreateViewMethod();
             BaseCFG onCreateViewFragmentCFG = intraCFGs.get(onCreateViewFragment);
             addEdge(onDestroyViewFragmentCFG.getExit(), onCreateViewFragmentCFG.getEntry());
 
-            String onDestroyFragment = fragment.getName() + "->onDestroy()V";
+            String onDestroyFragment = fragment.onDestroyMethod();
             BaseCFG onDestroyFragmentCFG = addLifecycle(onDestroyFragment, onDestroyViewFragmentCFG);
 
-            String onDetachFragment = fragment.getName() + "->onDetach()V";
+            String onDetachFragment = fragment.onDetachMethod();
             BaseCFG onDetachFragmentCFG = addLifecycle(onDetachFragment, onDestroyFragmentCFG);
 
             // go back to onDestroy() exit
