@@ -1040,6 +1040,9 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("Constructing IntraCFGs!");
         final Pattern exclusionPattern = Utility.readExcludePatterns();
 
+        // track binder classes and attach them to the corresponding service
+        Set<String> binderClasses = new HashSet<>();
+
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
@@ -1064,6 +1067,8 @@ public class InterCFG extends BaseCFG {
                         components.add(new Fragment(classDef.toString(), ComponentType.FRAGMENT));
                     } else if (Utility.isService(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Service(classDef.toString(), ComponentType.SERVICE));
+                    } else if (Utility.isBinder(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                        binderClasses.add(classDef.toString());
                     }
                 }
                 
@@ -1087,6 +1092,19 @@ public class InterCFG extends BaseCFG {
                         // only hold a reference to the entry and exit vertex
                         intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
                     }
+                }
+            }
+        }
+
+        // assign binder class to respective service
+        for (String binderClass : binderClasses) {
+            // typically binder classes are inner classes of the service
+            if (Utility.isInnerClass(binderClass)) {
+                String serviceName = Utility.getOuterClass(binderClass);
+                Optional<Component> component = Utility.getComponentByName(components, serviceName);
+                if (component.isPresent() && component.get().getComponentType() == ComponentType.SERVICE) {
+                    Service service = (Service) component.get();
+                    service.setBinder(binderClass);
                 }
             }
         }

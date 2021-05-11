@@ -100,6 +100,11 @@ public final class Utility {
         add("Landroid/app/Service;");
     }};
 
+    // https://developer.android.com/reference/android/os/Binder
+    private static final Set<String> BINDER_CLASSES = new HashSet<>() {{
+        add("Landroid/os/Binder;");
+    }};
+
     /**
      * The recognized ART methods.
      */
@@ -1499,6 +1504,38 @@ public final class Utility {
             abort = true;
 
             if (SERVICE_CLASSES.contains(superClass)) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks whether the given class represents a binder class by checking against the super class.
+     *
+     * @param classes      The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is a binder class,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isBinder(final List<ClassDef> classes, final ClassDef currentClass) {
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            if (BINDER_CLASSES.contains(superClass)) {
                 return true;
             } else {
                 // step up in the class hierarchy
