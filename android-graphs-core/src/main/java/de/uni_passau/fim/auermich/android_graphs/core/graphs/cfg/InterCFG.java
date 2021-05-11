@@ -1110,9 +1110,12 @@ public class InterCFG extends BaseCFG {
         }
 
         LOGGER.debug("Generated CFGs: " + intraCFGs.size());
-        LOGGER.debug("List of activities: " + components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY));
-        LOGGER.debug("List of fragments: " + components.stream().filter(c -> c.getComponentType() == ComponentType.FRAGMENT));
-        LOGGER.debug("List of services: " + components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE));
+        LOGGER.debug("List of activities: " + components.stream()
+                .filter(c -> c.getComponentType() == ComponentType.ACTIVITY).collect(Collectors.toList()));
+        LOGGER.debug("List of fragments: " + components.stream()
+                .filter(c -> c.getComponentType() == ComponentType.FRAGMENT).collect(Collectors.toList()));
+        LOGGER.debug("List of services: " + components.stream()
+                .filter(c -> c.getComponentType() == ComponentType.SERVICE).collect(Collectors.toList()));
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
     }
 
