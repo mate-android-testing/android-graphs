@@ -107,9 +107,6 @@ public class InterCFG extends BaseCFG {
 
         LOGGER.debug("Constructing Inter CFG with basic blocks!");
 
-        // exclude certain classes and methods from graph
-        Pattern exclusionPattern = properties.exclusionPattern;
-
         final String packageName = apk.getManifest().getPackageName();
 
         // resolve the invoke vertices and connect the sub graphs with each other
@@ -124,7 +121,7 @@ public class InterCFG extends BaseCFG {
             }
 
             // split vertex into blocks (split after each invoke instruction + insert virtual return statement)
-            List<List<Statement>> blocks = splitBlockStatement(blockStatement, packageName, exclusionPattern);
+            List<List<Statement>> blocks = splitBlockStatement(blockStatement, packageName);
 
             if (blocks.size() == 1) {
                 LOGGER.debug("Unchanged vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]");
@@ -278,7 +275,7 @@ public class InterCFG extends BaseCFG {
      * the activity hosting the fragment is updated with this information.
      *
      * @param components The set of components.
-     * @param basicStmt The statement wrapping a single instruction.
+     * @param basicStmt  The statement wrapping a single instruction.
      */
     private void checkForFragmentInvocation(final Set<Component> components, BasicStatement basicStmt) {
 
@@ -333,7 +330,7 @@ public class InterCFG extends BaseCFG {
     /**
      * Adds the lifecycle of started and/or bound services.
      *
-     * @param service The service for which the lifecycle should be added.
+     * @param service       The service for which the lifecycle should be added.
      * @param callbackGraph The callback sub graph of the service component.
      */
     private void addAndroidServiceLifecycle(Service service, BaseCFG callbackGraph) {
@@ -352,9 +349,9 @@ public class InterCFG extends BaseCFG {
             BaseCFG onCreate = addLifecycle(onCreateMethod, ctr);
 
             /*
-            * The method onStartCommand() is only invoked if the service is invoked via Context.startService(), see:
-            * https://developer.android.com/reference/android/app/Service#onStartCommand(android.content.Intent,%20int,%20int)
-            * If there is a custom onStartCommand() present, we include it, otherwise it's ignored.
+             * The method onStartCommand() is only invoked if the service is invoked via Context.startService(), see:
+             * https://developer.android.com/reference/android/app/Service#onStartCommand(android.content.Intent,%20int,%20int)
+             * If there is a custom onStartCommand() present, we include it, otherwise it's ignored.
              */
             BaseCFG nextLifeCycle = onCreate;
             String onStartCommandMethod = service.onStartCommandMethod();
@@ -402,9 +399,9 @@ public class InterCFG extends BaseCFG {
             addEdge(nextLifeCycle.getExit(), callbackGraph.getEntry());
 
             /*
-            * If the service is a bound service, i.e. called by bindService(), there is an edge
-            * from onCreate() to the callbacks entry point. In particular, bindService() doesn't invoke
-            * onStartCommand() nor onStart().
+             * If the service is a bound service, i.e. called by bindService(), there is an edge
+             * from onCreate() to the callbacks entry point. In particular, bindService() doesn't invoke
+             * onStartCommand() nor onStart().
              */
             if (service.isBound()) {
                 addEdge(onCreate.getExit(), callbackGraph.getEntry());
@@ -417,8 +414,8 @@ public class InterCFG extends BaseCFG {
             addEdge(onBind.getExit(), callbackGraph.getExit());
 
             /*
-            * If we deal with a bound service, onBind() invokes directly onServiceConnected() of
-            * the service connection object.
+             * If we deal with a bound service, onBind() invokes directly onServiceConnected() of
+             * the service connection object.
              */
             if (service.isBound() && service.getServiceConnection() != null) {
 
@@ -654,7 +651,7 @@ public class InterCFG extends BaseCFG {
      * Adds callbacks to the respective UI components. We both consider callbacks defined
      * inside layout files as well as programmatically defined callbacks.
      *
-     * @param apk                 The APK file describing the app.
+     * @param apk            The APK file describing the app.
      * @param callbackGraphs Maintains a mapping between a component and its callback graph.
      */
     private void addUICallbacks(APK apk, Map<String, BaseCFG> callbackGraphs) {
@@ -685,39 +682,30 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Returns for each component, e.g. an activity, its associated callbacks. It goes through all
-     * intra CFGs looking for a specific callback by its full-qualified name. If there is a match,
-     * we extract the defining component, which is typically the outer class, and the CFG representing
-     * the callback.
+     * Returns for each ui component, i.e. an activity or a fragment, its associated callbacks.
      *
      * @param apk The APK file.
      * @return Returns a mapping between a component and its associated callbacks (can be multiple per instance).
      */
-    private Multimap<String, BaseCFG> lookUpCallbacks(APK apk) {
+    private Multimap<String, BaseCFG> lookUpCallbacks(final APK apk) {
 
         /*
-         * Rather than searching for the call of e.g. setOnClickListener() and following
-         * the invocation to the corresponding onClick() method defined by some inner class,
-         * we can directly search for the onClick() method and query the outer class (the component
-         * defining the callback). We don't even need to go through the code, we can actually
-         * look up in the set of intra CFGs for a specific listener through its FQN. To get
-         * the outer class, we need to inspect the FQN of the inner class, which is of the following form:
-         *       Lmy/package/OuterClassName$InnerClassName;
-         * This means, we need to split the FQN at the '$' symbol to retrieve the name of the outer class.
-         *
-         * NOTE: This is solely an heuristic, we assume that the listener is defined within the class
-         * that makes use of it, which is the typical behaviour.
+         * Rather than backtracking calls like setOnClickListener() to a certain component, we
+         * directly search for the callback methods, e.g., onClick(), and track which class defines it.
+         * Only if the callback is not directly declared in an activity or fragment, we look up it usages.
          */
 
-        // key: FQN of component defining a callback (may define several ones)
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
+        final Pattern exclusionPattern = properties.exclusionPattern;
+        Map<String, Set<ClassDef>> cachedUsagesPerClass = new HashMap<>();
 
-        Pattern exclusionPattern = properties.exclusionPattern;
-
+        // iterate over all methods in graph
         for (Map.Entry<String, BaseCFG> intraCFG : intraCFGs.entrySet()) {
+
             String methodName = intraCFG.getKey();
             String className = Utility.getClassName(methodName);
 
+            // check for method representing a callback
             if (exclusionPattern != null && !exclusionPattern.matcher(Utility.dottedClassName(className)).matches()
                     // TODO: add missing callbacks for each event listener
                     // see: https://developer.android.com/guide/topics/ui/ui-events
@@ -731,11 +719,19 @@ public class InterCFG extends BaseCFG {
                     || methodName.endsWith("onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V"))) {
 
                 /*
-                * In most cases, a component directly declares its callbacks as inner classes. Thus, we can
-                * directly retrieve a mapping by inspecting the class name. However, callbacks for activities and
-                * fragments can be also defined by a container class, i.e. a wrapper class around multiple widgets.
-                * In this case we need to check where the wrapper is used. Such a wrapper might be used by multiple
-                * activities or fragments.
+                * We need to check where the callback is declared. There are two options here:
+                *
+                * (1)
+                * If the class containing the callback represents an inner class, then the callback might belong
+                * to the outer class, e.g. an activity defines the OnClickListener (onClick() callback) as inner class.
+                * But, the outer class might be just a wrapper class containing multiple widgets and its callbacks.
+                * In this case, we have to backtrack the usages of the (outer) class to the respective component,
+                * i.e. activity or fragment.
+                *
+                * (2)
+                * If the class represents a top-level class, it might be either an activity/fragment implementing
+                * a listener or a class representing a top-level listener. In the latter case, we need to backtrack
+                * the usages to the respective component.
                  */
                 if (Utility.isInnerClass(methodName)) {
 
@@ -746,11 +742,72 @@ public class InterCFG extends BaseCFG {
                         // component declares directly callback
                         callbacks.put(outerClass, intraCFG.getValue());
                     } else {
-                        // callback is declared by some intermediate class
+                        // callback is declared by some wrapper class
 
+                        // check which application classes make use of the wrapper class
+                        Set<ClassDef> usages;
+
+                        // avoid redundant usage lookups of same class
+                        if (cachedUsagesPerClass.containsKey(outerClass)) {
+                            usages = cachedUsagesPerClass.get(outerClass);
+                        } else {
+                            usages = Utility.findApplicationUsages(apk, outerClass);
+                            cachedUsagesPerClass.put(outerClass, usages);
+                        }
+
+                        // check whether any found class represents a (ui) component
+                        for (ClassDef usage : usages) {
+
+                            String clazzName = usage.toString();
+                            Optional<Component> uiComponent = Utility.getComponentByName(components, clazzName);
+
+                            if (uiComponent.isPresent()) {
+                                /*
+                                * The class that makes use of the wrapper class represents a component, thus
+                                * the callback should be assigned to this class.
+                                 */
+                                callbacks.put(clazzName, intraCFG.getValue());
+                            }
+                        }
                     }
                 } else {
-                    LOGGER.warn("Couldn't find component for callback: " + methodName);
+                    // top-level class
+
+                    // an activity/fragment might implement a listener interface
+                    Optional<Component> component = Utility.getComponentByName(components, className);
+
+                    if (component.isPresent()) {
+                        // component declares directly callback
+                        callbacks.put(className, intraCFG.getValue());
+                    } else {
+                        // callback is declared by some top-level listener class
+
+                        // check which application classes make use of the top-level listener
+                        Set<ClassDef> usages;
+
+                        // avoid redundant usage lookups of same class
+                        if (cachedUsagesPerClass.containsKey(className)) {
+                            usages = cachedUsagesPerClass.get(className);
+                        } else {
+                            usages = Utility.findApplicationUsages(apk, className);
+                            cachedUsagesPerClass.put(className, usages);
+                        }
+
+                        // check whether any found class represents a (ui) component
+                        for (ClassDef usage : usages) {
+
+                            String clazzName = usage.toString();
+                            Optional<Component> uiComponent = Utility.getComponentByName(components, clazzName);
+
+                            if (uiComponent.isPresent()) {
+                                /*
+                                 * The class that makes use of the top-level listener class represents a component,
+                                 * thus the callback should be assigned to this class.
+                                 */
+                                callbacks.put(clazzName, intraCFG.getValue());
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -882,20 +939,17 @@ public class InterCFG extends BaseCFG {
      * Splits a block statement after each invocation and adds a virtual return statement to
      * the next block. Ignores certain invocations, e.g. ART methods.
      *
-     * @param blockStatement   The given block statement.
-     * @param packageName      The package name of the AUT.
-     * @param exclusionPattern Describes which invocations should be ignored for the splitting.
+     * @param blockStatement The given block statement.
+     * @param packageName    The package name of the AUT.
      * @return Returns a list of block statements, where a block statement is described by a list
      * of single statements.
      */
-    private List<List<Statement>> splitBlockStatement(BlockStatement blockStatement, String packageName,
-                                                      Pattern exclusionPattern) {
+    private List<List<Statement>> splitBlockStatement(BlockStatement blockStatement, String packageName) {
 
         List<List<Statement>> blocks = new ArrayList<>();
-
         List<Statement> block = new ArrayList<>();
-
         List<Statement> statements = blockStatement.getStatements();
+        final Pattern exclusionPattern = properties.exclusionPattern;
 
         for (Statement statement : statements) {
 
@@ -1080,7 +1134,7 @@ public class InterCFG extends BaseCFG {
                         binderClasses.add(classDef.toString());
                     }
                 }
-                
+
                 for (Method method : classDef.getMethods()) {
 
                     String methodSignature = Utility.deriveMethodSignature(method);

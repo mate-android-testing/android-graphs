@@ -1,7 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
 import com.google.common.collect.Lists;
-import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
+import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Service;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
@@ -346,6 +346,94 @@ public final class Utility {
 
         }
         return null;
+    }
+
+    /**
+     * Finds the usage of a given class, i.e. invocations of the constructor, in the application package.
+     *
+     * @param apk The APK file containing the dex classes.
+     * @param clazz The class for which we should find its usages.
+     * @return Returns a set of classes that make use of the given class.
+     */
+    public static Set<ClassDef> findApplicationUsages(APK apk, String clazz) {
+
+        Set<ClassDef> classes = new HashSet<>();
+        String applicationPackage = apk.getManifest().getPackageName();
+
+       for (DexFile dexFile : apk.getDexFiles()) {
+           for (ClassDef classDef : dexFile.getClasses()) {
+
+               boolean foundUsage = false;
+               String className = classDef.toString();
+
+               if (!Utility.dottedClassName(className).startsWith(applicationPackage)) {
+                   // don't consider usages outside the application package
+                   continue;
+               }
+
+               if (className.equals(clazz)) {
+                   // the class itself is not relevant
+                   continue;
+               }
+
+               if (Utility.isInnerClass(className)) {
+                   if (clazz.equals(Utility.getOuterClass(className))) {
+                       // any inner class of the given class is also not relevant
+                       continue;
+                   }
+               }
+
+               // first check whether the class is hold as an instance variable
+               for (Field instanceField : classDef.getInstanceFields()) {
+                   if (clazz.equals(instanceField.getType())) {
+                       classes.add(classDef);
+                       foundUsage = true;
+                       break;
+                   }
+               }
+
+               if (foundUsage) {
+                   break;
+               }
+
+               for (Method method : classDef.getMethods()) {
+
+                   // second check whether method parameters refer to class
+                   for (MethodParameter parameter : method.getParameters()) {
+                       if (clazz.equals(parameter.getType())) {
+                           classes.add(classDef);
+                           foundUsage = true;
+                           break;
+                       }
+                   }
+
+                   if (foundUsage) {
+                       break;
+                   }
+
+                   // third check whether any method of the class is invoked
+                   MethodImplementation implementation = method.getImplementation();
+                   if (implementation != null) {
+                       for (Instruction instruction : implementation.getInstructions()) {
+                           if (Utility.isInvokeInstruction(instruction)) {
+                               String invokeTarget = ((ReferenceInstruction) instruction).getReference().toString();
+                               if (clazz.equals(Utility.getClassName(invokeTarget))) {
+                                   classes.add(classDef);
+                                   foundUsage = true;
+                                   break;
+                               }
+                           }
+                       }
+                   }
+
+                   if (foundUsage) {
+                       break;
+                   }
+               }
+           }
+       }
+       LOGGER.debug("Usages of class " + clazz + ": " + classes);
+       return classes;
     }
 
     /**
@@ -1238,6 +1326,17 @@ public final class Utility {
      */
     public static boolean isInvokeInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
+        return INVOKE_OPCODES.contains(instruction.getOpcode());
+    }
+
+    /**
+     * Checks whether the given instruction is any sort of invoke statement.
+     *
+     * @param instruction The instruction to be inspected.
+     * @return Returns {@code true} if the given instruction is an invoke statement,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isInvokeInstruction(final Instruction instruction) {
         return INVOKE_OPCODES.contains(instruction.getOpcode());
     }
 
