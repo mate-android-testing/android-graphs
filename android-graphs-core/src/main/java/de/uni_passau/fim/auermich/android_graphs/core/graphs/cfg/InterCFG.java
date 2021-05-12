@@ -15,6 +15,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -45,11 +46,7 @@ public class InterCFG extends BaseCFG {
     private static final Logger LOGGER = LogManager.getLogger(InterCFG.class);
     private static final GraphType GRAPH_TYPE = GraphType.INTERCFG;
 
-    // whether for ART classes solely a dummy intra CFG should be generated
-    private boolean excludeARTClasses;
-
-    // whether only classes of AUT should be included and resolved
-    private boolean resolveOnlyAUTClasses;
+    private Properties properties;
 
     // track the set of components
     private Set<Component> components = new HashSet<>();
@@ -68,12 +65,11 @@ public class InterCFG extends BaseCFG {
     public InterCFG(String graphName, APK apk, boolean useBasicBlocks,
                     boolean excludeARTClasses, boolean resolveOnlyAUTClasses) {
         super(graphName);
-        this.excludeARTClasses = excludeARTClasses;
-        this.resolveOnlyAUTClasses = resolveOnlyAUTClasses;
-        constructCFG(apk, useBasicBlocks);
+        this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+        constructCFG(apk);
     }
 
-    private void constructCFG(APK apk, boolean useBasicBlocks) {
+    private void constructCFG(APK apk) {
 
         // decode APK to access manifest and other resource files
         apk.decodeAPK();
@@ -82,13 +78,22 @@ public class InterCFG extends BaseCFG {
         apk.setManifest(Manifest.parse(new File(apk.getDecodingOutputPath(), "AndroidManifest.xml")));
 
         // create the individual intraCFGs and add them as sub graphs
-        constructIntraCFGs(apk, useBasicBlocks);
+        constructIntraCFGs(apk, properties.useBasicBlocks);
 
-        if (useBasicBlocks) {
+        if (properties.useBasicBlocks) {
             constructCFGWithBasicBlocks(apk);
         } else {
-            constructCFG(apk);
+            constructCFGNoBasicBlocks(apk);
         }
+
+        // add for each component a callback graph
+        Map<String, BaseCFG> callbackGraphs = addCallbackGraphs();
+
+        // add lifecycle of components + global entry points
+        addLifecycle(callbackGraphs);
+
+        // add the UI callbacks specified either through XML or directly in code
+        addUICallbacks(apk, callbackGraphs);
 
         LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
     }
@@ -103,10 +108,7 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("Constructing Inter CFG with basic blocks!");
 
         // exclude certain classes and methods from graph
-        Pattern exclusionPattern = Utility.readExcludePatterns();
-
-        // collect the callback entry points
-        Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
+        Pattern exclusionPattern = properties.exclusionPattern;
 
         final String packageName = apk.getManifest().getPackageName();
 
@@ -205,12 +207,23 @@ public class InterCFG extends BaseCFG {
                 addEdge(blockVertices.get(blockVertices.size() - 1), blockVertices.get(0));
             }
         }
+    }
 
-        // add lifecycle of components + global entry points
-        addLifecycle(components, callbackEntryPoints);
+    /**
+     * Adds for each component except fragments a callback entry point.
+     *
+     * @return Returns a mapping of the components and its callback entry point.
+     */
+    private Map<String, BaseCFG> addCallbackGraphs() {
+        Map<String, BaseCFG> callbackGraphs = new HashMap<>();
 
-        // add the callbacks specified either through XML or directly in code
-        addCallbacks(apk, callbackEntryPoints);
+        // fragments share the callback entry point with the surrounding activity
+        components.stream().filter(c -> c.getComponentType() != ComponentType.FRAGMENT).forEach(component -> {
+            BaseCFG callbackGraph = dummyIntraCFG("callbacks " + component.getName());
+            addSubGraph(callbackGraph);
+            callbackGraphs.put(component.getName(), callbackGraph);
+        });
+        return callbackGraphs;
     }
 
     /**
@@ -298,25 +311,22 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds the lifecycle to the given components. In addition, the callback entry points are tracked
-     * and the global entry points are defined for activities.
+     * Adds the lifecycle to the given components. In addition, the global entry points are defined for activities.
      *
-     * @param components The set of components.
-     * @param callbackEntryPoints The set of callback entry points.
+     * @param callbackGraphs A mapping of component to its callback graph.
      */
-    private void addLifecycle(final Set<Component> components, Map<String, BaseCFG> callbackEntryPoints) {
+    private void addLifecycle(Map<String, BaseCFG> callbackGraphs) {
 
         // add activity and fragment lifecycle as well as global entry point for activities
         components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activityComponent -> {
             Activity activity = (Activity) activityComponent;
-            BaseCFG callbackEntryPoint = addAndroidActivityLifecycle(activity, activity.getHostingFragments());
-            callbackEntryPoints.put(activity.getName(), callbackEntryPoint);
+            addAndroidActivityLifecycle(activity, callbackGraphs.get(activity.getName()));
             addGlobalEntryPoint(activity);
         });
 
         // add service lifecycle
         components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(service -> {
-            addAndroidServiceLifecycle((Service) service);
+            addAndroidServiceLifecycle((Service) service, callbackGraphs.get(service.getName()));
         });
     }
 
@@ -324,8 +334,9 @@ public class InterCFG extends BaseCFG {
      * Adds the lifecycle of started and/or bound services.
      *
      * @param service The service for which the lifecycle should be added.
+     * @param callbackGraph The callback sub graph of the service component.
      */
-    private void addAndroidServiceLifecycle(Service service) {
+    private void addAndroidServiceLifecycle(Service service, BaseCFG callbackGraph) {
 
         String constructor = service.getDefaultConstructor();
 
@@ -384,14 +395,11 @@ public class InterCFG extends BaseCFG {
                 nextLifeCycle = addLifecycle(onStartMethod, nextLifeCycle);
             }
 
-            BaseCFG callbacksCFG = dummyIntraCFG("callbacks " + service.getName());
-            addSubGraph(callbacksCFG);
-
             // multiple callbacks might be invoked consecutively
-            addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
+            addEdge(callbackGraph.getExit(), callbackGraph.getEntry());
 
             // there is always an edge from onCreate()/onStartCommand()/onStart() to the callbacks entry point
-            addEdge(nextLifeCycle.getExit(), callbacksCFG.getEntry());
+            addEdge(nextLifeCycle.getExit(), callbackGraph.getEntry());
 
             /*
             * If the service is a bound service, i.e. called by bindService(), there is an edge
@@ -399,14 +407,14 @@ public class InterCFG extends BaseCFG {
             * onStartCommand() nor onStart().
              */
             if (service.isBound()) {
-                addEdge(onCreate.getExit(), callbacksCFG.getEntry());
+                addEdge(onCreate.getExit(), callbackGraph.getEntry());
             }
 
             // Every service must provide overwrite onBind() independent whether it is a started or bound service.
             String onBindMethod = service.onBindMethod();
             BaseCFG onBind = intraCFGs.get(onBindMethod);
-            addEdge(callbacksCFG.getEntry(), onBind.getEntry());
-            addEdge(onBind.getExit(), callbacksCFG.getExit());
+            addEdge(callbackGraph.getEntry(), onBind.getEntry());
+            addEdge(onBind.getExit(), callbackGraph.getExit());
 
             /*
             * If we deal with a bound service, onBind() invokes directly onServiceConnected() of
@@ -443,18 +451,16 @@ public class InterCFG extends BaseCFG {
             String onUnbindMethod = service.onUnbindMethod();
             if (intraCFGs.containsKey(onUnbindMethod)) {
                 BaseCFG onUnbind = intraCFGs.get(onUnbindMethod);
-                addEdge(callbacksCFG.getEntry(), onUnbind.getEntry());
-                addEdge(onUnbind.getExit(), callbacksCFG.getExit());
+                addEdge(callbackGraph.getEntry(), onUnbind.getEntry());
+                addEdge(onUnbind.getExit(), callbackGraph.getExit());
             }
 
             // the service may overwrite onDestroy()
             String onDestroyMethod = service.onDestroyMethod();
             if (intraCFGs.containsKey(onDestroyMethod)) {
                 BaseCFG onDestroy = intraCFGs.get(onDestroyMethod);
-                addEdge(callbacksCFG.getExit(), onDestroy.getEntry());
+                addEdge(callbackGraph.getExit(), onDestroy.getEntry());
             }
-
-            // TODO: integrate binder class for bound services
         }
     }
 
@@ -473,12 +479,10 @@ public class InterCFG extends BaseCFG {
      * integrates the fragment lifecycle.
      *
      * @param activity The activity for which the lifecycle should be added.
-     * @param fragments   The name of fragments hosted by the given activity.
-     * @return Returns the sub graph defining the callbacks, which are either declared
-     * directly inside the code or statically via the layout files.
      */
-    private BaseCFG addAndroidActivityLifecycle(final Activity activity, final Set<Fragment> fragments) {
+    private void addAndroidActivityLifecycle(final Activity activity, BaseCFG callbackGraph) {
 
+        final Set<Fragment> fragments = activity.getHostingFragments();
         String onCreateMethod = activity.onCreateMethod();
 
         // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
@@ -553,21 +557,15 @@ public class InterCFG extends BaseCFG {
          * points back to the 'callbacks' entry node.
          */
 
-        // TODO: right now all callbacks are handled central, no distinction between callbacks from activities and fragments
-
-        // add callbacks sub graph
-        BaseCFG callbacksCFG = dummyIntraCFG("callbacks " + activity.getName());
-        addSubGraph(callbacksCFG);
-
         // callbacks can be invoked after onResume() has finished
-        addEdge(onResumeCFG.getExit(), callbacksCFG.getEntry());
+        addEdge(onResumeCFG.getExit(), callbackGraph.getEntry());
 
         // there can be a sequence of callbacks (loop)
-        addEdge(callbacksCFG.getExit(), callbacksCFG.getEntry());
+        addEdge(callbackGraph.getExit(), callbackGraph.getEntry());
 
         // onPause() can be invoked after some callback
         String onPause = activity.onPauseMethod();
-        BaseCFG onPauseCFG = addLifecycle(onPause, callbacksCFG);
+        BaseCFG onPauseCFG = addLifecycle(onPause, callbackGraph);
 
         // if there are fragments, onPause() is invoked
         for (Fragment fragment : fragments) {
@@ -625,8 +623,6 @@ public class InterCFG extends BaseCFG {
 
         // onRestart invokes onStart()
         addEdge(onRestartCFG.getExit(), onStartCFG.getEntry());
-
-        return callbacksCFG;
     }
 
     /**
@@ -655,19 +651,21 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds callbacks to the respective components. We both consider callbacks defined
+     * Adds callbacks to the respective UI components. We both consider callbacks defined
      * inside layout files as well as programmatically defined callbacks.
      *
      * @param apk                 The APK file describing the app.
-     * @param callbackEntryPoints Maintains a mapping between a component and its callback entry point.
+     * @param callbackGraphs Maintains a mapping between a component and its callback graph.
      */
-    private void addCallbacks(APK apk, Map<String, BaseCFG> callbackEntryPoints) {
+    private void addUICallbacks(APK apk, Map<String, BaseCFG> callbackGraphs) {
 
         // retrieve callbacks declared in code
-        Multimap<String, BaseCFG> callbacks = lookUpCallbacks();
+        Multimap<String, BaseCFG> callbacks = lookUpCallbacks(apk);
+        LOGGER.debug("Callbacks: ");
+        callbacks.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
 
         // add for each android component callbacks declared in code to its 'callbacks' subgraph
-        for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
+        for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackGraphs.entrySet()) {
             callbacks.get(callbackEntryPoint.getKey()).forEach(callback -> {
                 addEdge(callbackEntryPoint.getValue().getEntry(), callback.getEntry());
                 addEdge(callback.getExit(), callbackEntryPoint.getValue().getExit());
@@ -678,7 +676,7 @@ public class InterCFG extends BaseCFG {
         Multimap<String, BaseCFG> callbacksXML = lookUpCallbacksXML(apk);
 
         // add for each android component callbacks declared in XML to its 'callbacks' subgraph
-        for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackEntryPoints.entrySet()) {
+        for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackGraphs.entrySet()) {
             callbacksXML.get(callbackEntryPoint.getKey()).forEach(callback -> {
                 addEdge(callbackEntryPoint.getValue().getEntry(), callback.getEntry());
                 addEdge(callback.getExit(), callbackEntryPoint.getValue().getExit());
@@ -692,9 +690,10 @@ public class InterCFG extends BaseCFG {
      * we extract the defining component, which is typically the outer class, and the CFG representing
      * the callback.
      *
+     * @param apk The APK file.
      * @return Returns a mapping between a component and its associated callbacks (can be multiple per instance).
      */
-    private Multimap<String, BaseCFG> lookUpCallbacks() {
+    private Multimap<String, BaseCFG> lookUpCallbacks(APK apk) {
 
         /*
          * Rather than searching for the call of e.g. setOnClickListener() and following
@@ -713,7 +712,7 @@ public class InterCFG extends BaseCFG {
         // key: FQN of component defining a callback (may define several ones)
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
 
-        Pattern exclusionPattern = Utility.readExcludePatterns();
+        Pattern exclusionPattern = properties.exclusionPattern;
 
         for (Map.Entry<String, BaseCFG> intraCFG : intraCFGs.entrySet()) {
             String methodName = intraCFG.getKey();
@@ -728,11 +727,30 @@ public class InterCFG extends BaseCFG {
                     || methodName.endsWith("onFocusChange(Landroid/view/View;Z)V")
                     || methodName.endsWith("onKey(Landroid/view/View;ILandroid/view/KeyEvent;)Z")
                     || methodName.endsWith("onTouch(Landroid/view/View;Landroid/view/MotionEvent;)Z")
+                    || methodName.endsWith("onEditorAction(Landroid/widget/TextView;ILandroid/view/KeyEvent;)Z")
                     || methodName.endsWith("onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V"))) {
-                // TODO: is it always an inner class???
+
+                /*
+                * In most cases, a component directly declares its callbacks as inner classes. Thus, we can
+                * directly retrieve a mapping by inspecting the class name. However, callbacks for activities and
+                * fragments can be also defined by a container class, i.e. a wrapper class around multiple widgets.
+                * In this case we need to check where the wrapper is used. Such a wrapper might be used by multiple
+                * activities or fragments.
+                 */
                 if (Utility.isInnerClass(methodName)) {
+
                     String outerClass = Utility.getOuterClass(className);
-                    callbacks.put(outerClass, intraCFG.getValue());
+                    Optional<Component> component = Utility.getComponentByName(components, outerClass);
+
+                    if (component.isPresent()) {
+                        // component declares directly callback
+                        callbacks.put(outerClass, intraCFG.getValue());
+                    } else {
+                        // callback is declared by some intermediate class
+
+                    }
+                } else {
+                    LOGGER.warn("Couldn't find component for callback: " + methodName);
                 }
             }
         }
@@ -898,7 +916,7 @@ public class InterCFG extends BaseCFG {
                 String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
 
                 // don't resolve non AUT classes if requested
-                if (resolveOnlyAUTClasses && !className.startsWith(packageName)
+                if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
                         // we have to resolve component invocations in any case, see the code below
                         && !Utility.isComponentInvocation(components, targetMethod)) {
                     continue;
@@ -907,7 +925,7 @@ public class InterCFG extends BaseCFG {
                 // don't resolve certain classes/methods, e.g. ART methods
                 if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
                         || Utility.isArrayType(className)
-                        || (Utility.isARTMethod(targetMethod) && excludeARTClasses
+                        || (Utility.isARTMethod(targetMethod) && properties.excludeARTClasses
                         // we have to resolve component invocations in any case, see the code below
                         && !Utility.isComponentInvocation(components, targetMethod))) {
                     continue;
@@ -950,15 +968,12 @@ public class InterCFG extends BaseCFG {
      *
      * @param apk The APK file describing the app.
      */
-    private void constructCFG(APK apk) {
+    private void constructCFGNoBasicBlocks(APK apk) {
 
         LOGGER.debug("Constructing Inter CFG!");
 
         // exclude certain classes and methods from graph
-        Pattern exclusionPattern = Utility.readExcludePatterns();
-
-        // collect the callback entry points
-        Map<String, BaseCFG> callbackEntryPoints = new HashMap<>();
+        Pattern exclusionPattern = properties.exclusionPattern;
 
         final String packageName = apk.getManifest().getPackageName();
 
@@ -974,7 +989,7 @@ public class InterCFG extends BaseCFG {
             String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
 
             // don't resolve non AUT classes if requested
-            if (resolveOnlyAUTClasses && !className.startsWith(packageName)
+            if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
                     // we have to resolve component invocations in any case, see the code below
                     && !Utility.isComponentInvocation(components, targetMethod)) {
                 continue;
@@ -983,7 +998,7 @@ public class InterCFG extends BaseCFG {
             // don't resolve certain classes/methods, e.g. ART methods
             if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
                     || Utility.isArrayType(className)
-                    || (Utility.isARTMethod(targetMethod) && excludeARTClasses
+                    || (Utility.isARTMethod(targetMethod) && properties.excludeARTClasses
                     // we have to resolve component invocations in any case
                     && !Utility.isComponentInvocation(components, targetMethod))) {
                 continue;
@@ -1018,12 +1033,6 @@ public class InterCFG extends BaseCFG {
                 addEdge(returnVertex, successor);
             }
         }
-
-        // add lifecycle of components + global entry points
-        addLifecycle(components, callbackEntryPoints);
-
-        // add the callbacks specified either through XML or directly in code
-        addCallbacks(apk, callbackEntryPoints);
     }
 
     /**
@@ -1038,7 +1047,7 @@ public class InterCFG extends BaseCFG {
     private void constructIntraCFGs(APK apk, boolean useBasicBlocks) {
 
         LOGGER.debug("Constructing IntraCFGs!");
-        final Pattern exclusionPattern = Utility.readExcludePatterns();
+        final Pattern exclusionPattern = properties.exclusionPattern;
 
         // track binder classes and attach them to the corresponding service
         Set<String> binderClasses = new HashSet<>();
@@ -1048,7 +1057,7 @@ public class InterCFG extends BaseCFG {
 
                 String className = Utility.dottedClassName(classDef.toString());
 
-                if (resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
+                if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
                     // don't resolve classes not belonging to AUT
                     continue;
                 }
@@ -1079,7 +1088,7 @@ public class InterCFG extends BaseCFG {
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
                             || Utility.isARTMethod(methodSignature)) {
                         // only construct dummy CFG for non ART classes
-                        if (!excludeARTClasses) {
+                        if (!properties.excludeARTClasses) {
                             BaseCFG intraCFG = dummyIntraCFG(method);
                             addSubGraph(intraCFG);
                             intraCFGs.put(methodSignature, intraCFG);
