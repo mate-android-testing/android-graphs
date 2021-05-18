@@ -656,29 +656,37 @@ public class InterCFG extends BaseCFG {
      */
     private void addUICallbacks(APK apk, Map<String, BaseCFG> callbackGraphs) {
 
-        // retrieve callbacks declared in code
+        // retrieve callbacks declared in code and XML
         Multimap<String, BaseCFG> callbacks = lookUpCallbacks(apk);
-        LOGGER.debug("Callbacks: ");
-        callbacks.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
-
-        // add for each android component callbacks declared in code to its 'callbacks' subgraph
-        for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackGraphs.entrySet()) {
-            callbacks.get(callbackEntryPoint.getKey()).forEach(callback -> {
-                addEdge(callbackEntryPoint.getValue().getEntry(), callback.getEntry());
-                addEdge(callback.getExit(), callbackEntryPoint.getValue().getExit());
-            });
-        }
-
-        // retrieve callbacks declared in XML files
         Multimap<String, BaseCFG> callbacksXML = lookUpCallbacksXML(apk);
 
-        // add for each android component callbacks declared in XML to its 'callbacks' subgraph
-        for (Map.Entry<String, BaseCFG> callbackEntryPoint : callbackGraphs.entrySet()) {
-            callbacksXML.get(callbackEntryPoint.getKey()).forEach(callback -> {
-                addEdge(callbackEntryPoint.getValue().getEntry(), callback.getEntry());
-                addEdge(callback.getExit(), callbackEntryPoint.getValue().getExit());
+        // add callbacks directly from activity itself and its hosted fragments
+        components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activity -> {
+            BaseCFG callbackGraph = callbackGraphs.get(activity.getName());
+
+            // callbacks directly declared in activity
+            callbacks.get(activity.getName()).forEach(callback -> {
+                addEdge(callbackGraph.getEntry(), callback.getEntry());
+                addEdge(callback.getExit(), callbackGraph.getExit());
             });
-        }
+            callbacksXML.get(activity.getName()).forEach(callback -> {
+                addEdge(callbackGraph.getEntry(), callback.getEntry());
+                addEdge(callback.getExit(), callbackGraph.getExit());
+            });
+
+            // callbacks declared in hosted fragments
+            Set<Fragment> fragments = ((Activity ) activity).getHostingFragments();
+            for (Fragment fragment : fragments) {
+                callbacks.get(fragment.getName()).forEach(callback -> {
+                    addEdge(callbackGraph.getEntry(), callback.getEntry());
+                    addEdge(callback.getExit(), callbackGraph.getExit());
+                });
+                callbacksXML.get(fragment.getName()).forEach(callback -> {
+                    addEdge(callbackGraph.getEntry(), callback.getEntry());
+                    addEdge(callback.getExit(), callbackGraph.getExit());
+                });
+            }
+        });
     }
 
     /**
@@ -811,6 +819,7 @@ public class InterCFG extends BaseCFG {
                 }
             }
         }
+        callbacks.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
         return callbacks;
     }
 
@@ -826,9 +835,6 @@ public class InterCFG extends BaseCFG {
      */
     private Multimap<String, BaseCFG> lookUpCallbacksXML(APK apk) {
 
-        // return value, key: name of component
-        Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
-
         // stores the relation between outer and inner classes
         Multimap<String, String> classRelations = TreeMultimap.create();
 
@@ -843,7 +849,7 @@ public class InterCFG extends BaseCFG {
                 if (className.startsWith(apk.getManifest().getPackageName())
                         && (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)
                         || Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef))) {
-                    // only activities and fragments of the application can define callbacks
+                    // only activities and fragments of the application can define callbacks in XML
 
                     // track outer/inner class relations
                     if (Utility.isInnerClass(classDef.toString())) {
@@ -890,14 +896,12 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug(componentResourceID);
 
         /*
-         * We now need to find the layout file for a given component. Then, we need to
-         * parse it in order to get possible callbacks. Finally, we need to add these callbacks
-         * to the 'callbacks' sub graph of the respective component.
+         * We now need to find the layout file for a given activity or fragment. Then, we need to
+         * parse it in order to get possible callbacks.
          */
-
         Multimap<String, String> componentCallbacks = TreeMultimap.create();
 
-        // derive for each component the callbacks declared in the component's layout file
+        // search layout file + parse callbacks
         componentResourceID.forEach(
                 (component, resourceID) -> {
 
@@ -910,14 +914,15 @@ public class InterCFG extends BaseCFG {
 
         LOGGER.debug("Declared Callbacks via XML: " + componentCallbacks);
 
-        // lookup the which class defines the callback method
+        Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
+
+        // lookup which class defines the callback method
         for (String component : componentCallbacks.keySet()) {
             for (String callbackName : componentCallbacks.get(component)) {
-                // TODO: may need to distinguish between different callbacks, e.g. onClick, onLongClick, ...
                 // callbacks can have a custom method name but the rest of the method signature is fixed
                 String callback = component + "->" + callbackName + "(Landroid/view/View;)V";
 
-                // check whether the callback is defined within the component
+                // check whether the callback is defined within the component itself
                 if (intraCFGs.containsKey(callback)) {
                     callbacks.put(component, intraCFGs.get(callback));
                 } else {
