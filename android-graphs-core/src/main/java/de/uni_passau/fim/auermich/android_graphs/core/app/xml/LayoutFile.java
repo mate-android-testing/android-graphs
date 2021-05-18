@@ -44,7 +44,6 @@ public class LayoutFile {
         Document document = null;
 
         try {
-
             document = reader.read(layoutFile);
             Element rootElement = document.getRootElement();
 
@@ -55,13 +54,11 @@ public class LayoutFile {
                 // TODO: we may can exclude some sort of widgets
                 Node node = (Node) itr.next();
                 Element element = (Element) node;
-                // LOGGER.debug(element.getName());
 
                 // TODO: check if there are further callbacks than onClick, e.g. onLongClick
                 // NOTE: we need to access the attribute WITHOUT its namespace -> can't use android:onClick!
                 String onClickCallback = element.attributeValue("onClick");
                 if (onClickCallback != null) {
-                    LOGGER.debug(onClickCallback);
                     callbacks.add(onClickCallback);
                 }
             }
@@ -112,7 +109,6 @@ public class LayoutFile {
                 if (layoutResourceID.equals(resourceID)) {
                     // ensure that the match refers to a layout file
                     if ("layout".equals(element.attributeValue("type"))) {
-                        LOGGER.debug("Associated layout name: " + layoutFile);
                         return new LayoutFile(new File(decodingOutputPath,
                                 Paths.get("res", "layout", layoutFile + ".xml").toString()));
                     }

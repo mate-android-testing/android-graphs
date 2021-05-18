@@ -648,8 +648,9 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds callbacks to the respective UI components. We both consider callbacks defined
-     * inside layout files as well as programmatically defined callbacks.
+     * Adds callbacks to the respective activity. We both consider callbacks defined via XML
+     * as well as programmatically defined callbacks. Note that an activity shares with its hosting fragments
+     * the 'callback' subgraph.
      *
      * @param apk            The APK file describing the app.
      * @param callbackGraphs Maintains a mapping between a component and its callback graph.
@@ -819,6 +820,7 @@ public class InterCFG extends BaseCFG {
                 }
             }
         }
+        LOGGER.debug("Callbacks declared via Code: ");
         callbacks.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
         return callbacks;
     }
@@ -835,6 +837,7 @@ public class InterCFG extends BaseCFG {
      */
     private Multimap<String, BaseCFG> lookUpCallbacksXML(APK apk) {
 
+        // TODO: outer/inner class relation is not further used!
         // stores the relation between outer and inner classes
         Multimap<String, String> classRelations = TreeMultimap.create();
 
@@ -892,8 +895,8 @@ public class InterCFG extends BaseCFG {
             }
         }
 
-        LOGGER.debug(classRelations);
-        LOGGER.debug(componentResourceID);
+        LOGGER.debug("Outer/Inner Class Relations: " + classRelations);
+        LOGGER.debug("Component-to-Resource-ID-mapping: " + componentResourceID);
 
         /*
          * We now need to find the layout file for a given activity or fragment. Then, we need to
@@ -911,8 +914,6 @@ public class InterCFG extends BaseCFG {
                         componentCallbacks.putAll(component, layoutFile.parseCallbacks());
                     }
                 });
-
-        LOGGER.debug("Declared Callbacks via XML: " + componentCallbacks);
 
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
 
@@ -932,11 +933,17 @@ public class InterCFG extends BaseCFG {
                         callback = callback.replace(component, outerClassName);
                         if (intraCFGs.containsKey(callback)) {
                             callbacks.put(outerClassName, intraCFGs.get(callback));
+                        } else {
+                            LOGGER.warn("Couldn't derive defining component class for callback: " + callback);
                         }
+                    } else {
+                        LOGGER.warn("Couldn't derive defining component class for callback: " + callback);
                     }
                 }
             }
         }
+        LOGGER.debug("Callbacks declared via XML: ");
+        callbacks.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
         return callbacks;
     }
 
