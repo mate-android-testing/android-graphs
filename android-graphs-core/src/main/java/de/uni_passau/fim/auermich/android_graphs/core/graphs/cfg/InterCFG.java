@@ -542,7 +542,7 @@ public class InterCFG extends BaseCFG {
             addEdge(onViewStateRestoredFragmentCFG.getExit(), onCreateCFG.getExit());
         }
 
-        // onCreate directly invokes onStart()
+        // onCreate() directly invokes onStart()
         String onStart = activity.onStartMethod();
         BaseCFG onStartCFG = addLifecycle(onStart, onCreateCFG);
 
@@ -555,8 +555,31 @@ public class InterCFG extends BaseCFG {
             addEdge(onStartFragmentCFG.getExit(), onStartCFG.getExit());
         }
 
+        // onStart() invokes onRestoreInstanceState()
+        String onRestoreInstanceState = activity.onRestoreInstanceStateOverloadedMethod();
+
+        if (!intraCFGs.containsKey(onRestoreInstanceState)) {
+            // use the default onRestoreInstanceState()
+            activity.onRestoreInstanceStateMethod();
+        }
+
+        BaseCFG onRestoreInstanceStateCFG = addLifecycle(onRestoreInstanceState, onStartCFG);
+
+        // onRestoreInstanceState() invokes onPostCreate()
+        String onPostCreate = activity.onPostCreateOverloadedMethod();
+
+        if (!intraCFGs.containsKey(onPostCreate)) {
+            // use the default onPostCreate()
+            onPostCreate = activity.onPostCreateMethod();
+        }
+
+        BaseCFG onPostCreateCFG = addLifecycle(onPostCreate, onRestoreInstanceStateCFG);
+
+        // onRestoreInstanceState() is not always safely called, thus we add an direct edge from onStart() to onPostCreate()
+        addEdge(onStartCFG.getExit(), onPostCreateCFG.getEntry());
+
         String onResume = activity.onResumeMethod();
-        BaseCFG onResumeCFG = addLifecycle(onResume, onStartCFG);
+        BaseCFG onResumeCFG = addLifecycle(onResume, onPostCreateCFG);
 
         // if there are fragments, onResume() is invoked
         for (Fragment fragment : fragments) {
@@ -597,8 +620,26 @@ public class InterCFG extends BaseCFG {
             addEdge(onPauseFragmentCFG.getExit(), onPauseCFG.getExit());
         }
 
+        /*
+        * According to https://developer.android.com/reference/android/app/Activity#onSaveInstanceState(android.os.Bundle)
+        * the onSaveInstanceState() method is called either prior or after onStop() depending on the API version.
+        * Prior to API 28, onSaveInstanceState() is called before onStop() and starting with API 28 it is called
+        * afterwards. We stick here to the first choice. Moreover, as also mentioned in above reference,
+        * onSaveInstanceState() is not always called, thus we directly add an additional edge from onPause()
+        * to onStop().
+         */
+        String onSaveInstanceState = activity.onSaveInstanceStateOverloadedMethod();
+
+        if (!intraCFGs.containsKey(onSaveInstanceState)) {
+            // use the default onSaveInstanceState()
+            onSaveInstanceState = activity.onSaveInstanceStateMethod();
+        }
+
+        BaseCFG onSaveInstanceStateCFG = addLifecycle(onSaveInstanceState, onPauseCFG);
+
         String onStop = activity.onStopMethod();
-        BaseCFG onStopCFG = addLifecycle(onStop, onPauseCFG);
+        BaseCFG onStopCFG = addLifecycle(onStop, onSaveInstanceStateCFG);
+        addEdge(onPauseCFG.getExit(), onStopCFG.getEntry());
 
         // if there are fragments, onStop() is invoked
         for (Fragment fragment : fragments) {

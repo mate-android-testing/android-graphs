@@ -48,4 +48,20 @@ public class Activity extends AbstractComponent {
     public String onRestartMethod() {
         return getName() + "->onRestart()V";
     }
+
+    public String onRestoreInstanceStateMethod() { return getName() + "->onRestoreInstanceState(Landroid/os/Bundle;)V"; }
+
+    public String onRestoreInstanceStateOverloadedMethod() {
+        return getName() + "->onRestoreInstanceState(Landroid/os/Bundle;Landroid/os/PersistableBundle;)V"; }
+
+    public String onPostCreateMethod() { return getName() + "->onPostCreate(Landroid/os/Bundle;)V"; }
+
+    public String onPostCreateOverloadedMethod() {
+        return getName() + "->onPostCreate(Landroid/os/Bundle;Landroid/os/PersistableBundle;)V"; }
+
+    public String onSaveInstanceStateMethod() {
+        return getName() + "->onSaveInstanceState(Landroid/os/Bundle;)V"; }
+
+    public String onSaveInstanceStateOverloadedMethod() {
+        return getName() + "->onSaveInstanceState(Landroid/os/Bundle;Landroid/os/PersistableBundle;)V"; }
 }
