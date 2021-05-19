@@ -2,8 +2,7 @@ package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
 import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
-import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
-import de.uni_passau.fim.auermich.android_graphs.core.app.components.Service;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
@@ -36,6 +35,7 @@ import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public final class Utility {
 
@@ -159,6 +159,8 @@ public final class Utility {
                 "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;");
         add("Landroid/app/FragmentTransaction;->" +
                 "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;");
+        add("Landroid/app/FragmentTransaction;->" +
+                "replace(ILandroid/app/Fragment;L/java/lang/String;)Landroid/app/FragmentTransaction;");
         add("Landroidx/fragment/app/FragmentTransaction;->" +
                 "add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;");
     }};
@@ -335,91 +337,183 @@ public final class Utility {
     }
 
     /**
+     * Looks up fragment usages in the given activity class.
+     *
+     * @param apk The APK file.
+     * @param activity The activity for which fragment usages should be found.
+     * @param components The set of discovered components.
+     */
+    public static void findFragmentUsages(APK apk, Activity activity, final Set<Component> components) {
+
+        final Set<Fragment> fragments = components.stream()
+                .filter(component -> component.getComponentType() == ComponentType.FRAGMENT)
+                .map(component -> (Fragment) component)
+                .collect(Collectors.toSet());
+
+        for (DexFile dexFile : apk.getDexFiles()) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+
+                // we only inspect the activity class itself
+                if (!classDef.toString().equals(activity.getName())) {
+                    continue;
+                }
+
+                boolean foundUsage = false;
+
+                // first check whether any fragment is hold as an instance variable
+                for (Field instanceField : classDef.getInstanceFields()) {
+                    for (Fragment fragment : fragments) {
+                        if (fragment.getName().equals(instanceField.getType())) {
+                            activity.addHostingFragment(fragment);
+                            foundUsage = true;
+                        }
+                    }
+                }
+
+                for (Method method : classDef.getMethods()) {
+
+                    // second check whether any method parameters refer to a fragment
+                    for (MethodParameter parameter : method.getParameters()) {
+                        for (Fragment fragment : fragments) {
+                            if (fragment.getName().equals(parameter.getType())) {
+                                activity.addHostingFragment(fragment);
+                                foundUsage = true;
+                            }
+                        }
+                    }
+
+                    // third check whether the activity invokes any fragment constructor or a method returning a fragment
+                    MethodImplementation implementation = method.getImplementation();
+                    if (implementation != null) {
+                        for (Instruction instruction : implementation.getInstructions()) {
+
+                            if (instruction.getOpcode() == Opcode.NEW_INSTANCE) {
+                                // check for fragment constructor
+                                String className = ((Instruction21c) instruction).getReference().toString();
+                                for (Fragment fragment : fragments) {
+                                    if (fragment.getName().equals(className)) {
+                                        activity.addHostingFragment(fragment);
+                                        foundUsage = true;
+                                    }
+                                }
+                            } else if (Utility.isInvokeInstruction(instruction)) {
+                                // check for an invocation returning a fragment
+                                String returnType = Utility.getReturnType(((ReferenceInstruction) instruction)
+                                        .getReference().toString());
+                                for (Fragment fragment : fragments) {
+                                    if (fragment.getName().equals(returnType)) {
+                                        activity.addHostingFragment(fragment);
+                                        foundUsage = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (!foundUsage) {
+                    LOGGER.warn("Couldn't find any fragment usages for the activity " + activity);
+                }
+                return;
+            }
+        }
+    }
+
+    /**
+     * Returns the return type of the given method signature.
+     *
+     * @param fullyQualifiedMethodName The given method signature.
+     * @return Returns the return type of the given method.
+     */
+    public static String getReturnType(String fullyQualifiedMethodName) {
+        return fullyQualifiedMethodName.split("\\)")[1];
+    }
+
+    /**
      * Finds the usage of a given class, i.e. invocations of the constructor, in the application package.
      *
-     * @param apk The APK file containing the dex classes.
+     * @param apk   The APK file containing the dex classes.
      * @param clazz The class for which we should find its usages.
      * @return Returns a set of classes that make use of the given class.
      */
-    public static Set<ClassDef> findApplicationUsages(APK apk, String clazz) {
+    public static Set<ClassDef> findClassUsages(APK apk, String clazz) {
 
         Set<ClassDef> classes = new HashSet<>();
         String applicationPackage = apk.getManifest().getPackageName();
 
-       for (DexFile dexFile : apk.getDexFiles()) {
-           for (ClassDef classDef : dexFile.getClasses()) {
+        for (DexFile dexFile : apk.getDexFiles()) {
+            for (ClassDef classDef : dexFile.getClasses()) {
 
-               boolean foundUsage = false;
-               String className = classDef.toString();
+                boolean foundUsage = false;
+                String className = classDef.toString();
 
-               if (!Utility.dottedClassName(className).startsWith(applicationPackage)) {
-                   // don't consider usages outside the application package
-                   continue;
-               }
+                if (!Utility.dottedClassName(className).startsWith(applicationPackage)) {
+                    // don't consider usages outside the application package
+                    continue;
+                }
 
-               if (className.equals(clazz)) {
-                   // the class itself is not relevant
-                   continue;
-               }
+                if (className.equals(clazz)) {
+                    // the class itself is not relevant
+                    continue;
+                }
 
-               if (Utility.isInnerClass(className)) {
-                   if (clazz.equals(Utility.getOuterClass(className))) {
-                       // any inner class of the given class is also not relevant
-                       continue;
-                   }
-               }
+                if (Utility.isInnerClass(className)) {
+                    if (clazz.equals(Utility.getOuterClass(className))) {
+                        // any inner class of the given class is also not relevant
+                        continue;
+                    }
+                }
 
-               // first check whether the class is hold as an instance variable
-               for (Field instanceField : classDef.getInstanceFields()) {
-                   if (clazz.equals(instanceField.getType())) {
-                       classes.add(classDef);
-                       foundUsage = true;
-                       break;
-                   }
-               }
+                // first check whether the class is hold as an instance variable
+                for (Field instanceField : classDef.getInstanceFields()) {
+                    if (clazz.equals(instanceField.getType())) {
+                        classes.add(classDef);
+                        foundUsage = true;
+                        break;
+                    }
+                }
 
-               if (foundUsage) {
-                   break;
-               }
+                if (foundUsage) {
+                    break;
+                }
 
-               for (Method method : classDef.getMethods()) {
+                for (Method method : classDef.getMethods()) {
 
-                   // second check whether method parameters refer to class
-                   for (MethodParameter parameter : method.getParameters()) {
-                       if (clazz.equals(parameter.getType())) {
-                           classes.add(classDef);
-                           foundUsage = true;
-                           break;
-                       }
-                   }
+                    // second check whether method parameters refer to class
+                    for (MethodParameter parameter : method.getParameters()) {
+                        if (clazz.equals(parameter.getType())) {
+                            classes.add(classDef);
+                            foundUsage = true;
+                            break;
+                        }
+                    }
 
-                   if (foundUsage) {
-                       break;
-                   }
+                    if (foundUsage) {
+                        break;
+                    }
 
-                   // third check whether any method of the class is invoked
-                   MethodImplementation implementation = method.getImplementation();
-                   if (implementation != null) {
-                       for (Instruction instruction : implementation.getInstructions()) {
-                           if (Utility.isInvokeInstruction(instruction)) {
-                               String invokeTarget = ((ReferenceInstruction) instruction).getReference().toString();
-                               if (clazz.equals(Utility.getClassName(invokeTarget))) {
-                                   classes.add(classDef);
-                                   foundUsage = true;
-                                   break;
-                               }
-                           }
-                       }
-                   }
+                    // third check whether any method of the class is invoked
+                    MethodImplementation implementation = method.getImplementation();
+                    if (implementation != null) {
+                        for (Instruction instruction : implementation.getInstructions()) {
+                            if (Utility.isInvokeInstruction(instruction)) {
+                                String invokeTarget = ((ReferenceInstruction) instruction).getReference().toString();
+                                if (clazz.equals(Utility.getClassName(invokeTarget))) {
+                                    classes.add(classDef);
+                                    foundUsage = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
 
-                   if (foundUsage) {
-                       break;
-                   }
-               }
-           }
-       }
-       LOGGER.debug("Usages of class " + clazz + ": " + classes);
-       return classes;
+                    if (foundUsage) {
+                        break;
+                    }
+                }
+            }
+        }
+        LOGGER.debug("Usages of class " + clazz + ": " + classes);
+        return classes;
     }
 
     /**
@@ -445,16 +539,13 @@ public final class Utility {
      */
     public static String isFragmentInvocation(final AnalyzedInstruction analyzedInstruction) {
 
-        LOGGER.debug("Try deriving name of fragment...");
-
         // TODO: get rid of list and directly return the string or null
         List<String> fragments = new ArrayList<>();
 
         Instruction instruction = analyzedInstruction.getInstruction();
         String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
 
-        // TODO: verify that only 'Instruction35c' is valid for fragment invocations
-        if (instruction instanceof Instruction35c && instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+        if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
 
             Instruction35c invokeVirtual = (Instruction35c) instruction;
 
@@ -475,7 +566,10 @@ public final class Utility {
                 predecessors.forEach(pred -> fragments.addAll(isFragmentAddInvocationRecursive(pred, fragmentRegisterID)));
 
             } else if (targetMethod.contains("Landroid/app/FragmentTransaction;->" +
-                    "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")) {
+                    "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")
+                    // internally the second method is called with a null value for the string argument
+                    || targetMethod.contains("Landroid/app/FragmentTransaction;->" +
+                    "replace(ILandroid/app/Fragment;L/java/lang/String;)Landroid/app/FragmentTransaction;")) {
                 // a fragment is replaced with another one
 
                 // Register C: v8, Register D: p0, Register E: p4
@@ -525,7 +619,7 @@ public final class Utility {
 
         List<String> fragments = new ArrayList<>();
 
-        // basic case
+        // base case
         if (pred.getInstructionIndex() == -1) {
             return fragments;
         }

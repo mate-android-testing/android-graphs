@@ -117,7 +117,7 @@ public class InterCFG extends BaseCFG {
             // record which activity is hosting which fragments
             for (Statement statement : blockStatement.getStatements()) {
                 BasicStatement basicStmt = (BasicStatement) statement;
-                checkForFragmentInvocation(components, basicStmt);
+                checkForFragmentInvocation(apk, components, basicStmt);
             }
 
             // split vertex into blocks (split after each invoke instruction + insert virtual return statement)
@@ -273,11 +273,15 @@ public class InterCFG extends BaseCFG {
     /**
      * Tracks whether the given statement refers to a fragment invocation. If this is the case,
      * the activity hosting the fragment is updated with this information.
+     * NOTE: We assume that those fragment invocations happen only within an activity, but a fragment
+     * itself can have nested fragments as well, or another class that has a reference to FragmentManager or
+     * FragmentTransaction could also invoke such fragment invocation.
      *
+     * @param apk The APK file.
      * @param components The set of components.
      * @param basicStmt  The statement wrapping a single instruction.
      */
-    private void checkForFragmentInvocation(final Set<Component> components, BasicStatement basicStmt) {
+    private void checkForFragmentInvocation(APK apk, final Set<Component> components, BasicStatement basicStmt) {
 
         if (Utility.isInvokeInstruction(basicStmt.getInstruction())) {
 
@@ -286,7 +290,8 @@ public class InterCFG extends BaseCFG {
 
             // track which fragments are hosted by which activity
             if (Utility.isFragmentInvocation(targetMethod)) {
-                // try to derive the fragment name
+
+                // check whether fragment is defined within given method, i.e. a local call to the fragment ctr
                 String fragmentName = Utility.isFragmentInvocation(basicStmt.getInstruction());
 
                 if (fragmentName != null) {
@@ -295,13 +300,30 @@ public class InterCFG extends BaseCFG {
                     Optional<Component> activityComponent = Utility.getComponentByName(components, activityName);
                     Optional<Component> fragmentComponent = Utility.getComponentByName(components, fragmentName);
 
-                    if (activityComponent.isPresent() && fragmentComponent.isPresent()) {
+                    if (activityComponent.isPresent()
+                            && activityComponent.get().getComponentType() == ComponentType.ACTIVITY
+                            && fragmentComponent.isPresent()) {
                         Activity activity = (Activity) activityComponent.get();
                         Fragment fragment = (Fragment) fragmentComponent.get();
                         activity.addHostingFragment(fragment);
+                    } else {
+                        // TODO: Handle nested fragments.
+                        LOGGER.warn("Couldn't assign fragment " + fragmentName + " to activity: " + basicStmt.getMethod());
                     }
                 } else {
-                    LOGGER.warn("Couldn't derive fragment for target method: " + targetMethod);
+
+                    // check for fragment invocations within the activity class
+                    String activityName = Utility.getClassName(basicStmt.getMethod());
+                    Optional<Component> activityComponent = Utility.getComponentByName(components, activityName);
+
+                    if (activityComponent.isPresent() && activityComponent.get().getComponentType() == ComponentType.ACTIVITY) {
+                        // TODO: employ some cache or move it to a central place (right after all components have been derived)
+                        Utility.findFragmentUsages(apk, (Activity) activityComponent.get(), components);
+                    } else {
+                        // TODO: Handle nested fragments.
+                        // fragment is added/replaced outside of the activity class
+                        LOGGER.warn("Couldn't derive fragment in method: " + basicStmt.getMethod());
+                    }
                 }
             }
         }
@@ -480,6 +502,8 @@ public class InterCFG extends BaseCFG {
     private void addAndroidActivityLifecycle(final Activity activity, BaseCFG callbackGraph) {
 
         final Set<Fragment> fragments = activity.getHostingFragments();
+        LOGGER.debug("Activity " + activity + " defines the following fragments: " + fragments);
+
         String onCreateMethod = activity.onCreateMethod();
 
         // although every activity should overwrite onCreate, there are rare cases that don't follow this rule
@@ -490,7 +514,6 @@ public class InterCFG extends BaseCFG {
         }
 
         BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
-        LOGGER.debug("Activity " + activity + " defines the following fragments: " + fragments);
 
         // connect onCreate with the default constructor
         addEdge(intraCFGs.get(activity.getDefaultConstructor()).getExit(), onCreateCFG.getEntry());
@@ -735,7 +758,7 @@ public class InterCFG extends BaseCFG {
                 * to the outer class, e.g. an activity defines the OnClickListener (onClick() callback) as inner class.
                 * But, the outer class might be just a wrapper class containing multiple widgets and its callbacks.
                 * In this case, we have to backtrack the usages of the (outer) class to the respective component,
-                * i.e. activity or fragment.
+                * i.e. the activity or fragment.
                 *
                 * (2)
                 * If the class represents a top-level class, it might be either an activity/fragment implementing
@@ -760,7 +783,7 @@ public class InterCFG extends BaseCFG {
                         if (cachedUsagesPerClass.containsKey(outerClass)) {
                             usages = cachedUsagesPerClass.get(outerClass);
                         } else {
-                            usages = Utility.findApplicationUsages(apk, outerClass);
+                            usages = Utility.findClassUsages(apk, outerClass);
                             cachedUsagesPerClass.put(outerClass, usages);
                         }
 
@@ -798,7 +821,7 @@ public class InterCFG extends BaseCFG {
                         if (cachedUsagesPerClass.containsKey(className)) {
                             usages = cachedUsagesPerClass.get(className);
                         } else {
-                            usages = Utility.findApplicationUsages(apk, className);
+                            usages = Utility.findClassUsages(apk, className);
                             cachedUsagesPerClass.put(className, usages);
                         }
 
@@ -1071,7 +1094,7 @@ public class InterCFG extends BaseCFG {
             }
 
             // track which fragments are hosted by which activity
-            checkForFragmentInvocation(components, invokeStmt);
+            checkForFragmentInvocation(apk, components, invokeStmt);
 
             // there might be multiple successors in a try-catch block
             Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
