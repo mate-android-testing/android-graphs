@@ -54,4 +54,6 @@ public class Fragment extends AbstractComponent {
     public String onDetachMethod() {
         return getName() + "->onDetach()V";
     }
+
+    public String onSaveInstanceStateMethod() { return  getName() + "->onSaveInstanceState(Landroid/os/Bundle;)V"; }
 }

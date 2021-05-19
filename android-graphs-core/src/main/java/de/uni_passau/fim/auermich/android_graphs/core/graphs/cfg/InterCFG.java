@@ -647,8 +647,11 @@ public class InterCFG extends BaseCFG {
             String onStopFragment = fragment.onStopMethod();
             BaseCFG onStopFragmentCFG = addLifecycle(onStopFragment, onStopCFG);
 
+            String onSaveInstanceStateFragment = fragment.onSaveInstanceStateMethod();
+            BaseCFG onSaveInstanceStateFragmentCFG = addLifecycle(onSaveInstanceStateFragment, onStopFragmentCFG);
+
             // go back to onStop() exit
-            addEdge(onStopFragmentCFG.getExit(), onStopCFG.getExit());
+            addEdge(onSaveInstanceStateFragmentCFG.getExit(), onStopCFG.getExit());
         }
 
         String onDestroy = activity.onDestroyMethod();
