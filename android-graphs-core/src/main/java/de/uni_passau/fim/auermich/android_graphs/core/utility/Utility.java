@@ -163,6 +163,10 @@ public final class Utility {
                 "replace(ILandroid/app/Fragment;L/java/lang/String;)Landroid/app/FragmentTransaction;");
         add("Landroidx/fragment/app/FragmentTransaction;->" +
                 "add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;");
+        add("Landroid/support/v4/app/FragmentTransaction;->" +
+                "replace(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;");
+        add("Landroid/support/v4/app/FragmentTransaction;->" +
+                "replace(ILandroid/support/v4/app/Fragment;Ljava/lang/String;)Landroid/support/v4/app/FragmentTransaction;");
     }};
 
     private Utility() {
@@ -567,9 +571,14 @@ public final class Utility {
 
             } else if (targetMethod.contains("Landroid/app/FragmentTransaction;->" +
                     "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")
-                    // internally the second method is called with a null value for the string argument
+                    // internally called with a null value for the string argument by previous method
                     || targetMethod.contains("Landroid/app/FragmentTransaction;->" +
-                    "replace(ILandroid/app/Fragment;L/java/lang/String;)Landroid/app/FragmentTransaction;")) {
+                    "replace(ILandroid/app/Fragment;L/java/lang/String;)Landroid/app/FragmentTransaction;")
+                    || targetMethod.contains("Landroid/support/v4/app/FragmentTransaction;->" +
+                    "replace(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")
+                    // internally called with a null value for the string argument by previous method
+                    || targetMethod.contains("Landroid/support/v4/app/FragmentTransaction;->" +
+                    "replace(ILandroid/support/v4/app/Fragment;Ljava/lang/String;)Landroid/support/v4/app/FragmentTransaction;")) {
                 // a fragment is replaced with another one
 
                 // Register C: v8, Register D: p0, Register E: p4
