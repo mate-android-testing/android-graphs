@@ -1,5 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
+import org.jf.dexlib2.iface.ClassDef;
+
 public class Service extends AbstractComponent {
 
     // whether the service is invoked via startService() or bindService() or both
@@ -10,8 +12,8 @@ public class Service extends AbstractComponent {
     private String binder;
     private String serviceConnection;
 
-    public Service(String name, ComponentType type) {
-        super(name, type);
+    public Service(ClassDef clazz, ComponentType type) {
+        super(clazz, type);
     }
 
     public boolean isBound() {

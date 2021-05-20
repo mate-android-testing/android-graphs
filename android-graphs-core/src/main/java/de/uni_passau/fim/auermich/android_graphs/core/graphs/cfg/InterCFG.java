@@ -1204,11 +1204,11 @@ public class InterCFG extends BaseCFG {
                 // as a side effect track whether the given class represents an activity, service or fragment
                 if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
                     if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        components.add(new Activity(classDef.toString(), ComponentType.ACTIVITY));
+                        components.add(new Activity(classDef, ComponentType.ACTIVITY));
                     } else if (Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        components.add(new Fragment(classDef.toString(), ComponentType.FRAGMENT));
+                        components.add(new Fragment(classDef, ComponentType.FRAGMENT));
                     } else if (Utility.isService(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        components.add(new Service(classDef.toString(), ComponentType.SERVICE));
+                        components.add(new Service(classDef, ComponentType.SERVICE));
                     } else if (Utility.isBinder(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         binderClasses.add(classDef.toString());
                     }

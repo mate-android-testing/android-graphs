@@ -1,9 +1,11 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
+import org.jf.dexlib2.iface.ClassDef;
+
 public class Fragment extends AbstractComponent {
 
-    public Fragment(String name, ComponentType type) {
-        super(name, type);
+    public Fragment(ClassDef clazz, ComponentType type) {
+        super(clazz, type);
     }
 
     public String onAttachMethod() {
