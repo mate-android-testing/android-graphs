@@ -167,6 +167,10 @@ public final class Utility {
                 "replace(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;");
         add("Landroid/support/v4/app/FragmentTransaction;->" +
                 "replace(ILandroid/support/v4/app/Fragment;Ljava/lang/String;)Landroid/support/v4/app/FragmentTransaction;");
+        add("Landroid/support/v4/app/FragmentTransaction;->" +
+                "add(ILandroid/support/v4/app/Fragment;Ljava/lang/String;)Landroid/support/v4/app/FragmentTransaction;");
+        add("Landroid/support/v4/app/FragmentTransaction;->" +
+                "add(Landroid/support/v4/app/Fragment;Ljava/lang/String;)Landroid/support/v4/app/FragmentTransaction;");
     }};
 
     private Utility() {
@@ -543,8 +547,7 @@ public final class Utility {
      */
     public static String isFragmentInvocation(final AnalyzedInstruction analyzedInstruction) {
 
-        // TODO: get rid of list and directly return the string or null
-        List<String> fragments = new ArrayList<>();
+        Set<String> fragments = new HashSet<>();
 
         Instruction instruction = analyzedInstruction.getInstruction();
         String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
@@ -553,64 +556,35 @@ public final class Utility {
 
             Instruction35c invokeVirtual = (Instruction35c) instruction;
 
-            if (targetMethod.contains("Landroid/support/v4/app/FragmentTransaction;->" +
-                    "add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")) {
-                // a fragment is added to the current component (class)
+            /*
+            * All fragment invocations share almost the same order of arguments independent
+            * whether it is a call to add() or replace(). A typical example is as follows:
+            *
+            * Registers: v8 (Reg C), p0 (Reg D), p4 (Reg E)
+            * invoke-virtual {v8, p0, p4}, Landroid/app/FragmentTransaction;
+            *             ->replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;
+            *
+            * In any of these calls, we are interested in the parameter/register referring to
+            * the fragment. For the above example this is register p4. We start backtracking
+            * for p4 and check whether a new fragment is constructed and hold by p4.
+             */
+            int fragmentRegisterID = invokeVirtual.getRegisterE();
 
-                // typical call: v0 (Reg C), v1 (Reg D), v2 (Reg E)
-                //     invoke-virtual {v0, v1, v2}, Landroid/support/v4/app/FragmentTransaction;->
-                // add(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;
-
-                // we are interested in register E (refers to the fragment)
-                int fragmentRegisterID = invokeVirtual.getRegisterE();
-
-                // TODO: avoid 'redundant' recursion steps
-                // go over all predecessors
-                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
-                predecessors.forEach(pred -> fragments.addAll(isFragmentAddInvocationRecursive(pred, fragmentRegisterID)));
-
-            } else if (targetMethod.contains("Landroid/app/FragmentTransaction;->" +
-                    "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;")
-                    // internally called with a null value for the string argument by previous method
-                    || targetMethod.contains("Landroid/app/FragmentTransaction;->" +
-                    "replace(ILandroid/app/Fragment;L/java/lang/String;)Landroid/app/FragmentTransaction;")
-                    || targetMethod.contains("Landroid/support/v4/app/FragmentTransaction;->" +
-                    "replace(ILandroid/support/v4/app/Fragment;)Landroid/support/v4/app/FragmentTransaction;")
-                    // internally called with a null value for the string argument by previous method
-                    || targetMethod.contains("Landroid/support/v4/app/FragmentTransaction;->" +
-                    "replace(ILandroid/support/v4/app/Fragment;Ljava/lang/String;)Landroid/support/v4/app/FragmentTransaction;")) {
-                // a fragment is replaced with another one
-
-                // Register C: v8, Register D: p0, Register E: p4
-                // invoke-virtual {v8, p0, p4}, Landroid/app/FragmentTransaction;
-                //              ->replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;
-
-                // we are interested in register E (refers to the fragment)
-                int fragmentRegisterID = invokeVirtual.getRegisterE();
-
-                // TODO: avoid 'redundant' recursion steps
-                // go over all predecessors
-                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
-                predecessors.forEach(pred -> fragments.addAll(isFragmentReplaceInvocationRecursive(pred, fragmentRegisterID)));
-            } else if (targetMethod.contains("Landroidx/fragment/app/FragmentTransaction;->" +
-                    "add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;")) {
-                // a fragment is added (API 28)
-
-                // invoke-virtual {v1, v3, v2, v4}, Landroidx/fragment/app/FragmentTransaction;->
-                //      add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;
-
-                // we are interested in register E (refers to the fragment)
-                int fragmentRegisterID = invokeVirtual.getRegisterE();
-
-                // TODO: avoid 'redundant' recursion steps
-                // go over all predecessors
-                Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
-                predecessors.forEach(pred -> fragments.addAll(isFragmentAddInvocationRecursive(pred, fragmentRegisterID)));
+            if (targetMethod.equals("Landroid/support/v4/app/FragmentTransaction;->" +
+                    "add(Landroid/support/v4/app/Fragment;Ljava/lang/String;)Landroid/support/v4/app/FragmentTransaction;")) {
+                // fragment parameter is now first argument (p0 in above example)
+                fragmentRegisterID = invokeVirtual.getRegisterD();
             }
+
+            // go over all predecessors
+            Set<AnalyzedInstruction> predecessors = analyzedInstruction.getPredecessors();
+            int finalFragmentRegisterID = fragmentRegisterID;
+            predecessors.forEach(predecessor ->
+                    fragments.addAll(isFragmentInvocationRecursive(predecessor, finalFragmentRegisterID)));
         }
 
         if (!fragments.isEmpty()) {
-            return fragments.get(0);
+            return fragments.stream().findFirst().get();
         } else {
             return null;
         }
@@ -619,71 +593,42 @@ public final class Utility {
     /**
      * Recursively looks up every predecessor for holding a reference to a fragment.
      *
-     * @param pred               The current predecessor instruction.
+     * @param predecessor               The current predecessor instruction.
      * @param fragmentRegisterID The register potentially holding a fragment.
-     * @return Returns a list of fragments or an empty list if no fragment was found.
+     * @return Returns a set of fragments or an empty set if no fragment was found.
      */
-    private static List<String> isFragmentReplaceInvocationRecursive(final AnalyzedInstruction pred,
+    private static Set<String> isFragmentInvocationRecursive(final AnalyzedInstruction predecessor,
                                                                      final int fragmentRegisterID) {
 
-        List<String> fragments = new ArrayList<>();
+        Set<String> fragments = new HashSet<>();
 
         // base case
-        if (pred.getInstructionIndex() == -1) {
+        if (predecessor.getInstructionIndex() == -1) {
             return fragments;
         }
 
-        // check current instruction
-        if (pred.getInstruction().getOpcode() == Opcode.NEW_INSTANCE) {
-            // new-instance p4, Lcom/android/calendar/DayFragment;
-            Instruction21c newInstance = (Instruction21c) pred.getInstruction();
+        if (predecessor.getInstruction().getOpcode() == Opcode.NEW_INSTANCE) {
+            // check for new instance declaration of fragment class
+            Instruction21c newInstance = (Instruction21c) predecessor.getInstruction();
             if (newInstance.getRegisterA() == fragmentRegisterID) {
                 String fragment = newInstance.getReference().toString();
-                LOGGER.debug("Fragment: " + fragment);
-                // save for each activity the name of the fragment it hosts
                 fragments.add(fragment);
+                return fragments;
             }
-        }
-
-        // check all predecessors
-        Set<AnalyzedInstruction> predecessors = pred.getPredecessors();
-        predecessors.forEach(p -> fragments.addAll(isFragmentReplaceInvocationRecursive(p, fragmentRegisterID)));
-        return fragments;
-    }
-
-    /**
-     * Recursively looks up every predecessor for holding a reference to a fragment.
-     *
-     * @param pred               The current predecessor instruction.
-     * @param fragmentRegisterID The register potentially holding a fragment.
-     * @return Returns a list of fragments or an empty list if no fragment was found.
-     */
-    private static List<String> isFragmentAddInvocationRecursive(final AnalyzedInstruction pred,
-                                                                 final int fragmentRegisterID) {
-
-        List<String> fragments = new ArrayList<>();
-
-        // base case
-        if (pred.getInstructionIndex() == -1) {
-            return fragments;
-        }
-
-        // invoke direct refers to constructor calls
-        if (pred.getInstruction().getOpcode() == Opcode.INVOKE_DIRECT) {
-            // invoke-direct {v2}, Lcom/zola/bmi/BMIMain$PlaceholderFragment;-><init>()V
-            Instruction35c constructor = (Instruction35c) pred.getInstruction();
+        } else if (predecessor.getInstruction().getOpcode() == Opcode.INVOKE_DIRECT) {
+            // check for constructor invocation of fragment class
+            Instruction35c constructor = (Instruction35c) predecessor.getInstruction();
             if (constructor.getRegisterC() == fragmentRegisterID) {
                 String constructorInvocation = constructor.getReference().toString();
-                LOGGER.debug("Fragment: " + constructorInvocation);
-                // save for each activity the name of the fragment it hosts
                 String fragment = Utility.getClassName(constructorInvocation);
                 fragments.add(fragment);
+                return fragments;
             }
         }
 
         // check all predecessors
-        Set<AnalyzedInstruction> predecessors = pred.getPredecessors();
-        predecessors.forEach(p -> fragments.addAll(isFragmentAddInvocationRecursive(p, fragmentRegisterID)));
+        Set<AnalyzedInstruction> predecessors = predecessor.getPredecessors();
+        predecessors.forEach(p -> fragments.addAll(isFragmentInvocationRecursive(p, fragmentRegisterID)));
         return fragments;
     }
 
