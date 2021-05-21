@@ -1117,6 +1117,11 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("Constructing IntraCFGs!");
         final Pattern exclusionPattern = properties.exclusionPattern;
 
+        // we maintain the static initializers as a dedicated sub graph linked to the global entry point
+        BaseCFG staticInitializersCFG = dummyIntraCFG("static initializers");
+        addSubGraph(staticInitializersCFG);
+        addEdge(getEntry(), staticInitializersCFG.getEntry());
+
         // track binder classes and attach them to the corresponding service
         Set<String> binderClasses = new HashSet<>();
 
@@ -1168,6 +1173,12 @@ public class InterCFG extends BaseCFG {
                         addInvokeVertices(intraCFG.getInvokeVertices());
                         // only hold a reference to the entry and exit vertex
                         intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
+
+                        // add static initializers to dedicated sub graph
+                        if (Utility.isStaticInitializer(methodSignature)) {
+                            addEdge(staticInitializersCFG.getEntry(), intraCFG.getEntry());
+                            addEdge(intraCFG.getExit(), staticInitializersCFG.getExit());
+                        }
                     }
                 }
             }

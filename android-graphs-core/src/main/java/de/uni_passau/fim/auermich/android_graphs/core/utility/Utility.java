@@ -37,7 +37,6 @@ import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 import java.io.*;
 import java.util.*;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public final class Utility {
 
@@ -962,6 +961,17 @@ public final class Utility {
     }
 
     /**
+     * Checks whether the given class refers to a static initializer.
+     *
+     * @param method The method to be checked.
+     * @return Returns {@code true} if the method represents a static initializer,
+     *          otherwise {@code false} is returned.
+     */
+    public static boolean isStaticInitializer(String method) {
+        return method.endsWith("<clinit>()V");
+    }
+
+    /**
      * Returns the method signature of the default constructor for a given class.
      *
      * @param clazz The name of the class.
@@ -1332,6 +1342,14 @@ public final class Utility {
             }
         }
 
+        if (methodSignature.equals("static initializers")) {
+            if (vertex.isEntryVertex()) {
+                return "entry_static_initializers";
+            } else {
+                return "exit_static_initializers";
+            }
+        }
+
         if (methodSignature.startsWith("callbacks")) {
             String className = methodSignature.split("callbacks")[1].trim();
             if (vertex.isEntryVertex()) {
@@ -1409,6 +1427,12 @@ public final class Utility {
                 label = "entry_callbacks";
             } else {
                 label = "exit_callbacks";
+            }
+        } else if (methodSignature.startsWith("static initializers")) {
+            if (vertex.isEntryVertex()) {
+                label = "entry_static_initializers";
+            } else {
+                label = "exit_static_initializers";
             }
         } else {
 
