@@ -347,12 +347,55 @@ public final class Utility {
     }
 
     /**
-     * Constructs a 'makes use of' relation between the given components. This is a mere heuristic.
+     * Tracks whether the given instruction refers to a fragment invocation. If this is the case,
+     * the activity hosting the fragment is updated with this information.
+     * NOTE: We assume that those fragment invocations happen only within an activity, but a fragment
+     * itself can have nested fragments as well, or another class that has a reference to FragmentManager or
+     * FragmentTransaction could also invoke such fragment invocation.
      *
-     * @param apk The APK file.
+     * @param method              The method defining the invocation.
+     * @param components          The set of components.
+     * @param analyzedInstruction The fragment invocation instruction.
+     */
+    public static void checkForFragmentInvocation(final Set<Component> components, String method,
+                                                  AnalyzedInstruction analyzedInstruction) {
+
+        Instruction instruction = analyzedInstruction.getInstruction();
+        String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+
+        // track which fragments are hosted by which activity
+        if (Utility.isFragmentInvocation(targetMethod)) {
+
+            // check whether fragment is defined within given method, i.e. a local call to the fragment ctr
+            String fragmentName = Utility.isFragmentInvocation(analyzedInstruction);
+
+            if (fragmentName != null) {
+                String activityName = Utility.getClassName(method);
+
+                Optional<Component> activityComponent = Utility.getComponentByName(components, activityName);
+                Optional<Component> fragmentComponent = Utility.getComponentByName(components, fragmentName);
+
+                if (activityComponent.isPresent()
+                        && activityComponent.get().getComponentType() == ComponentType.ACTIVITY
+                        && fragmentComponent.isPresent()) {
+                    Activity activity = (Activity) activityComponent.get();
+                    Fragment fragment = (Fragment) fragmentComponent.get();
+                    activity.addHostingFragment(fragment);
+                } else {
+                    // TODO: Handle nested fragments.
+                    LOGGER.warn("Couldn't assign fragment " + fragmentName + " to activity: " + activityName);
+                }
+            }
+        }
+    }
+
+    /**
+     * Check for relations between the given components. This is a mere heuristic.
+     *
+     * @param apk        The APK file.
      * @param components The set of discovered components.
      */
-    public static void findComponentUsages(APK apk, final Set<Component> components) {
+    public static void checkComponentRelations(APK apk, final Set<Component> components) {
 
         Multimap<ClassDef, String> classUsages = ArrayListMultimap.create();
         String applicationPackage = apk.getManifest().getPackageName();
@@ -380,6 +423,8 @@ public final class Utility {
 
                 for (Method method : classDef.getMethods()) {
 
+                    String fullyQualifiedMethodName = Utility.deriveMethodSignature(method);
+
                     // check the method parameters for references
                     for (MethodParameter parameter : method.getParameters()) {
                         if (Utility.dottedClassName(parameter.getType()).startsWith(applicationPackage)) {
@@ -397,9 +442,13 @@ public final class Utility {
                     }
 
                     // check instructions for references
-                    MethodImplementation implementation = method.getImplementation();
-                    if (implementation != null) {
-                        for (Instruction instruction : implementation.getInstructions()) {
+                    if (method.getImplementation() != null) {
+
+                        List<AnalyzedInstruction> analyzedInstructions = Utility.getAnalyzedInstructions(dexFile, method);
+
+                        for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+
+                            Instruction instruction = analyzedInstruction.getInstruction();
 
                             if (instruction.getOpcode() == Opcode.NEW_INSTANCE) {
                                 // check constructor call
@@ -411,6 +460,9 @@ public final class Utility {
                                     }
                                 }
                             } else if (Utility.isInvokeInstruction(instruction)) {
+
+                                // check for fragment invocation
+                                Utility.checkForFragmentInvocation(components, fullyQualifiedMethodName, analyzedInstruction);
 
                                 String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
 
@@ -448,7 +500,6 @@ public final class Utility {
                                     }
                                 }
                             }
-                            // TODO: put/get instance variables
                         }
                     }
                 }
@@ -473,9 +524,9 @@ public final class Utility {
                     } else if (component.getComponentType() == ComponentType.FRAGMENT
                             && c.getComponentType() == ComponentType.FRAGMENT) {
                         /*
-                        * TODO: handle relation between fragments
-                        * This can be either a nested fragment or a usage caused through
-                        * class inheritance.
+                         * TODO: handle relation between fragments
+                         * This can be either a nested fragment or a usage caused through
+                         * class inheritance.
                          */
                         LOGGER.debug("Fragment relation: " + component + " -> " + c);
                     }

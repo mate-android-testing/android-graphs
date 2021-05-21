@@ -80,8 +80,8 @@ public class InterCFG extends BaseCFG {
         // create the individual intraCFGs and add them as sub graphs
         constructIntraCFGs(apk, properties.useBasicBlocks);
 
-        // track usages between components
-        Utility.findComponentUsages(apk, components);
+        // track relations between components
+        Utility.checkComponentRelations(apk, components);
 
         if (properties.useBasicBlocks) {
             constructCFGWithBasicBlocks(apk);
@@ -116,12 +116,6 @@ public class InterCFG extends BaseCFG {
         for (Vertex invokeVertex : getInvokeVertices()) {
 
             BlockStatement blockStatement = (BlockStatement) invokeVertex.getStatement();
-
-            // record which activity is hosting which fragments
-            for (Statement statement : blockStatement.getStatements()) {
-                BasicStatement basicStmt = (BasicStatement) statement;
-                checkForFragmentInvocation(apk, components, basicStmt);
-            }
 
             // split vertex into blocks (split after each invoke instruction + insert virtual return statement)
             List<List<Statement>> blocks = splitBlockStatement(blockStatement, packageName);
@@ -271,51 +265,6 @@ public class InterCFG extends BaseCFG {
         intraCFGs.put(targetMethod, targetCFG);
         addSubGraph(targetCFG);
         return targetCFG;
-    }
-
-    /**
-     * Tracks whether the given statement refers to a fragment invocation. If this is the case,
-     * the activity hosting the fragment is updated with this information.
-     * NOTE: We assume that those fragment invocations happen only within an activity, but a fragment
-     * itself can have nested fragments as well, or another class that has a reference to FragmentManager or
-     * FragmentTransaction could also invoke such fragment invocation.
-     *
-     * @param apk The APK file.
-     * @param components The set of components.
-     * @param basicStmt  The statement wrapping a single instruction.
-     */
-    private void checkForFragmentInvocation(APK apk, final Set<Component> components, BasicStatement basicStmt) {
-
-        if (Utility.isInvokeInstruction(basicStmt.getInstruction())) {
-
-            Instruction instruction = basicStmt.getInstruction().getInstruction();
-            String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-
-            // track which fragments are hosted by which activity
-            if (Utility.isFragmentInvocation(targetMethod)) {
-
-                // check whether fragment is defined within given method, i.e. a local call to the fragment ctr
-                String fragmentName = Utility.isFragmentInvocation(basicStmt.getInstruction());
-
-                if (fragmentName != null) {
-                    String activityName = Utility.getClassName(basicStmt.getMethod());
-
-                    Optional<Component> activityComponent = Utility.getComponentByName(components, activityName);
-                    Optional<Component> fragmentComponent = Utility.getComponentByName(components, fragmentName);
-
-                    if (activityComponent.isPresent()
-                            && activityComponent.get().getComponentType() == ComponentType.ACTIVITY
-                            && fragmentComponent.isPresent()) {
-                        Activity activity = (Activity) activityComponent.get();
-                        Fragment fragment = (Fragment) fragmentComponent.get();
-                        activity.addHostingFragment(fragment);
-                    } else {
-                        // TODO: Handle nested fragments.
-                        LOGGER.warn("Couldn't assign fragment " + fragmentName + " to activity: " + activityName);
-                    }
-                }
-            }
-        }
     }
 
     /**
@@ -1125,9 +1074,6 @@ public class InterCFG extends BaseCFG {
                     && !Utility.isComponentInvocation(components, targetMethod))) {
                 continue;
             }
-
-            // track which fragments are hosted by which activity
-            checkForFragmentInvocation(apk, components, invokeStmt);
 
             // there might be multiple successors in a try-catch block
             Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
