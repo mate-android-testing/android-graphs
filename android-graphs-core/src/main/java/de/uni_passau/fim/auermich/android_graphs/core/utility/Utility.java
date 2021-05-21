@@ -1,6 +1,8 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
@@ -345,83 +347,139 @@ public final class Utility {
     }
 
     /**
-     * Looks up fragment usages in the given activity class.
+     * Constructs a 'makes use of' relation between the given components. This is a mere heuristic.
      *
      * @param apk The APK file.
-     * @param activity The activity for which fragment usages should be found.
      * @param components The set of discovered components.
      */
-    public static void findFragmentUsages(APK apk, Activity activity, final Set<Component> components) {
+    public static void findComponentUsages(APK apk, final Set<Component> components) {
 
-        final Set<Fragment> fragments = components.stream()
-                .filter(component -> component.getComponentType() == ComponentType.FRAGMENT)
-                .map(component -> (Fragment) component)
-                .collect(Collectors.toSet());
+        Multimap<ClassDef, String> classUsages = ArrayListMultimap.create();
+        String applicationPackage = apk.getManifest().getPackageName();
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
-                // we only inspect the activity class itself
-                if (!classDef.toString().equals(activity.getName())) {
+                // TODO: track usages defined by interfaces
+
+                String className = classDef.toString();
+
+                if (!Utility.dottedClassName(className).startsWith(applicationPackage)) {
+                    // don't look at 3rd party classes
                     continue;
                 }
 
-                boolean foundUsage = false;
-
-                // first check whether any fragment is hold as an instance variable
-                for (Field instanceField : classDef.getInstanceFields()) {
-                    for (Fragment fragment : fragments) {
-                        if (fragment.getName().equals(instanceField.getType())) {
-                            activity.addHostingFragment(fragment);
-                            foundUsage = true;
+                // check the references to other application classes
+                for (Field field : classDef.getFields()) {
+                    if (Utility.dottedClassName(field.getType()).startsWith(applicationPackage)) {
+                        if (!className.equals(field.getType())) {
+                            classUsages.put(classDef, field.getType());
                         }
                     }
                 }
 
                 for (Method method : classDef.getMethods()) {
 
-                    // second check whether any method parameters refer to a fragment
+                    // check the method parameters for references
                     for (MethodParameter parameter : method.getParameters()) {
-                        for (Fragment fragment : fragments) {
-                            if (fragment.getName().equals(parameter.getType())) {
-                                activity.addHostingFragment(fragment);
-                                foundUsage = true;
+                        if (Utility.dottedClassName(parameter.getType()).startsWith(applicationPackage)) {
+                            if (!className.equals(parameter.getType())) {
+                                classUsages.put(classDef, parameter.getType());
                             }
                         }
                     }
 
-                    // third check whether the activity invokes any fragment constructor or a method returning a fragment
+                    // check method return value
+                    if (Utility.dottedClassName(method.getReturnType()).startsWith(applicationPackage)) {
+                        if (!className.equals(method.getReturnType())) {
+                            classUsages.put(classDef, method.getReturnType());
+                        }
+                    }
+
+                    // check instructions for references
                     MethodImplementation implementation = method.getImplementation();
                     if (implementation != null) {
                         for (Instruction instruction : implementation.getInstructions()) {
 
                             if (instruction.getOpcode() == Opcode.NEW_INSTANCE) {
-                                // check for fragment constructor
-                                String className = ((Instruction21c) instruction).getReference().toString();
-                                for (Fragment fragment : fragments) {
-                                    if (fragment.getName().equals(className)) {
-                                        activity.addHostingFragment(fragment);
-                                        foundUsage = true;
+                                // check constructor call
+                                Instruction21c newInstance = (Instruction21c) instruction;
+                                String targetClass = newInstance.getReference().toString();
+                                if (Utility.dottedClassName(targetClass).startsWith(applicationPackage)) {
+                                    if (!className.equals(targetClass)) {
+                                        classUsages.put(classDef, targetClass);
                                     }
                                 }
                             } else if (Utility.isInvokeInstruction(instruction)) {
-                                // check for an invocation returning a fragment
-                                String returnType = Utility.getReturnType(((ReferenceInstruction) instruction)
-                                        .getReference().toString());
-                                for (Fragment fragment : fragments) {
-                                    if (fragment.getName().equals(returnType)) {
-                                        activity.addHostingFragment(fragment);
-                                        foundUsage = true;
+
+                                String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
+
+                                // check defining class (called class)
+                                String definingClass = Utility.getDefiningClass(invokeCall);
+                                if (Utility.dottedClassName(definingClass).startsWith(applicationPackage)) {
+                                    if (!className.equals(definingClass)) {
+                                        classUsages.put(classDef, definingClass);
+                                    }
+                                }
+
+                                if (Utility.isInnerClass(invokeCall)) {
+                                    // every inner class has per default a relation to its outer class
+                                    String outerClass = Utility.getOuterClass(invokeCall);
+                                    if (Utility.dottedClassName(outerClass).startsWith(applicationPackage)) {
+                                        if (!className.equals(outerClass)) {
+                                            classUsages.put(classDef, outerClass);
+                                        }
+                                    }
+                                }
+
+                                // check return type
+                                String returnType = Utility.getReturnType(invokeCall);
+                                if (Utility.dottedClassName(returnType).startsWith(applicationPackage)) {
+                                    if (!className.equals(returnType)) {
+                                        classUsages.put(classDef, returnType);
+                                    }
+                                }
+                            } else if (instruction.getOpcode() == Opcode.CONST_CLASS) {
+                                Instruction21c constClass = (Instruction21c) instruction;
+                                String targetClass = constClass.getReference().toString();
+                                if (Utility.dottedClassName(targetClass).startsWith(applicationPackage)) {
+                                    if (!className.equals(targetClass)) {
+                                        classUsages.put(classDef, targetClass);
                                     }
                                 }
                             }
+                            // TODO: put/get instance variables
                         }
                     }
                 }
-                if (!foundUsage) {
-                    LOGGER.warn("Couldn't find any fragment usages for the activity " + activity);
-                }
-                return;
+            }
+        }
+
+        for (Component component : components) {
+
+            Set<String> componentUsages = new HashSet<>(classUsages.get(component.getClazz()));
+            LOGGER.debug("Component " + component + "has the following usages: " + componentUsages);
+
+            for (String usage : componentUsages) {
+                // TODO: handle transitive usages
+                Optional<Component> optionalComponent = Utility.getComponentByName(components, usage);
+
+                optionalComponent.ifPresent(c -> {
+                    LOGGER.debug("Component " + component + " makes use of component: " + c);
+
+                    if (component.getComponentType() == ComponentType.ACTIVITY
+                            && c.getComponentType() == ComponentType.FRAGMENT) {
+                        ((Activity) component).addHostingFragment((Fragment) c);
+                    } else if (component.getComponentType() == ComponentType.FRAGMENT
+                            && c.getComponentType() == ComponentType.FRAGMENT) {
+                        /*
+                        * TODO: handle relation between fragments
+                        * This can be either a nested fragment or a usage caused through
+                        * class inheritance.
+                         */
+                        LOGGER.debug("Fragment relation: " + component + " -> " + c);
+                    }
+                });
             }
         }
     }
@@ -434,6 +492,16 @@ public final class Utility {
      */
     public static String getReturnType(String fullyQualifiedMethodName) {
         return fullyQualifiedMethodName.split("\\)")[1];
+    }
+
+    /**
+     * Returns the defining class of the given method signature.
+     *
+     * @param fullyQualifiedMethodName The given method signature.
+     * @return Returns the defining class of the given method.
+     */
+    public static String getDefiningClass(String fullyQualifiedMethodName) {
+        return fullyQualifiedMethodName.split("->")[0];
     }
 
     /**
@@ -557,16 +625,16 @@ public final class Utility {
             Instruction35c invokeVirtual = (Instruction35c) instruction;
 
             /*
-            * All fragment invocations share almost the same order of arguments independent
-            * whether it is a call to add() or replace(). A typical example is as follows:
-            *
-            * Registers: v8 (Reg C), p0 (Reg D), p4 (Reg E)
-            * invoke-virtual {v8, p0, p4}, Landroid/app/FragmentTransaction;
-            *             ->replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;
-            *
-            * In any of these calls, we are interested in the parameter/register referring to
-            * the fragment. For the above example this is register p4. We start backtracking
-            * for p4 and check whether a new fragment is constructed and hold by p4.
+             * All fragment invocations share almost the same order of arguments independent
+             * whether it is a call to add() or replace(). A typical example is as follows:
+             *
+             * Registers: v8 (Reg C), p0 (Reg D), p4 (Reg E)
+             * invoke-virtual {v8, p0, p4}, Landroid/app/FragmentTransaction;
+             *             ->replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;
+             *
+             * In any of these calls, we are interested in the parameter/register referring to
+             * the fragment. For the above example this is register p4. We start backtracking
+             * for p4 and check whether a new fragment is constructed and hold by p4.
              */
             int fragmentRegisterID = invokeVirtual.getRegisterE();
 
@@ -593,12 +661,12 @@ public final class Utility {
     /**
      * Recursively looks up every predecessor for holding a reference to a fragment.
      *
-     * @param predecessor               The current predecessor instruction.
+     * @param predecessor        The current predecessor instruction.
      * @param fragmentRegisterID The register potentially holding a fragment.
      * @return Returns a set of fragments or an empty set if no fragment was found.
      */
     private static Set<String> isFragmentInvocationRecursive(final AnalyzedInstruction predecessor,
-                                                                     final int fragmentRegisterID) {
+                                                             final int fragmentRegisterID) {
 
         Set<String> fragments = new HashSet<>();
 
@@ -1167,6 +1235,9 @@ public final class Utility {
                 className = className.replace('/', '.');
                 return className;
             }
+        } else if (!className.startsWith("L")) {
+            // primitive type
+            return className;
         } else {
             className = className.substring(className.indexOf('L') + 1, className.indexOf(';'));
             className = className.replace('/', '.');

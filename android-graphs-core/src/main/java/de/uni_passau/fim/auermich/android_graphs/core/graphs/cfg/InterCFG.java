@@ -80,6 +80,9 @@ public class InterCFG extends BaseCFG {
         // create the individual intraCFGs and add them as sub graphs
         constructIntraCFGs(apk, properties.useBasicBlocks);
 
+        // track usages between components
+        Utility.findComponentUsages(apk, components);
+
         if (properties.useBasicBlocks) {
             constructCFGWithBasicBlocks(apk);
         } else {
@@ -308,21 +311,7 @@ public class InterCFG extends BaseCFG {
                         activity.addHostingFragment(fragment);
                     } else {
                         // TODO: Handle nested fragments.
-                        LOGGER.warn("Couldn't assign fragment " + fragmentName + " to activity: " + basicStmt.getMethod());
-                    }
-                } else {
-
-                    // check for fragment invocations within the activity class
-                    String activityName = Utility.getClassName(basicStmt.getMethod());
-                    Optional<Component> activityComponent = Utility.getComponentByName(components, activityName);
-
-                    if (activityComponent.isPresent() && activityComponent.get().getComponentType() == ComponentType.ACTIVITY) {
-                        // TODO: employ some cache or move it to a central place (right after all components have been derived)
-                        Utility.findFragmentUsages(apk, (Activity) activityComponent.get(), components);
-                    } else {
-                        // TODO: Handle nested fragments.
-                        // fragment is added/replaced outside of the activity class
-                        LOGGER.warn("Couldn't derive fragment in method: " + basicStmt.getMethod());
+                        LOGGER.warn("Couldn't assign fragment " + fragmentName + " to activity: " + activityName);
                     }
                 }
             }
