@@ -58,4 +58,7 @@ public class Fragment extends AbstractComponent {
     }
 
     public String onSaveInstanceStateMethod() { return  getName() + "->onSaveInstanceState(Landroid/os/Bundle;)V"; }
+
+    // only for DialogFragment classes
+    public String onCreateDialogMethod() { return getName() + "->onCreateDialog(Landroid/os/Bundle;)Landroid/app/Dialog;"; }
 }
