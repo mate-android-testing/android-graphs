@@ -174,8 +174,37 @@ public final class Utility {
                 "add(Landroid/support/v4/app/Fragment;Ljava/lang/String;)Landroid/support/v4/app/FragmentTransaction;");
     }};
 
+    public static final Set<String> ANDROID_CALLBACKS = new HashSet<>() {{
+        add("onClick(Landroid/view/View;)V");
+        add("onLongClick(Landroid/view/View;)Z");
+        add("onFocusChange(Landroid/view/View;Z)V");
+        add("onKey(Landroid/view/View;ILandroid/view/KeyEvent;)Z");
+        add("onTouch(Landroid/view/View;Landroid/view/MotionEvent;)Z");
+        add("onEditorAction(Landroid/widget/TextView;ILandroid/view/KeyEvent;)Z");
+        add("onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V");
+
+        // interface Landroid/text/TextWatcher;
+        add("afterTextChanged(Landroid/text/Editable;)V");
+        add("beforeTextChanged(Ljava/lang/CharSequence;III)V");
+        add("onTextChanged(Ljava/lang/CharSequence;III)V");
+
+        // interface Landroid/content/DialogInterface$OnClickListener;
+        add("onClick(Landroid/content/DialogInterface;I)V");
+    }};
+
     private Utility() {
         throw new UnsupportedOperationException("Utility class!");
+    }
+
+    /**
+     * Checks whether the given method represents an android callback method.
+     *
+     * @param methodSignature The method to be checked.
+     * @return Returns {@code true} if the method is an android callback,
+     *          otherwise {@code false} is returned.
+     */
+    public static boolean isCallback(String methodSignature) {
+        return ANDROID_CALLBACKS.contains(Utility.getMethodName(methodSignature));
     }
 
     /**
@@ -965,7 +994,7 @@ public final class Utility {
      *
      * @param method The method to be checked.
      * @return Returns {@code true} if the method represents a static initializer,
-     *          otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isStaticInitializer(String method) {
         return method.endsWith("<clinit>()V");

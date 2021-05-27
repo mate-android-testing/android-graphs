@@ -726,21 +726,15 @@ public class InterCFG extends BaseCFG {
         // iterate over all methods in graph
         for (Map.Entry<String, BaseCFG> intraCFG : intraCFGs.entrySet()) {
 
-            String methodName = intraCFG.getKey();
-            String className = Utility.getClassName(methodName);
+            String methodSignature = intraCFG.getKey();
+            String className = Utility.getClassName(methodSignature);
 
             // check for method representing a callback
             if (exclusionPattern != null && !exclusionPattern.matcher(Utility.dottedClassName(className)).matches()
                     // TODO: add missing callbacks for each event listener
                     // see: https://developer.android.com/guide/topics/ui/ui-events
                     // TODO: check whether there can be other custom event listeners
-                    && (methodName.endsWith("onClick(Landroid/view/View;)V")
-                    || methodName.endsWith("onLongClick(Landroid/view/View;)Z")
-                    || methodName.endsWith("onFocusChange(Landroid/view/View;Z)V")
-                    || methodName.endsWith("onKey(Landroid/view/View;ILandroid/view/KeyEvent;)Z")
-                    || methodName.endsWith("onTouch(Landroid/view/View;Landroid/view/MotionEvent;)Z")
-                    || methodName.endsWith("onEditorAction(Landroid/widget/TextView;ILandroid/view/KeyEvent;)Z")
-                    || methodName.endsWith("onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V"))) {
+                    && Utility.isCallback(methodSignature)) {
 
                 /*
                 * We need to check where the callback is declared. There are two options here:
@@ -757,7 +751,7 @@ public class InterCFG extends BaseCFG {
                 * a listener or a class representing a top-level listener. In the latter case, we need to backtrack
                 * the usages to the respective component.
                  */
-                if (Utility.isInnerClass(methodName)) {
+                if (Utility.isInnerClass(methodSignature)) {
 
                     String outerClass = Utility.getOuterClass(className);
                     Optional<Component> component = Utility.getComponentByName(components, outerClass);
