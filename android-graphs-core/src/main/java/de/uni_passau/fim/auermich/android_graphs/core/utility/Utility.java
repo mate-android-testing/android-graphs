@@ -197,6 +197,16 @@ public final class Utility {
         add("onBindViewHolder(Landroid/support/v7/widget/RecyclerView$ViewHolder;I)V");
         // seems to be called by the application code itself
         // add("getItemCount()I");
+
+        // Landroid/support/v7/widget/helper/ItemTouchHelper$Callback;
+        add("getMovementFlags(Landroid/support/v7/widget/RecyclerView;Landroid/support/v7/widget/RecyclerView$ViewHolder;)I");
+        add("isItemViewSwipeEnabled()Z");
+        add("isLongPressDragEnabled()Z");
+        add("onChildDraw(Landroid/graphics/Canvas;Landroid/support/v7/widget/RecyclerView;" +
+                "Landroid/support/v7/widget/RecyclerView$ViewHolder;FFIZ)V");
+        add("onSwiped(Landroid/support/v7/widget/RecyclerView$ViewHolder;I)V");
+        add("onMove(Landroid/support/v7/widget/RecyclerView;Landroid/support/v7/widget/RecyclerView$ViewHolder;" +
+                "Landroid/support/v7/widget/RecyclerView$ViewHolder;)Z");
     }};
 
     private Utility() {
