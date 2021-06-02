@@ -61,4 +61,7 @@ public class Fragment extends AbstractComponent {
 
     // only for DialogFragment classes
     public String onCreateDialogMethod() { return getName() + "->onCreateDialog(Landroid/os/Bundle;)Landroid/app/Dialog;"; }
+
+    // only for PreferenceFragmentCompat and PreferenceFragment classes
+    public String onCreatePreferencesMethod() { return getName() + "->onCreatePreferences(Landroid/os/Bundle;Ljava/lang/String;)V"; }
 }

@@ -476,6 +476,15 @@ public class InterCFG extends BaseCFG {
                 lastFragmentLifecycleCFG = addLifecycle(onCreateDialogFragment, lastFragmentLifecycleCFG);
             }
 
+            /*
+             * If the fragment is a PreferenceFragmentCompat or PreferenceFragment, it may override onCreatePreferences():
+             * https://developer.android.com/reference/androidx/preference/PreferenceFragmentCompat#onCreatePreferences(android.os.Bundle,%20java.lang.String)
+             */
+            String onCreatePreferencesFragment = fragment.onCreatePreferencesMethod();
+            if (intraCFGs.containsKey(onCreatePreferencesFragment)) {
+                lastFragmentLifecycleCFG = addLifecycle(onCreatePreferencesFragment, lastFragmentLifecycleCFG);
+            }
+
             String onCreateViewFragment = fragment.onCreateViewMethod();
             BaseCFG onCreateViewFragmentCFG = addLifecycle(onCreateViewFragment, lastFragmentLifecycleCFG);
 
