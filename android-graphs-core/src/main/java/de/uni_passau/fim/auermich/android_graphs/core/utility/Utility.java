@@ -207,6 +207,15 @@ public final class Utility {
         add("onSwiped(Landroid/support/v7/widget/RecyclerView$ViewHolder;I)V");
         add("onMove(Landroid/support/v7/widget/RecyclerView;Landroid/support/v7/widget/RecyclerView$ViewHolder;" +
                 "Landroid/support/v7/widget/RecyclerView$ViewHolder;)Z");
+
+        // Landroid/support/v7/preference/Preference$OnPreferenceClickListener;
+        add("onPreferenceClick(Landroid/support/v7/preference/Preference;)Z");
+
+        // Landroid/content/SharedPreferences$OnSharedPreferenceChangeListener;
+        add("onSharedPreferenceChanged(Landroid/content/SharedPreferences;Ljava/lang/String;)V");
+
+        // https://developer.android.com/reference/android/app/Activity#onCreateOptionsMenu(android.view.Menu)
+        add("onCreateOptionsMenu(Landroid/view/Menu;)Z");
     }};
 
     private Utility() {
