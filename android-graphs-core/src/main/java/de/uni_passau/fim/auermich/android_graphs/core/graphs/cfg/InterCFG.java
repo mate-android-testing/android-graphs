@@ -748,10 +748,10 @@ public class InterCFG extends BaseCFG {
                 *
                 * (2)
                 * If the class represents a top-level class, it might be either an activity/fragment implementing
-                * a listener or a class representing a top-level listener. In the latter case, we need to backtrack
-                * the usages to the respective component.
+                * a listener or a (wrapper) class representing a top-level listener. In the latter case, we need to
+                * backtrack the usages to the respective component.
                  */
-                if (Utility.isInnerClass(methodSignature)) {
+                if (Utility.isInnerClass(className)) {
 
                     String outerClass = Utility.getOuterClass(className);
                     Optional<Component> component = Utility.getComponentByName(components, outerClass);
@@ -798,9 +798,9 @@ public class InterCFG extends BaseCFG {
                         // component declares directly callback
                         callbacks.put(className, intraCFG.getValue());
                     } else {
-                        // callback is declared by some top-level listener class
+                        // callback is declared by some top-level listener or wrapper class
 
-                        // check which application classes make use of the top-level listener
+                        // check which application classes make use of the top level class
                         Set<ClassDef> usages;
 
                         // avoid redundant usage lookups of same class
@@ -819,8 +819,8 @@ public class InterCFG extends BaseCFG {
 
                             if (uiComponent.isPresent()) {
                                 /*
-                                 * The class that makes use of the top-level listener class represents a component,
-                                 * thus the callback should be assigned to this class.
+                                 * The class that makes use of the top-level listener (wrapper) class represents a
+                                 * component, thus the callback should be assigned to this class.
                                  */
                                 callbacks.put(clazzName, intraCFG.getValue());
                             }

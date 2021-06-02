@@ -419,13 +419,22 @@ public final class Utility {
 
     /**
      * Check for relations between the given components. This is a mere heuristic.
+     * In particular, we define a relation between two components in following cases:
+     *
+     * (1) There is a field reference to another application class.
+     * (2) There is a method parameter reference to another application class.
+     * (3) If the method return value represents a reference to another application class.
+     * (4) If an instruction, e.g. invoke, references another application class.
+     * (5) If there is an outer to inner class relation.
+     *
+     * NOTE: Right now only direct relations between activities and fragments are saved.
      *
      * @param apk        The APK file.
      * @param components The set of discovered components.
      */
     public static void checkComponentRelations(APK apk, final Set<Component> components) {
 
-        Multimap<ClassDef, String> classUsages = ArrayListMultimap.create();
+        Multimap<String, String> classUsages = ArrayListMultimap.create();
         String applicationPackage = apk.getManifest().getPackageName();
 
         for (DexFile dexFile : apk.getDexFiles()) {
@@ -440,11 +449,18 @@ public final class Utility {
                     continue;
                 }
 
+                // an outer class has a direct relation to its inner class, e.g. ActivityA$FragmentA
+                if (Utility.isInnerClass(className)) {
+                    String outerClass = Utility.getOuterClass(className);
+                    // we detect such relation when we traverse the inner class (className)
+                    classUsages.put(outerClass, className);
+                }
+
                 // check the references to other application classes
                 for (Field field : classDef.getFields()) {
                     if (Utility.dottedClassName(field.getType()).startsWith(applicationPackage)) {
                         if (!className.equals(field.getType())) {
-                            classUsages.put(classDef, field.getType());
+                            classUsages.put(className, field.getType());
                         }
                     }
                 }
@@ -457,7 +473,7 @@ public final class Utility {
                     for (MethodParameter parameter : method.getParameters()) {
                         if (Utility.dottedClassName(parameter.getType()).startsWith(applicationPackage)) {
                             if (!className.equals(parameter.getType())) {
-                                classUsages.put(classDef, parameter.getType());
+                                classUsages.put(className, parameter.getType());
                             }
                         }
                     }
@@ -465,7 +481,7 @@ public final class Utility {
                     // check method return value
                     if (Utility.dottedClassName(method.getReturnType()).startsWith(applicationPackage)) {
                         if (!className.equals(method.getReturnType())) {
-                            classUsages.put(classDef, method.getReturnType());
+                            classUsages.put(className, method.getReturnType());
                         }
                     }
 
@@ -484,7 +500,8 @@ public final class Utility {
                                 String targetClass = newInstance.getReference().toString();
                                 if (Utility.dottedClassName(targetClass).startsWith(applicationPackage)) {
                                     if (!className.equals(targetClass)) {
-                                        classUsages.put(classDef, targetClass);
+                                        // don't track self references
+                                        classUsages.put(className, targetClass);
                                     }
                                 }
                             } else if (Utility.isInvokeInstruction(instruction)) {
@@ -498,16 +515,18 @@ public final class Utility {
                                 String definingClass = Utility.getDefiningClass(invokeCall);
                                 if (Utility.dottedClassName(definingClass).startsWith(applicationPackage)) {
                                     if (!className.equals(definingClass)) {
-                                        classUsages.put(classDef, definingClass);
+                                        // don't track self references
+                                        classUsages.put(className, definingClass);
                                     }
                                 }
 
-                                if (Utility.isInnerClass(invokeCall)) {
+                                if (Utility.isInnerClass(definingClass)) {
                                     // every inner class has per default a relation to its outer class
-                                    String outerClass = Utility.getOuterClass(invokeCall);
+                                    String outerClass = Utility.getOuterClass(definingClass);
                                     if (Utility.dottedClassName(outerClass).startsWith(applicationPackage)) {
                                         if (!className.equals(outerClass)) {
-                                            classUsages.put(classDef, outerClass);
+                                            // don't track self references
+                                            classUsages.put(className, outerClass);
                                         }
                                     }
                                 }
@@ -516,7 +535,8 @@ public final class Utility {
                                 String returnType = Utility.getReturnType(invokeCall);
                                 if (Utility.dottedClassName(returnType).startsWith(applicationPackage)) {
                                     if (!className.equals(returnType)) {
-                                        classUsages.put(classDef, returnType);
+                                        // don't track self references
+                                        classUsages.put(className, returnType);
                                     }
                                 }
                             } else if (instruction.getOpcode() == Opcode.CONST_CLASS) {
@@ -524,7 +544,8 @@ public final class Utility {
                                 String targetClass = constClass.getReference().toString();
                                 if (Utility.dottedClassName(targetClass).startsWith(applicationPackage)) {
                                     if (!className.equals(targetClass)) {
-                                        classUsages.put(classDef, targetClass);
+                                        // don't track self references
+                                        classUsages.put(className, targetClass);
                                     }
                                 }
                             }
@@ -534,9 +555,10 @@ public final class Utility {
             }
         }
 
+        // derive relations between components based on the found class usages
         for (Component component : components) {
 
-            Set<String> componentUsages = new HashSet<>(classUsages.get(component.getClazz()));
+            Set<String> componentUsages = new HashSet<>(classUsages.get(component.getName()));
             LOGGER.debug("Component " + component + "has the following usages: " + componentUsages);
 
             for (String usage : componentUsages) {
@@ -550,11 +572,19 @@ public final class Utility {
                             && c.getComponentType() == ComponentType.FRAGMENT) {
                         ((Activity) component).addHostingFragment((Fragment) c);
                     } else if (component.getComponentType() == ComponentType.FRAGMENT
+                            && c.getComponentType() == ComponentType.ACTIVITY) {
+                        /*
+                        * TODO: Avoid defining the relation in the wrong direction.
+                        * This can be either a fragment invoking an activity, in which case we shouldn't declare
+                        * any relation, or a usage defined through an inner to outer class call, in which case
+                        * the relation should be reversed.
+                         */
+                        LOGGER.debug("Fragment to activity relation: " + component +  " -> " + c);
+                    } else if (component.getComponentType() == ComponentType.FRAGMENT
                             && c.getComponentType() == ComponentType.FRAGMENT) {
                         /*
-                         * TODO: handle relation between fragments
-                         * This can be either a nested fragment or a usage caused through
-                         * class inheritance.
+                         * TODO: Handle relation between fragments.
+                         * This can be either a nested fragment or a usage caused through class inheritance.
                          */
                         LOGGER.debug("Fragment relation: " + component + " -> " + c);
                     }
@@ -1234,14 +1264,14 @@ public final class Utility {
     }
 
     /**
-     * Checks whether the given method signature represents an inner class invocation.
+     * Checks whether the given class represents an inner class.
      *
-     * @param methodSignature The method signature to be checked against.
-     * @return Returns {@code true} if the method signature refers to a inner class invocation,
+     * @param clazz The class to be checked against.
+     * @return Returns {@code true} if the class is an inner class,
      * otherwise {@code false} is returned.
      */
-    public static boolean isInnerClass(final String methodSignature) {
-        return methodSignature.contains("$");
+    public static boolean isInnerClass(final String clazz) {
+        return clazz.contains("$");
     }
 
     /**
