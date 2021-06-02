@@ -190,6 +190,13 @@ public final class Utility {
 
         // interface Landroid/content/DialogInterface$OnClickListener;
         add("onClick(Landroid/content/DialogInterface;I)V");
+
+        // https://developer.android.com/guide/topics/ui/layout/recyclerview#implement-adapter
+        // Landroid/support/v7/widget/RecyclerView$Adapter;
+        add("onCreateViewHolder(Landroid/view/ViewGroup;I)Landroid/support/v7/widget/RecyclerView$ViewHolder;");
+        add("onBindViewHolder(Landroid/support/v7/widget/RecyclerView$ViewHolder;I)V");
+        // seems to be called by the application code itself
+        // add("getItemCount()I");
     }};
 
     private Utility() {
