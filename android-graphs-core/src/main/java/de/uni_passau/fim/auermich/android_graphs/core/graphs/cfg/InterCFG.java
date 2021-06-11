@@ -174,7 +174,7 @@ public class InterCFG extends BaseCFG {
 
                 // look up the CFG matching the invocation target
                 BasicStatement invokeStmt = (BasicStatement) ((BlockStatement) blockStmt).getLastStatement();
-                BaseCFG targetCFG = lookupTargetCFG(invokeStmt);
+                BaseCFG targetCFG = lookupTargetCFG(apk, invokeStmt);
 
                 // the invoke vertex defines an edge to the invocation target
                 addEdge(blockVertex, targetCFG.getEntry());
@@ -225,10 +225,11 @@ public class InterCFG extends BaseCFG {
      * As a side effect, component invocation, e.g. calls to startActivity(), are replaced
      * by the invoked component's constructor.
      *
+     * @param apk The APK file.
      * @param invokeStmt The invoke statement defining the target.
      * @return Returns the CFG matching the given invoke target.
      */
-    private BaseCFG lookupTargetCFG(final BasicStatement invokeStmt) {
+    private BaseCFG lookupTargetCFG(final APK apk, final BasicStatement invokeStmt) {
 
         Instruction instruction = invokeStmt.getInstruction().getInstruction();
         String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
@@ -250,6 +251,13 @@ public class InterCFG extends BaseCFG {
                     }
                 } else {
                     LOGGER.warn("Couldn't derive component constructor for method: " + targetMethod);
+                }
+            } else if (Utility.isReflectionCall(targetMethod)) {
+                // replace the reflection call with the internally invoked class constructor
+                String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
+                if (clazz != null) {
+                    // TODO: derive constructor and check if graph contains it
+                    LOGGER.debug("Class invoked by reflection: " + clazz);
                 }
             } else {
                 /*
@@ -1002,16 +1010,20 @@ public class InterCFG extends BaseCFG {
                 // don't resolve non AUT classes if requested
                 if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
                         // we have to resolve component invocations in any case, see the code below
-                        && !Utility.isComponentInvocation(components, targetMethod)) {
+                        && !Utility.isComponentInvocation(components, targetMethod)
+                        // we need to resolve calls using reflection in any case
+                        && !Utility.isReflectionCall(targetMethod)) {
                     continue;
                 }
 
                 // don't resolve certain classes/methods, e.g. ART methods
-                if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                if ((exclusionPattern != null && exclusionPattern.matcher(className).matches()
                         || Utility.isArrayType(className)
-                        || (Utility.isARTMethod(targetMethod) && properties.excludeARTClasses
+                        || Utility.isARTMethod(targetMethod) && properties.excludeARTClasses)
                         // we have to resolve component invocations in any case, see the code below
-                        && !Utility.isComponentInvocation(components, targetMethod))) {
+                        && !Utility.isComponentInvocation(components, targetMethod)
+                        // we need to resolve calls using reflection in any case
+                        && !Utility.isReflectionCall(targetMethod)) {
                     continue;
                 }
 
@@ -1023,7 +1035,7 @@ public class InterCFG extends BaseCFG {
 
                 /*
                  * If we deal with a component invocation, the target method should be replaced
-                 * with the constructor of the component. Here, the return statement should also
+                 * with the constructor of the component. Here, the virtual return statement should also
                  * reflect this change.
                  */
                 if (Utility.isComponentInvocation(components, targetMethod)) {
@@ -1031,6 +1043,14 @@ public class InterCFG extends BaseCFG {
                     if (componentConstructor != null && intraCFGs.containsKey(componentConstructor)) {
                         targetMethod = componentConstructor;
                     }
+                } else if (Utility.isReflectionCall(targetMethod)) {
+                    /*
+                    * If we deal with a reflective call, i.e. newInstance(), the target method
+                    * should be replaced with the constructor. Here particular, the virtual return statement
+                    * should also reflect this change.
+                     */
+                    // TODO: replace target method with corresponding constructor
+                    LOGGER.debug("Reflection call detected!");
                 }
 
                 // add return statement to next block
@@ -1075,16 +1095,20 @@ public class InterCFG extends BaseCFG {
             // don't resolve non AUT classes if requested
             if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
                     // we have to resolve component invocations in any case, see the code below
-                    && !Utility.isComponentInvocation(components, targetMethod)) {
+                    && !Utility.isComponentInvocation(components, targetMethod)
+                    // we have to resolve reflection calls in any case
+                    && !Utility.isReflectionCall(targetMethod)) {
                 continue;
             }
 
             // don't resolve certain classes/methods, e.g. ART methods
-            if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+            if ((exclusionPattern != null && exclusionPattern.matcher(className).matches()
                     || Utility.isArrayType(className)
-                    || (Utility.isARTMethod(targetMethod) && properties.excludeARTClasses
+                    || Utility.isARTMethod(targetMethod) && properties.excludeARTClasses)
                     // we have to resolve component invocations in any case
-                    && !Utility.isComponentInvocation(components, targetMethod))) {
+                    && !Utility.isComponentInvocation(components, targetMethod)
+                    // we have to resolve reflection calls in any case
+                    && !Utility.isReflectionCall(targetMethod)) {
                 continue;
             }
 
@@ -1092,13 +1116,15 @@ public class InterCFG extends BaseCFG {
             Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
 
             // get the CFG matching the invocation target
-            BaseCFG targetCFG = lookupTargetCFG(invokeStmt);
+            BaseCFG targetCFG = lookupTargetCFG(apk, invokeStmt);
 
             // remove edges between invoke vertex and original successors
             removeEdges(getOutgoingEdges(invokeVertex));
 
             // the invocation vertex defines an edge to the target CFG
             addEdge(invokeVertex, targetCFG.getEntry());
+
+            // TODO: replace target method of virtual return statement in case of component invocation or reflection call
 
             // insert virtual return vertex
             ReturnStatement returnStmt = new ReturnStatement(invokeVertex.getMethod(), targetCFG.getMethodName(),

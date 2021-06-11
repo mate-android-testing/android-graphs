@@ -10,7 +10,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.*;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.DotConverter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
@@ -242,11 +242,11 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      */
     private void convertGraphToDOT(File output) {
 
-        DOTExporter<Vertex, Edge> exporter = new DOTExporter<>(Utility::convertVertexToDOTNode);
+        DOTExporter<Vertex, Edge> exporter = new DOTExporter<>(DotConverter::convertVertexToDOTNode);
         exporter.setVertexAttributeProvider((vertex) -> {
             // the label is what we see when we render the graph
             Map<String, Attribute> map = new LinkedHashMap<>();
-            map.put("label", DefaultAttribute.createAttribute(Utility.convertVertexToDOTLabel(vertex)));
+            map.put("label", DefaultAttribute.createAttribute(DotConverter.convertVertexToDOTLabel(vertex)));
             return map;
         });
 

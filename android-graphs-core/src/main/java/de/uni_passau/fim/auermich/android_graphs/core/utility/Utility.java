@@ -8,11 +8,9 @@ import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
@@ -33,6 +31,7 @@ import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction22c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
+import org.jf.dexlib2.util.MethodUtil;
 
 import java.io.*;
 import java.util.*;
@@ -107,11 +106,9 @@ public final class Utility {
     }};
 
     /**
-     * The recognized ART methods.
+     * The recognized ART methods excluding component invocation methods, e.g. startActivity().
      */
     private static final Set<String> ART_METHODS = new HashSet<>() {{
-        add("startActivity(Landroid/content/Intent;)V");
-        add("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
         add("findViewById(I)Landroid/view/View;");
         add("setContentView(I)V");
         add("setContentView(Landroid/view/View;)V");
@@ -223,11 +220,22 @@ public final class Utility {
     }
 
     /**
+     * Checks whether the given method represents a reflection call.
+     *
+     * @param methodSignature The method to be checked.
+     * @return Returns {@code true} if the method refers to a reflection call,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isReflectionCall(String methodSignature) {
+        return methodSignature.equals("Ljava/lang/Class;->newInstance()Ljava/lang/Object;");
+    }
+
+    /**
      * Checks whether the given method represents an android callback method.
      *
      * @param methodSignature The method to be checked.
      * @return Returns {@code true} if the method is an android callback,
-     *          otherwise {@code false} is returned.
+     * otherwise {@code false} is returned.
      */
     public static boolean isCallback(String methodSignature) {
         return ANDROID_CALLBACKS.contains(Utility.getMethodName(methodSignature));
@@ -446,13 +454,13 @@ public final class Utility {
     /**
      * Check for relations between the given components. This is a mere heuristic.
      * In particular, we define a relation between two components in following cases:
-     *
+     * <p>
      * (1) There is a field reference to another application class.
      * (2) There is a method parameter reference to another application class.
      * (3) If the method return value represents a reference to another application class.
      * (4) If an instruction, e.g. invoke, references another application class.
      * (5) If there is an outer to inner class relation.
-     *
+     * <p>
      * NOTE: Right now only direct relations between activities and fragments are saved.
      *
      * @param apk        The APK file.
@@ -600,12 +608,12 @@ public final class Utility {
                     } else if (component.getComponentType() == ComponentType.FRAGMENT
                             && c.getComponentType() == ComponentType.ACTIVITY) {
                         /*
-                        * TODO: Avoid defining the relation in the wrong direction.
-                        * This can be either a fragment invoking an activity, in which case we shouldn't declare
-                        * any relation, or a usage defined through an inner to outer class call, in which case
-                        * the relation should be reversed.
+                         * TODO: Avoid defining the relation in the wrong direction.
+                         * This can be either a fragment invoking an activity, in which case we shouldn't declare
+                         * any relation, or a usage defined through an inner to outer class call, in which case
+                         * the relation should be reversed.
                          */
-                        LOGGER.debug("Fragment to activity relation: " + component +  " -> " + c);
+                        LOGGER.debug("Fragment to activity relation: " + component + " -> " + c);
                     } else if (component.getComponentType() == ComponentType.FRAGMENT
                             && c.getComponentType() == ComponentType.FRAGMENT) {
                         /*
@@ -1124,6 +1132,13 @@ public final class Utility {
         return builder.toString();
     }
 
+    /**
+     * Checks whether the given method is contained in the dex files.
+     *
+     * @param dexFiles        The dex files.
+     * @param methodSignature The method to be looked up.
+     * @return Returns the dex file containing the method, if possible.
+     */
     public static Optional<DexFile> containsTargetMethod(final List<DexFile> dexFiles, final String methodSignature) {
 
         String className = methodSignature.split("->")[0];
@@ -1263,6 +1278,33 @@ public final class Utility {
     }
 
     /**
+     * Searches for a target method in the given APK.
+     *
+     * @param apk         The APK file.
+     * @param methodSignature The signature of the target method.
+     * @return Returns an optional containing either the target method or not.
+     */
+    public static Optional<Method> searchForTargetMethod(final APK apk, final String methodSignature) {
+
+        String className = Utility.getClassName(methodSignature);
+
+        for (DexFile dexFile : apk.getDexFiles()) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+                if (classDef.toString().equals(className)) {
+                    for (Method method : classDef.getMethods()) {
+                        if (Utility.deriveMethodSignature(method).equals(methodSignature)) {
+                            return Optional.of(method);
+                        }
+                    }
+                    // speed up
+                    return Optional.empty();
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Searches for a target method in the given {@code dexFile}.
      *
      * @param dexFile         The dexFile to search in.
@@ -1271,8 +1313,7 @@ public final class Utility {
      */
     public static Optional<Method> searchForTargetMethod(final DexFile dexFile, final String methodSignature) {
 
-        // TODO: search for target method based on className + method signature
-        String className = methodSignature.split("->")[0];
+        String className = Utility.getClassName(methodSignature);
 
         Set<? extends ClassDef> classes = dexFile.getClasses();
 
@@ -1284,6 +1325,8 @@ public final class Utility {
                         return Optional.of(method);
                     }
                 }
+                // speed up
+                return Optional.empty();
             }
         }
         return Optional.empty();
@@ -1404,165 +1447,6 @@ public final class Utility {
     }
 
     /**
-     * Converts a vertex into a DOT node matching the dot language specification.
-     *
-     * @param vertex The vertex to be converted.
-     * @return Returns a DOT node representing the given vertex.
-     */
-    public static String convertVertexToDOTNode(final Vertex vertex) {
-
-        /*
-         * TODO: Simplify the entire conversion process. We need to comply to the following specification:
-         *  https://graphviz.org/doc/info/lang.html. In particular, this holds true for the node identifiers,
-         *  while the label can be assigned any name.
-         */
-
-        String methodSignature = vertex.getMethod();
-
-        if (methodSignature.equals("global")) {
-            if (vertex.isEntryVertex()) {
-                return "entry_" + methodSignature;
-            } else {
-                return "exit_" + methodSignature;
-            }
-        }
-
-        if (methodSignature.equals("static initializers")) {
-            if (vertex.isEntryVertex()) {
-                return "entry_static_initializers";
-            } else {
-                return "exit_static_initializers";
-            }
-        }
-
-        if (methodSignature.startsWith("callbacks")) {
-            String className = methodSignature.split("callbacks")[1].trim();
-            if (vertex.isEntryVertex()) {
-                return "<entry_callbacks_" + className + ">";
-            } else {
-                return "<exit_callbacks_" + className + ">";
-            }
-        }
-
-        String className = Utility.dottedClassName(Utility.getClassName(methodSignature))
-                .replace("$", "_").replace(".", "_");
-        String method = Utility.getMethodName(methodSignature).split("\\(")[0];
-        method = method.replace("<init>", "ctr");
-
-        String label = "";
-        String signature = className + "_" + method;
-
-        if (vertex.isEntryVertex()) {
-            label = "entry_" + signature;
-        } else if (vertex.isExitVertex()) {
-            label = "exit_" + signature;
-        } else if (vertex.isReturnVertex()) {
-            label = "return_" + signature;
-        } else {
-            BlockStatement blockStatement = (BlockStatement) vertex.getStatement();
-            Statement firstStmt = blockStatement.getFirstStatement();
-            Statement lastStmt = blockStatement.getLastStatement();
-            Integer begin = null;
-            Integer end = null;
-
-            if (firstStmt instanceof ReturnStatement) {
-
-                if (blockStatement.getStatements().size() == 1) {
-                    // isolated return vertex, no begin and end index
-                    return "<return_" + signature + ">";
-                }
-
-                BasicStatement second = (BasicStatement) blockStatement.getStatements().get(1);
-                begin = second.getInstructionIndex();
-
-            } else {
-                // must be a basic block statement
-                begin = ((BasicStatement) firstStmt).getInstructionIndex();
-            }
-
-            end = ((BasicStatement) lastStmt).getInstructionIndex();
-            label = signature + "_" + begin + "_" + end;
-        }
-
-        // DOT supports html tags and those seem to require little to no escaping inside
-        return "<" + label + ">";
-    }
-
-    /**
-     * Converts a vertex into a DOT label. This label is what we see when
-     * we render the graph.
-     *
-     * @param vertex The vertex to be converted into a DOT label.
-     * @return Returns the DOT label representing the given vertex.
-     */
-    public static String convertVertexToDOTLabel(final Vertex vertex) {
-
-        // TODO: Display the instructions actually instead of solely the instruction indices.
-        String label = "";
-        String methodSignature = vertex.getMethod();
-
-        if (methodSignature.equals("global")) {
-            if (vertex.isEntryVertex()) {
-                label = "entry_global";
-            } else {
-                label = "exit_global";
-            }
-        } else if (methodSignature.startsWith("callbacks")) {
-            if (vertex.isEntryVertex()) {
-                label = "entry_callbacks";
-            } else {
-                label = "exit_callbacks";
-            }
-        } else if (methodSignature.startsWith("static initializers")) {
-            if (vertex.isEntryVertex()) {
-                label = "entry_static_initializers";
-            } else {
-                label = "exit_static_initializers";
-            }
-        } else {
-
-            String className = Utility.dottedClassName(Utility.getClassName(methodSignature));
-            String method = Utility.getMethodName(methodSignature).split("\\(")[0];
-            String signature = "<" + className + "_" + method + ">";
-
-            if (vertex.isEntryVertex()) {
-                label = "entry_" + signature;
-            } else if (vertex.isExitVertex()) {
-                label = "exit_" + signature;
-            } else if (vertex.isReturnVertex()) {
-                label = "return_" + signature;
-            } else {
-                BlockStatement blockStatement = (BlockStatement) vertex.getStatement();
-                Statement firstStmt = blockStatement.getFirstStatement();
-                Statement lastStmt = blockStatement.getLastStatement();
-                Integer begin = null;
-                Integer end = null;
-
-                if (firstStmt instanceof ReturnStatement) {
-
-                    if (blockStatement.getStatements().size() == 1) {
-                        // isolated return statement
-                        label = "return_" + signature;
-                    } else {
-                        BasicStatement second = (BasicStatement) blockStatement.getStatements().get(1);
-                        begin = second.getInstructionIndex();
-                    }
-                } else {
-                    // must be a basic block statement
-                    begin = ((BasicStatement) firstStmt).getInstructionIndex();
-                }
-
-                if (blockStatement.getStatements().size() > 1) {
-                    // only check for last index if vertex is not an isolated return vertex
-                    end = ((BasicStatement) lastStmt).getInstructionIndex();
-                    label = signature + "_" + begin + "_" + end;
-                }
-            }
-        }
-        return label;
-    }
-
-    /**
      * Checks whether a block statement contains an invoke instruction.
      *
      * @param blockStatement The block statement to be checked.
@@ -1665,7 +1549,7 @@ public final class Utility {
     }
 
     /**
-     * Checks whether the given method is an (inherited) ART method, e.g. startActivity().
+     * Checks whether the given method is an (inherited) ART method, e.g. setContentView().
      *
      * @param fullyQualifiedMethodName The method signature.
      * @return Returns {@code true} if the given method is an ART method,
@@ -1675,7 +1559,6 @@ public final class Utility {
         // TODO: add further patterns, e.g.:
         // getSupportFragmentManager()
         // setContentView()
-        // startService()
         String method = getMethodName(fullyQualifiedMethodName);
         return ART_METHODS.contains(method);
     }
@@ -1912,5 +1795,151 @@ public final class Utility {
             }
         }
         return false;
+    }
+
+    /**
+     * Backtracks a reflection call, i.e. newInstance(), in order to get the invoked class.
+     *
+     * @param apk The APK file.
+     * @param invokeStmt The invoke statement representing the reflection call.
+     * @return Returns the class name that is invoked by the reflection call, or {@code null}
+     *          if the class can't be derived.
+     */
+    public static String backtrackReflectionCall(final APK apk, final BasicStatement invokeStmt) {
+
+        LOGGER.debug("Backtracking reflection call in method: " + invokeStmt.getMethod());
+
+        /*
+        * A call looks as follows:
+        *       invoke-virtual {v0}, Ljava/lang/Class;->newInstance()Ljava/lang/Object;
+        *
+        * Hence, we need to backtrack the register v0 (C) for its last write. Typically, this is
+        * a const-class instruction, but in case the specified register is a parameter register,
+        * we need to backtrack the method invocation.
+         */
+        AnalyzedInstruction analyzedInstruction = invokeStmt.getInstruction();
+        int registerC = ((Instruction35c) analyzedInstruction.getInstruction()).getRegisterC();
+        AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+
+        while (predecessor.getInstructionIndex() != -1) {
+            // check for const class instruction
+            if (predecessor.getInstruction().getOpcode() == Opcode.CONST_CLASS && predecessor.setsRegister(registerC)) {
+                Instruction21c constClassInstruction = (Instruction21c) predecessor.getInstruction();
+                return constClassInstruction.getReference().toString();
+            } else {
+                predecessor = predecessor.getPredecessors().first();
+            }
+        }
+
+        /*
+        * If there is no const-class instruction, we need to check the method parameters next.
+        * The method parameter referring to the class type can be either primitive or generic.
+        * In the former case, the type can be extracted directly, otherwise the annotations
+        * need to be inspected.
+         */
+        Optional<Method> method = Utility.searchForTargetMethod(apk, invokeStmt.getMethod());
+        if (method.isEmpty()) {
+            return null;
+        }
+
+        Method targetMethod = method.get();
+
+        // extract the method parameter referring to the specified register in the invoke instruction
+        int localRegisters = Utility.getLocalRegisterCount(targetMethod);
+        int paramRegisterIndex = registerC - localRegisters;
+
+        // the param registers don't contain p0
+        if (paramRegisterIndex == 0) {
+            // return class corresponding to 'this' reference
+            return Utility.getClassName(invokeStmt.getMethod());
+        } else {
+
+            // param registers start at p1
+            paramRegisterIndex = paramRegisterIndex - 1;
+
+            MethodParameter parameter = targetMethod.getParameters().get(paramRegisterIndex);
+            LOGGER.debug("Type: " + parameter.getType());
+
+            if (parameter.getType().equals("Ljava/lang/Class;")) {
+
+                LOGGER.debug("Inspecting method annotations!");
+                targetMethod.getAnnotations().forEach(annotation -> {
+                    annotation.getElements().forEach(annotationElement -> {
+
+                        LOGGER.debug("Annotation element value: " + annotationElement.getValue());
+
+                        /*
+                        * An annotation value is nothing else than a string array of the following form:
+                        * Array["(", "Landroid/support/v4/app/FragmentActivity;",
+                        *       "Ljava/lang/Class<", "+", "Lcom/woefe/shoppinglist/dialog/TextInputDialog;", ">;)V"]
+                        *
+                        * We need to remove the 'Array[]' wrapper and split it into tokens. Afterwards, we can
+                        * assign those annotations to the individual method parameters. In particular, every
+                        * annotation starts with a 'L' symbol and ends with ';' like a regular dex class name does.
+                         */
+                        String annotationValue = annotationElement.getValue().toString().replaceAll("\"", "");
+                        String[] tokens = annotationValue
+                                .substring("Array[".length() + 1, annotationValue.lastIndexOf("]") + 1)
+                                .split(", ");
+
+                        List<String> parameterAnnotations = new ArrayList<>();
+                        int lastIndex = 0;
+                        boolean generic = false;
+                        for (String token : tokens) {
+                            LOGGER.debug("Token: " + token);
+                            if (generic) {
+                                if (token.startsWith(">;")) {
+                                    String lastValue = parameterAnnotations.get(lastIndex);
+                                    parameterAnnotations.remove(lastIndex);
+                                    parameterAnnotations.add(lastIndex, lastValue
+                                            + token.substring(0, token.indexOf(";") + 1));
+                                    generic = false;
+                                    lastIndex++;
+                                } else {
+                                    String lastValue = parameterAnnotations.get(lastIndex);
+                                    parameterAnnotations.remove(lastIndex);
+                                    parameterAnnotations.add(lastIndex, lastValue + token);
+                                }
+                            } else if (token.startsWith("L") && token.endsWith(";")) {
+                                parameterAnnotations.add(lastIndex, token);
+                                lastIndex++;
+                            } else if (token.startsWith("L") && token.endsWith("<")) {
+                                parameterAnnotations.add(lastIndex, token);
+                                generic = true;
+                            }
+                        }
+
+                        LOGGER.debug("Parsed parameter annotations: " + parameterAnnotations);
+                        // TODO: map parameter annotation to parameter
+                    });
+                });
+            } else {
+                return parameter.getType();
+            }
+        }
+
+        // TODO: track back application usages of method
+        return null;
+    }
+
+    /**
+     * Returns the number of local registers for a given method.
+     *
+     * @param method The given method.
+     * @return Returns the number of local registers.
+     */
+    public static int getLocalRegisterCount(Method method) {
+        assert method.getImplementation() != null;
+        return method.getImplementation().getRegisterCount() - getParamRegisterCount(method);
+    }
+
+    /**
+     * Returns the number of param registers for a given method.
+     *
+     * @param method The given method.
+     * @return Returns the number of param registers.
+     */
+    public static int getParamRegisterCount(Method method) {
+        return MethodUtil.getParameterRegisterCount(method);
     }
 }
