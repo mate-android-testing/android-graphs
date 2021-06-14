@@ -256,8 +256,13 @@ public class InterCFG extends BaseCFG {
                 // replace the reflection call with the internally invoked class constructor
                 String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
                 if (clazz != null) {
-                    // TODO: derive constructor and check if graph contains it
                     LOGGER.debug("Class invoked by reflection: " + clazz);
+                    String constructor = Utility.getDefaultConstructor(clazz);
+                    if (intraCFGs.containsKey(constructor)) {
+                        return intraCFGs.get(constructor);
+                    } else {
+                        LOGGER.warn("Constructor " + constructor + " not contained in dex files!");
+                    }
                 }
             } else {
                 /*

@@ -35,6 +35,7 @@ import org.jf.dexlib2.util.MethodUtil;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
 public final class Utility {
@@ -1848,7 +1849,7 @@ public final class Utility {
         int localRegisters = Utility.getLocalRegisterCount(targetMethod);
         int paramRegisterIndex = registerC - localRegisters;
 
-        // the param registers don't contain p0
+        // the param registers don't contain p0 (implicit parameter)
         if (paramRegisterIndex == 0) {
             // return class corresponding to 'this' reference
             return Utility.getClassName(invokeStmt.getMethod());
@@ -1862,7 +1863,10 @@ public final class Utility {
 
             if (parameter.getType().equals("Ljava/lang/Class;")) {
 
+                AtomicReference<String> clazz = new AtomicReference<>(null);
+
                 LOGGER.debug("Inspecting method annotations!");
+                int finalParamRegisterIndex = paramRegisterIndex;
                 targetMethod.getAnnotations().forEach(annotation -> {
                     annotation.getElements().forEach(annotationElement -> {
 
@@ -1876,6 +1880,9 @@ public final class Utility {
                         * We need to remove the 'Array[]' wrapper and split it into tokens. Afterwards, we can
                         * assign those annotations to the individual method parameters. In particular, every
                         * annotation starts with a 'L' symbol and ends with ';' like a regular dex class name does.
+                        *
+                        * NOTE: According to https://source.android.com/devices/tech/dalvik/dex-format#dalvik-signature,
+                        * the signature has no particular format, it's sole purpose is meant for debuggers.
                          */
                         String annotationValue = annotationElement.getValue().toString().replaceAll("\"", "");
                         String[] tokens = annotationValue
@@ -1910,9 +1917,29 @@ public final class Utility {
                         }
 
                         LOGGER.debug("Parsed parameter annotations: " + parameterAnnotations);
-                        // TODO: map parameter annotation to parameter
+                        String parameterAnnotation = parameterAnnotations.get(finalParamRegisterIndex);
+
+                        /*
+                        * TODO: We need to consider sub classes as well. A generic type information may
+                        *  refer to some base class, but the underlying method might be called with some
+                        *  sub type as parameter. The control-flow graph should actually insert edges
+                        *  for every sub class, i.e. an edge from newInstance() to each sub class constructor.
+                         */
+                        if (parameterAnnotation.contains("Ljava/lang/Class<") && parameterAnnotation.contains(">")) {
+                            // generic type annotation
+                            String genericType = parameterAnnotation.split("Ljava/lang/Class<")[1].split(">")[0];
+                            LOGGER.debug("Generic type information: " + genericType);
+                            // remove optional attributes, e.g. '+'
+                            genericType = genericType.substring(genericType.indexOf('L'));
+                            clazz.set(genericType);
+                        } else {
+                            clazz.set(parameterAnnotation);
+                        }
                     });
                 });
+                if (clazz.get() != null) {
+                    return clazz.get();
+                }
             } else {
                 return parameter.getType();
             }
