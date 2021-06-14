@@ -1852,13 +1852,14 @@ public final class Utility {
                 });
                 if (clazz.get() != null) {
                     return clazz.get();
+                } else {
+                    LOGGER.warn("No method annotations present!");
+                    // TODO: check method usages and backtrack the concrete parameters
                 }
             } else {
                 return parameter.getType();
             }
         }
-
-        // TODO: track back application usages of method
         return null;
     }
 
