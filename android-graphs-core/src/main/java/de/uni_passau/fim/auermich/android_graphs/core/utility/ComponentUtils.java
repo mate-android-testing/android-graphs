@@ -1,0 +1,581 @@
+package de.uni_passau.fim.auermich.android_graphs.core.utility;
+
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.Opcode;
+import org.jf.dexlib2.analysis.AnalyzedInstruction;
+import org.jf.dexlib2.iface.*;
+import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
+import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
+import org.jf.dexlib2.iface.instruction.formats.Instruction22c;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+public class ComponentUtils {
+
+    private static final Logger LOGGER = LogManager.getLogger(ComponentUtils.class);
+
+    /**
+     * The recognized activity classes.
+     */
+    private static final Set<String> ACTIVITY_CLASSES = new HashSet<>() {{
+        add("Landroid/app/Activity;");
+        add("Landroidx/appcompat/app/AppCompatActivity;");
+        add("Landroid/support/v7/app/AppCompatActivity;");
+        add("Landroid/support/v7/app/ActionBarActivity;");
+        add("Landroid/support/v4/app/FragmentActivity;");
+    }};
+
+    /**
+     * The recognized fragment classes, see https://developer.android.com/reference/android/app/Fragment.
+     */
+    private static final Set<String> FRAGMENT_CLASSES = new HashSet<>() {{
+        add("Landroid/app/Fragment;");
+        add("Landroidx/fragment/app/Fragment;");
+        add("Landroid/support/v4/app/Fragment;");
+        add("Landroid/app/DialogFragment;");
+        add("Landroid/app/ListFragment;");
+        add("Landroid/preference/PreferenceFragment;");
+        add("Landroid/webkit/WebViewFragment;");
+    }};
+
+    /**
+     * The recognized service classes, see https://developer.android.com/reference/android/app/Service.
+     */
+    private static final Set<String> SERVICE_CLASSES = new HashSet<>() {{
+        add("Landroid/app/Service;");
+    }};
+
+    // https://developer.android.com/reference/android/os/Binder
+    private static final Set<String> BINDER_CLASSES = new HashSet<>() {{
+        add("Landroid/os/Binder;");
+    }};
+
+    /**
+     * The various API methods to invoke a component, e.g. an activity.
+     */
+    private static final Set<String> COMPONENT_INVOCATIONS = new HashSet<>() {{
+        add("startActivity(Landroid/content/Intent;)V");
+        add("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
+        add("startService(Landroid/content/Intent;)Landroid/content/ComponentName;");
+        add("bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z");
+    }};
+
+    private ComponentUtils() {
+        throw new UnsupportedOperationException("utility class");
+    }
+
+    /**
+     * Checks whether the given method refers to the invocation of a component, e.g. an activity.
+     *
+     * @param components               The set of recognized components.
+     * @param fullyQualifiedMethodName The method to be checked against.
+     * @return Returns {@code true} if method refers to the invocation of a component,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isComponentInvocation(final Set<Component> components, final String fullyQualifiedMethodName) {
+
+        String clazz = MethodUtils.getClassName(fullyQualifiedMethodName);
+        String method = MethodUtils.getMethodName(fullyQualifiedMethodName);
+
+        // component invocations require a context object, this can be the application context or a component
+        return COMPONENT_INVOCATIONS.contains(method)
+                && (clazz.equals("Landroid/content/Context;")
+                || components.stream().map(Component::getName).anyMatch(name -> name.equals(clazz)));
+    }
+
+    /**
+     * Checks whether the given instruction refers to the invocation of a component.
+     * A component is an activity or service for instance.
+     * Only call this method when isComponentInvocation() returns {@code true}.
+     *
+     * @param components          The set of recognized components.
+     * @param analyzedInstruction The given instruction.
+     * @return Returns the constructor name of the target component if the instruction
+     * refers to a component invocation, otherwise {@code null}.
+     */
+    public static String isComponentInvocation(final Set<Component> components,
+                                               final AnalyzedInstruction analyzedInstruction) {
+
+        // check for invoke/invoke-range instruction
+        if (InstructionUtils.isInvokeInstruction(analyzedInstruction)) {
+
+            Instruction instruction = analyzedInstruction.getInstruction();
+            String invokeTarget = ((ReferenceInstruction) instruction).getReference().toString();
+            String method = MethodUtils.getMethodName(invokeTarget);
+
+            if (method.equals("startActivity(Landroid/content/Intent;)V")
+                    || method.equals("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
+
+                LOGGER.debug("Backtracking startActivity() invocation!");
+
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> target activity name might be defined somewhere else or external
+                    return null;
+                }
+
+                // go back until we find const-class instruction which holds the activity name
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                // TODO: check that we don't miss activities, go back recursively if there are several predecessors
+                // upper bound to avoid resolving external activities or activities defined in a different method
+
+                while (pred.getInstructionIndex() != -1) {
+                    Instruction predecessor = pred.getInstruction();
+                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+
+                        String activityName = ((Instruction21c) predecessor).getReference().toString();
+                        Optional<Component> activity = getComponentByName(components, activityName);
+
+                        if (activity.isPresent()) {
+                            // return the full-qualified name of the constructor
+                            return activity.get().getDefaultConstructor();
+                        }
+                    } else {
+                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                            // there is no predecessor -> target activity name might be defined somewhere else or external
+                            return null;
+                        } else {
+                            // TODO: may use recursive search over all predecessors
+                            pred = pred.getPredecessors().first();
+                        }
+                    }
+                }
+            } else if (method.equals("startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
+
+                LOGGER.debug("Backtracking startService() invocation!");
+
+                // invoke-virtual {p0, p1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
+
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> target activity name might be defined somewhere else or external
+                    return null;
+                }
+
+                // go back until we find const-class instruction which holds the service name
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                while (pred.getInstructionIndex() != -1) {
+                    Instruction predecessor = pred.getInstruction();
+                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+
+                        String serviceName = ((Instruction21c) predecessor).getReference().toString();
+
+                        // track as a side effect that the service was invoked through startService()
+                        Optional<Component> component = getComponentByName(components, serviceName);
+
+                        if (component.isPresent()) {
+                            Service service = (Service) component.get();
+                            service.setStarted(true);
+
+                            // return the full-qualified name of the constructor
+                            return service.getDefaultConstructor();
+                        }
+                    } else {
+                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                            // there is no predecessor -> target activity name might be defined somewhere else or external
+                            return null;
+                        } else {
+                            // TODO: may use recursive search over all predecessors
+                            pred = pred.getPredecessors().first();
+                        }
+                    }
+                }
+            } else if (method.equals("bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z")) {
+
+                LOGGER.debug("Backtracking bindService() invocation!");
+
+                /*
+                 * We need to perform backtracking and extract the service name from the intent. A typical call
+                 * looks as follows:
+                 *
+                 * invoke-virtual {p0, v0, v1, v2}, Lcom/base/myapplication/MainActivity;
+                 *                       ->bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z
+                 *
+                 * The intent object is the first (explicit) parameter and refers to v0 in above case. Typically,
+                 * the intent is generated locally and we are able to extract the service name by looking for the
+                 * last const-class instruction, which is handed over to the intent constructor as parameter.
+                 * In addition, we also look for the service connection object that is used. This refers to v1
+                 * in the above example. Typically, v1 is set as follows:
+                 *
+                 * iget-object v1, p0, Lcom/base/myapplication/MainActivity;
+                 *                       ->serviceConnection:Lcom/base/myapplication/MainActivity$MyServiceConnection;
+                 *
+                 * NOTE: In a typical scenario, we first encounter the iget-object instruction in order to derive the
+                 * service connection object, and afterwards the service object itself.
+                 */
+
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    // there is no predecessor -> all arguments of the invoke call are method parameters
+                    return null;
+                }
+
+                String serviceConnection = null;
+
+                // go back until we find const-class instruction which holds the service name
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                while (pred.getInstructionIndex() != -1) {
+                    Instruction predecessor = pred.getInstruction();
+
+                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+
+                        String serviceName = ((Instruction21c) predecessor).getReference().toString();
+                        Optional<Component> component = getComponentByName(components, serviceName);
+
+                        if (component.isPresent()) {
+                            Service service = (Service) component.get();
+                            service.setBound(true);
+
+                            if (serviceConnection != null) {
+                                service.setServiceConnection(serviceConnection);
+                            }
+                            return service.getDefaultConstructor();
+                        }
+                    } else if (predecessor.getOpcode() == Opcode.IGET_OBJECT) {
+                        // TODO: check that instruction sets the register declared in the invoke instruction
+                        Instruction22c serviceConnectionObject = ((Instruction22c) predecessor);
+                        serviceConnection = Utility.getObjectType(serviceConnectionObject.getReference().toString());
+                    }
+
+                    // consider next predecessor if available
+                    if (analyzedInstruction.getPredecessors().isEmpty()) {
+                        return null;
+                    } else {
+                        pred = pred.getPredecessors().first();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the component that has the given name.
+     *
+     * @param components    The set of components.
+     * @param componentName The name of the component we search for.
+     * @return Returns the component matching the given name.
+     */
+    public static Optional<Component> getComponentByName(final Set<Component> components, String componentName) {
+        return components.stream().filter(c -> c.getName().equals(componentName)).findFirst();
+    }
+
+    /**
+     * Checks whether the given class represents an activity by checking against the super class.
+     *
+     * @param classes      The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is an activity,
+     * otherwise {@code false}.
+     */
+    public static boolean isActivity(final List<ClassDef> classes, final ClassDef currentClass) {
+
+        // TODO: this approach might be quite time-consuming, may find a better solution
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            if (ACTIVITY_CLASSES.contains(superClass)) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks whether the given class represents a fragment by checking against the super class.
+     *
+     * @param classes      The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is a fragment,
+     * otherwise {@code false}.
+     */
+    public static boolean isFragment(final List<ClassDef> classes, final ClassDef currentClass) {
+
+        // TODO: this approach might be quite time-consuming, may find a better solution
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            if (FRAGMENT_CLASSES.contains(superClass)) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks whether the given class represents a service by checking against the super class.
+     *
+     * @param classes      The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is a service,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isService(final List<ClassDef> classes, final ClassDef currentClass) {
+
+        // TODO: this approach might be quite time-consuming, may find a better solution
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            if (SERVICE_CLASSES.contains(superClass)) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks whether the given class represents a binder class by checking against the super class.
+     *
+     * @param classes      The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is a binder class,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isBinder(final List<ClassDef> classes, final ClassDef currentClass) {
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            if (BINDER_CLASSES.contains(superClass)) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Check for relations between the given components. This is a mere heuristic.
+     * In particular, we define a relation between two components in following cases:
+     * <p>
+     * (1) There is a field reference to another application class.
+     * (2) There is a method parameter reference to another application class.
+     * (3) If the method return value represents a reference to another application class.
+     * (4) If an instruction, e.g. invoke, references another application class.
+     * (5) If there is an outer to inner class relation.
+     * <p>
+     * NOTE: Right now only direct relations between activities and fragments are saved.
+     *
+     * @param apk        The APK file.
+     * @param components The set of discovered components.
+     */
+    public static void checkComponentRelations(APK apk, final Set<Component> components) {
+
+        Multimap<String, String> classUsages = ArrayListMultimap.create();
+        String applicationPackage = apk.getManifest().getPackageName();
+
+        for (DexFile dexFile : apk.getDexFiles()) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+
+                // TODO: track usages defined by interfaces
+
+                String className = classDef.toString();
+
+                if (!ClassUtils.dottedClassName(className).startsWith(applicationPackage)) {
+                    // don't look at 3rd party classes
+                    continue;
+                }
+
+                // an outer class has a direct relation to its inner class, e.g. ActivityA$FragmentA
+                if (ClassUtils.isInnerClass(className)) {
+                    String outerClass = ClassUtils.getOuterClass(className);
+                    // we detect such relation when we traverse the inner class (className)
+                    classUsages.put(outerClass, className);
+                }
+
+                // check the references to other application classes
+                for (Field field : classDef.getFields()) {
+                    if (ClassUtils.dottedClassName(field.getType()).startsWith(applicationPackage)) {
+                        if (!className.equals(field.getType())) {
+                            classUsages.put(className, field.getType());
+                        }
+                    }
+                }
+
+                for (Method method : classDef.getMethods()) {
+
+                    String fullyQualifiedMethodName = MethodUtils.deriveMethodSignature(method);
+
+                    // check the method parameters for references
+                    for (MethodParameter parameter : method.getParameters()) {
+                        if (ClassUtils.dottedClassName(parameter.getType()).startsWith(applicationPackage)) {
+                            if (!className.equals(parameter.getType())) {
+                                classUsages.put(className, parameter.getType());
+                            }
+                        }
+                    }
+
+                    // check method return value
+                    if (ClassUtils.dottedClassName(method.getReturnType()).startsWith(applicationPackage)) {
+                        if (!className.equals(method.getReturnType())) {
+                            classUsages.put(className, method.getReturnType());
+                        }
+                    }
+
+                    // check instructions for references
+                    if (method.getImplementation() != null) {
+
+                        List<AnalyzedInstruction> analyzedInstructions = MethodUtils.getAnalyzedInstructions(dexFile, method);
+
+                        for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+
+                            Instruction instruction = analyzedInstruction.getInstruction();
+
+                            if (instruction.getOpcode() == Opcode.NEW_INSTANCE) {
+                                // check constructor call
+                                Instruction21c newInstance = (Instruction21c) instruction;
+                                String targetClass = newInstance.getReference().toString();
+                                if (ClassUtils.dottedClassName(targetClass).startsWith(applicationPackage)) {
+                                    if (!className.equals(targetClass)) {
+                                        // don't track self references
+                                        classUsages.put(className, targetClass);
+                                    }
+                                }
+                            } else if (InstructionUtils.isInvokeInstruction(instruction)) {
+
+                                // check for fragment invocation
+                                FragmentUtils.checkForFragmentInvocation(components, fullyQualifiedMethodName, analyzedInstruction);
+
+                                String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
+
+                                // check defining class (called class)
+                                String definingClass = MethodUtils.getDefiningClass(invokeCall);
+                                if (ClassUtils.dottedClassName(definingClass).startsWith(applicationPackage)) {
+                                    if (!className.equals(definingClass)) {
+                                        // don't track self references
+                                        classUsages.put(className, definingClass);
+                                    }
+                                }
+
+                                if (ClassUtils.isInnerClass(definingClass)) {
+                                    // every inner class has per default a relation to its outer class
+                                    String outerClass = ClassUtils.getOuterClass(definingClass);
+                                    if (ClassUtils.dottedClassName(outerClass).startsWith(applicationPackage)) {
+                                        if (!className.equals(outerClass)) {
+                                            // don't track self references
+                                            classUsages.put(className, outerClass);
+                                        }
+                                    }
+                                }
+
+                                // check return type
+                                String returnType = MethodUtils.getReturnType(invokeCall);
+                                if (ClassUtils.dottedClassName(returnType).startsWith(applicationPackage)) {
+                                    if (!className.equals(returnType)) {
+                                        // don't track self references
+                                        classUsages.put(className, returnType);
+                                    }
+                                }
+                            } else if (instruction.getOpcode() == Opcode.CONST_CLASS) {
+                                Instruction21c constClass = (Instruction21c) instruction;
+                                String targetClass = constClass.getReference().toString();
+                                if (ClassUtils.dottedClassName(targetClass).startsWith(applicationPackage)) {
+                                    if (!className.equals(targetClass)) {
+                                        // don't track self references
+                                        classUsages.put(className, targetClass);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // derive relations between components based on the found class usages
+        for (Component component : components) {
+
+            Set<String> componentUsages = new HashSet<>(classUsages.get(component.getName()));
+            LOGGER.debug("Component " + component + "has the following usages: " + componentUsages);
+
+            for (String usage : componentUsages) {
+                // TODO: handle transitive usages
+                Optional<Component> optionalComponent = getComponentByName(components, usage);
+
+                optionalComponent.ifPresent(c -> {
+                    LOGGER.debug("Component " + component + " makes use of component: " + c);
+
+                    if (component.getComponentType() == ComponentType.ACTIVITY
+                            && c.getComponentType() == ComponentType.FRAGMENT) {
+                        ((Activity) component).addHostingFragment((Fragment) c);
+                    } else if (component.getComponentType() == ComponentType.FRAGMENT
+                            && c.getComponentType() == ComponentType.ACTIVITY) {
+                        /*
+                         * TODO: Avoid defining the relation in the wrong direction.
+                         * This can be either a fragment invoking an activity, in which case we shouldn't declare
+                         * any relation, or a usage defined through an inner to outer class call, in which case
+                         * the relation should be reversed.
+                         */
+                        LOGGER.debug("Fragment to activity relation: " + component + " -> " + c);
+                    } else if (component.getComponentType() == ComponentType.FRAGMENT
+                            && c.getComponentType() == ComponentType.FRAGMENT) {
+                        /*
+                         * TODO: Handle relation between fragments.
+                         * This can be either a nested fragment or a usage caused through class inheritance.
+                         */
+                        LOGGER.debug("Fragment relation: " + component + " -> " + c);
+                    }
+                });
+            }
+        }
+    }
+}

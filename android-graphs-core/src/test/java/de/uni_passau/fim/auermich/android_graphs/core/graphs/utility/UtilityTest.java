@@ -2,7 +2,9 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs.utility;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.ByteSource;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.ClassUtils;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.ComponentUtils;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import org.antlr.runtime.RecognitionException;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.iface.ClassDef;
@@ -45,7 +47,7 @@ public class UtilityTest {
     @Test
     void testPrimitiveArrayTypeToJavaClassName() {
         String primitiveArrayType = "[I";
-        String dottedClassName = Utility.dottedClassName(primitiveArrayType);
+        String dottedClassName = ClassUtils.dottedClassName(primitiveArrayType);
         assertEquals(primitiveArrayType, dottedClassName);
     }
 
@@ -53,7 +55,7 @@ public class UtilityTest {
     @Test
     void testComplexArrayTypeToJavaClassName() {
         String complexArrayType = "[Ljava/lang/Object;";
-        String dottedClassName = Utility.dottedClassName(complexArrayType);
+        String dottedClassName = ClassUtils.dottedClassName(complexArrayType);
         assertEquals("[java.lang.Object", dottedClassName);
     }
 
@@ -61,7 +63,7 @@ public class UtilityTest {
     @Test
     void testPrimitive2DArrayTypeToJavaClassName() {
         String primitive2DArrayType = "[[I";
-        String dottedClassName = Utility.dottedClassName(primitive2DArrayType);
+        String dottedClassName = ClassUtils.dottedClassName(primitive2DArrayType);
         assertEquals(primitive2DArrayType, dottedClassName);
     }
 
@@ -69,7 +71,7 @@ public class UtilityTest {
     @Test
     void testComplex2DArrayTypeToJavaClassName() {
         String complex2DArrayType = "[[Ljava/lang/Object;";
-        String dottedClassName = Utility.dottedClassName(complex2DArrayType);
+        String dottedClassName = ClassUtils.dottedClassName(complex2DArrayType);
         assertEquals("[[java.lang.Object", dottedClassName);
     }
 
@@ -77,7 +79,7 @@ public class UtilityTest {
     @Test
     void testInnerClassTypeToJavaClassName() {
         String innerClassType = "Lb/a/a/a/b$a;";
-        String dottedClassName = Utility.dottedClassName(innerClassType);
+        String dottedClassName = ClassUtils.dottedClassName(innerClassType);
         assertEquals("b.a.a.a.b$a", dottedClassName);
     }
 
@@ -85,7 +87,7 @@ public class UtilityTest {
     @Test
     void testInnerArrayClassTypeToJavaClassName() {
         String innerClassType = "[Lb/a/a/a/b$a;";
-        String dottedClassName = Utility.dottedClassName(innerClassType);
+        String dottedClassName = ClassUtils.dottedClassName(innerClassType);
         assertEquals("[b.a.a.a.b$a", dottedClassName);
     }
 
@@ -93,7 +95,7 @@ public class UtilityTest {
     @Test
     void testOuterClassName() {
         String className = "Lb/a/a/a/b$a;";
-        assertEquals("Lb/a/a/a/b;", Utility.getOuterClass(className));
+        assertEquals("Lb/a/a/a/b;", ClassUtils.getOuterClass(className));
     }
 
     @DisplayName("Testing whether the given method is contained in the dex file!")
@@ -103,7 +105,7 @@ public class UtilityTest {
         assertNotNull(inputStream, "Couldn't load resource file!");
         ClassDef classDef = loadSmaliFile(inputStream, OPCODE_API);
         DexFile dexFile = new ImmutableDexFile(Opcodes.forApi(OPCODE_API), Collections.singletonList(classDef));
-        Optional<Method> method = Utility.searchForTargetMethod(dexFile, "Lcom/zola/bmi/BMIMain;->calculateBMI(DD)D");
+        Optional<Method> method = MethodUtils.searchForTargetMethod(dexFile, "Lcom/zola/bmi/BMIMain;->calculateBMI(DD)D");
         assertTrue(method.isPresent(), "Target method not contained in dex file!");
         assertEquals(method.get().toString(), "Lcom/zola/bmi/BMIMain;->calculateBMI(DD)D");
     }
@@ -114,7 +116,7 @@ public class UtilityTest {
         InputStream inputStream = getClass().getClassLoader().getResourceAsStream("BMIMain.smali");
         assertNotNull(inputStream, "Couldn't load resource file!");
         ClassDef classDef = loadSmaliFile(inputStream, OPCODE_API);
-        assertTrue(Utility.isActivity(Collections.singletonList(classDef), classDef));
+        assertTrue(ComponentUtils.isActivity(Collections.singletonList(classDef), classDef));
     }
 }
 

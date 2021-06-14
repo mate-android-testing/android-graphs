@@ -5,6 +5,8 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.InstructionUtils;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
@@ -30,7 +32,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
     public IntraCFG(String methodName, DexFile dexFile, boolean useBasicBlocks) {
         super(methodName);
-        Optional<Method> targetMethod = Utility.searchForTargetMethod(dexFile, methodName);
+        Optional<Method> targetMethod = MethodUtils.searchForTargetMethod(dexFile, methodName);
 
         if (!targetMethod.isPresent()) {
             throw new IllegalStateException("Target method not present in dex files!");
@@ -69,14 +71,14 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
         if (methodImplementation != null) {
 
-            List<AnalyzedInstruction> analyzedInstructions = Utility.getAnalyzedInstructions(dexFile, targetMethod);
+            List<AnalyzedInstruction> analyzedInstructions = MethodUtils.getAnalyzedInstructions(dexFile, targetMethod);
             List<Vertex> vertices = new ArrayList<>();
 
             // pre-create a vertex for each single instruction
             for (int index = 0; index < analyzedInstructions.size(); index++) {
 
                 // ignore parse-switch and packed-switch payload instructions
-                if (Utility.isSwitchPayloadInstruction(analyzedInstructions.get(index))) {
+                if (InstructionUtils.isSwitchPayloadInstruction(analyzedInstructions.get(index))) {
                     continue;
                 }
 
@@ -84,7 +86,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 Vertex vertex = new Vertex(stmt);
 
                 // keep track of invoke vertices
-                if (Utility.isInvokeInstruction(analyzedInstructions.get(index))) {
+                if (InstructionUtils.isInvokeInstruction(analyzedInstructions.get(index))) {
                     addInvokeVertex(vertex);
                 }
 
@@ -96,7 +98,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             for (int index = 0; index < analyzedInstructions.size(); index++) {
 
                 // ignore parse-switch and packed-switch payload instructions
-                if (Utility.isSwitchPayloadInstruction(analyzedInstructions.get(index))) {
+                if (InstructionUtils.isSwitchPayloadInstruction(analyzedInstructions.get(index))) {
                     continue;
                 }
 
@@ -167,7 +169,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
         if (targetMethod.getImplementation() != null) {
 
-            List<AnalyzedInstruction> analyzedInstructions = Utility.getAnalyzedInstructions(dexFile, targetMethod);
+            List<AnalyzedInstruction> analyzedInstructions = MethodUtils.getAnalyzedInstructions(dexFile, targetMethod);
             Set<Integer> leaders = computeLeaders(targetMethod, analyzedInstructions);
 
             String method = targetMethod.toString();
@@ -183,7 +185,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
 
                 // ignore parse-switch and packed-switch payload instructions
-                if (Utility.isSwitchPayloadInstruction(analyzedInstruction)) {
+                if (InstructionUtils.isSwitchPayloadInstruction(analyzedInstruction)) {
                     continue;
                 }
 
@@ -240,7 +242,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
         }
 
         // check if we need an edge between the basic block and the exit node
-        if (Utility.isTerminationStatement(lastStmt.getInstruction())) {
+        if (InstructionUtils.isTerminationStatement(lastStmt.getInstruction())) {
             addEdge(vertex, getExit());
         }
 
@@ -300,7 +302,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 leaders.add(analyzedInstruction.getInstructionIndex());
             }
 
-            if (Utility.isJumpInstruction(analyzedInstruction)) {
+            if (InstructionUtils.isJumpInstruction(analyzedInstruction)) {
                 // any successor (target or due to exceptional flow) is a leader instruction
                 leaders.addAll(analyzedInstruction.getSuccessors().stream()
                         .map(AnalyzedInstruction::getInstructionIndex).collect(Collectors.toSet()));

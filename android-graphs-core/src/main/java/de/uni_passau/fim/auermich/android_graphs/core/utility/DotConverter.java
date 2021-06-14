@@ -51,9 +51,9 @@ public class DotConverter {
             }
         }
 
-        String className = Utility.dottedClassName(Utility.getClassName(methodSignature))
+        String className = ClassUtils.dottedClassName(MethodUtils.getClassName(methodSignature))
                 .replace("$", "_").replace(".", "_");
-        String method = Utility.getMethodName(methodSignature).split("\\(")[0];
+        String method = MethodUtils.getMethodName(methodSignature).split("\\(")[0];
         method = method.replace("<init>", "ctr");
 
         String label = "";
@@ -128,8 +128,8 @@ public class DotConverter {
             }
         } else {
 
-            String className = Utility.dottedClassName(Utility.getClassName(methodSignature));
-            String method = Utility.getMethodName(methodSignature).split("\\(")[0];
+            String className = ClassUtils.dottedClassName(MethodUtils.getClassName(methodSignature));
+            String method = MethodUtils.getMethodName(methodSignature).split("\\(")[0];
             String signature = "<" + className + "_" + method + ">";
 
             if (vertex.isEntryVertex()) {

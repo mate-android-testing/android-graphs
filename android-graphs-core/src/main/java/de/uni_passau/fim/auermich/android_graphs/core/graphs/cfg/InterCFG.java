@@ -15,9 +15,8 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.UsageSearch;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Opcode;
@@ -82,7 +81,7 @@ public class InterCFG extends BaseCFG {
         constructIntraCFGs(apk, properties.useBasicBlocks);
 
         // track relations between components
-        Utility.checkComponentRelations(apk, components);
+        ComponentUtils.checkComponentRelations(apk, components);
 
         if (properties.useBasicBlocks) {
             constructCFGWithBasicBlocks(apk);
@@ -242,8 +241,8 @@ public class InterCFG extends BaseCFG {
              * If there is a component invocation, e.g. a call to startActivity(), we
              * replace the targetCFG with the constructor of the respective component.
              */
-            if (Utility.isComponentInvocation(components, targetMethod)) {
-                String componentConstructor = Utility.isComponentInvocation(components, invokeStmt.getInstruction());
+            if (ComponentUtils.isComponentInvocation(components, targetMethod)) {
+                String componentConstructor = ComponentUtils.isComponentInvocation(components, invokeStmt.getInstruction());
                 if (componentConstructor != null) {
                     if (intraCFGs.containsKey(componentConstructor)) {
                         return intraCFGs.get(componentConstructor);
@@ -258,7 +257,7 @@ public class InterCFG extends BaseCFG {
                 String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
                 if (clazz != null) {
                     LOGGER.debug("Class invoked by reflection: " + clazz);
-                    String constructor = Utility.getDefaultConstructor(clazz);
+                    String constructor = ClassUtils.getDefaultConstructor(clazz);
                     if (intraCFGs.containsKey(constructor)) {
                         return intraCFGs.get(constructor);
                     } else {
@@ -348,7 +347,7 @@ public class InterCFG extends BaseCFG {
                         }
 
                         Instruction invoke = basicStmt.getInstruction().getInstruction();
-                        String method = Utility.getMethodName(((ReferenceInstruction) invoke).getReference().toString());
+                        String method = MethodUtils.getMethodName(((ReferenceInstruction) invoke).getReference().toString());
                         if (method.equals("startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
                             addEdge(e.getSource(), onStartCommand.getEntry());
                         }
@@ -394,7 +393,7 @@ public class InterCFG extends BaseCFG {
             if (service.isBound() && service.getServiceConnection() != null) {
 
                 String serviceConnection = service.getServiceConnection();
-                BaseCFG serviceConnectionConstructor = intraCFGs.get(Utility.getDefaultConstructor(serviceConnection));
+                BaseCFG serviceConnectionConstructor = intraCFGs.get(ClassUtils.getDefaultConstructor(serviceConnection));
 
                 // add callbacks subgraph
                 BaseCFG serviceConnectionCallbacks = dummyIntraCFG("callbacks " + serviceConnection);
@@ -750,14 +749,14 @@ public class InterCFG extends BaseCFG {
         for (Map.Entry<String, BaseCFG> intraCFG : intraCFGs.entrySet()) {
 
             String methodSignature = intraCFG.getKey();
-            String className = Utility.getClassName(methodSignature);
+            String className = MethodUtils.getClassName(methodSignature);
 
             // check for method representing a callback
-            if (exclusionPattern != null && !exclusionPattern.matcher(Utility.dottedClassName(className)).matches()
+            if (exclusionPattern != null && !exclusionPattern.matcher(ClassUtils.dottedClassName(className)).matches()
                     // TODO: add missing callbacks for each event listener
                     // see: https://developer.android.com/guide/topics/ui/ui-events
                     // TODO: check whether there can be other custom event listeners
-                    && Utility.isCallback(methodSignature)) {
+                    && MethodUtils.isCallback(methodSignature)) {
 
                 /*
                 * We need to check where the callback is declared. There are two options here:
@@ -774,10 +773,10 @@ public class InterCFG extends BaseCFG {
                 * a listener or a (wrapper) class representing a top-level listener. In the latter case, we need to
                 * backtrack the usages to the respective component.
                  */
-                if (Utility.isInnerClass(className)) {
+                if (ClassUtils.isInnerClass(className)) {
 
-                    String outerClass = Utility.getOuterClass(className);
-                    Optional<Component> component = Utility.getComponentByName(components, outerClass);
+                    String outerClass = ClassUtils.getOuterClass(className);
+                    Optional<Component> component = ComponentUtils.getComponentByName(components, outerClass);
 
                     if (component.isPresent()) {
                         // component declares directly callback
@@ -800,7 +799,7 @@ public class InterCFG extends BaseCFG {
                         for (UsageSearch.Usage usage : usages) {
 
                             String clazzName = usage.getClazz().toString();
-                            Optional<Component> uiComponent = Utility.getComponentByName(components, clazzName);
+                            Optional<Component> uiComponent = ComponentUtils.getComponentByName(components, clazzName);
 
                             if (uiComponent.isPresent()) {
                                 /*
@@ -815,7 +814,7 @@ public class InterCFG extends BaseCFG {
                     // top-level class
 
                     // an activity/fragment might implement a listener interface
-                    Optional<Component> component = Utility.getComponentByName(components, className);
+                    Optional<Component> component = ComponentUtils.getComponentByName(components, className);
 
                     if (component.isPresent()) {
                         // component declares directly callback
@@ -838,7 +837,7 @@ public class InterCFG extends BaseCFG {
                         for (UsageSearch.Usage usage : usages) {
 
                             String clazzName = usage.getClazz().toString();
-                            Optional<Component> uiComponent = Utility.getComponentByName(components, clazzName);
+                            Optional<Component> uiComponent = ComponentUtils.getComponentByName(components, clazzName);
 
                             if (uiComponent.isPresent()) {
                                 /*
@@ -879,16 +878,16 @@ public class InterCFG extends BaseCFG {
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
-                String className = Utility.dottedClassName(classDef.toString());
+                String className = ClassUtils.dottedClassName(classDef.toString());
 
                 if (className.startsWith(apk.getManifest().getPackageName())
-                        && (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)
-                        || Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef))) {
+                        && (ComponentUtils.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)
+                        || ComponentUtils.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef))) {
                     // only activities and fragments of the application can define callbacks in XML
 
                     // track outer/inner class relations
-                    if (Utility.isInnerClass(classDef.toString())) {
-                        classRelations.put(Utility.getOuterClass(classDef.toString()), classDef.toString());
+                    if (ClassUtils.isInnerClass(classDef.toString())) {
+                        classRelations.put(ClassUtils.getOuterClass(classDef.toString()), classDef.toString());
                     }
 
                     for (Method method : classDef.getMethods()) {
@@ -960,8 +959,8 @@ public class InterCFG extends BaseCFG {
                     callbacks.put(component, intraCFGs.get(callback));
                 } else {
                     // it is possible that the outer class defines the callback
-                    if (Utility.isInnerClass(component)) {
-                        String outerClassName = Utility.getOuterClass(component);
+                    if (ClassUtils.isInnerClass(component)) {
+                        String outerClassName = ClassUtils.getOuterClass(component);
                         callback = callback.replace(component, outerClassName);
                         if (intraCFGs.containsKey(callback)) {
                             callbacks.put(outerClassName, intraCFGs.get(callback));
@@ -1000,7 +999,7 @@ public class InterCFG extends BaseCFG {
             BasicStatement basicStatement = (BasicStatement) statement;
             AnalyzedInstruction analyzedInstruction = basicStatement.getInstruction();
 
-            if (!Utility.isInvokeInstruction(analyzedInstruction)) {
+            if (!InstructionUtils.isInvokeInstruction(analyzedInstruction)) {
                 // statement belongs to current block
                 block.add(statement);
             } else {
@@ -1011,12 +1010,12 @@ public class InterCFG extends BaseCFG {
                 // get the target method of the invocation
                 Instruction instruction = analyzedInstruction.getInstruction();
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-                String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
+                String className = ClassUtils.dottedClassName(MethodUtils.getClassName(targetMethod));
 
                 // don't resolve non AUT classes if requested
                 if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
                         // we have to resolve component invocations in any case, see the code below
-                        && !Utility.isComponentInvocation(components, targetMethod)
+                        && !ComponentUtils.isComponentInvocation(components, targetMethod)
                         // we need to resolve calls using reflection in any case
                         && !Utility.isReflectionCall(targetMethod)) {
                     continue;
@@ -1024,10 +1023,10 @@ public class InterCFG extends BaseCFG {
 
                 // don't resolve certain classes/methods, e.g. ART methods
                 if ((exclusionPattern != null && exclusionPattern.matcher(className).matches()
-                        || Utility.isArrayType(className)
-                        || Utility.isARTMethod(targetMethod) && properties.excludeARTClasses)
+                        || ClassUtils.isArrayType(className)
+                        || MethodUtils.isARTMethod(targetMethod) && properties.excludeARTClasses)
                         // we have to resolve component invocations in any case, see the code below
-                        && !Utility.isComponentInvocation(components, targetMethod)
+                        && !ComponentUtils.isComponentInvocation(components, targetMethod)
                         // we need to resolve calls using reflection in any case
                         && !Utility.isReflectionCall(targetMethod)) {
                     continue;
@@ -1044,8 +1043,8 @@ public class InterCFG extends BaseCFG {
                  * with the constructor of the component. Here, the virtual return statement should also
                  * reflect this change.
                  */
-                if (Utility.isComponentInvocation(components, targetMethod)) {
-                    String componentConstructor = Utility.isComponentInvocation(components, analyzedInstruction);
+                if (ComponentUtils.isComponentInvocation(components, targetMethod)) {
+                    String componentConstructor = ComponentUtils.isComponentInvocation(components, analyzedInstruction);
                     if (componentConstructor != null && intraCFGs.containsKey(componentConstructor)) {
                         targetMethod = componentConstructor;
                     }
@@ -1096,12 +1095,12 @@ public class InterCFG extends BaseCFG {
             // get target method CFG
             Instruction instruction = invokeStmt.getInstruction().getInstruction();
             String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-            String className = Utility.dottedClassName(Utility.getClassName(targetMethod));
+            String className = ClassUtils.dottedClassName(MethodUtils.getClassName(targetMethod));
 
             // don't resolve non AUT classes if requested
             if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
                     // we have to resolve component invocations in any case, see the code below
-                    && !Utility.isComponentInvocation(components, targetMethod)
+                    && !ComponentUtils.isComponentInvocation(components, targetMethod)
                     // we have to resolve reflection calls in any case
                     && !Utility.isReflectionCall(targetMethod)) {
                 continue;
@@ -1109,10 +1108,10 @@ public class InterCFG extends BaseCFG {
 
             // don't resolve certain classes/methods, e.g. ART methods
             if ((exclusionPattern != null && exclusionPattern.matcher(className).matches()
-                    || Utility.isArrayType(className)
-                    || Utility.isARTMethod(targetMethod) && properties.excludeARTClasses)
+                    || ClassUtils.isArrayType(className)
+                    || MethodUtils.isARTMethod(targetMethod) && properties.excludeARTClasses)
                     // we have to resolve component invocations in any case
-                    && !Utility.isComponentInvocation(components, targetMethod)
+                    && !ComponentUtils.isComponentInvocation(components, targetMethod)
                     // we have to resolve reflection calls in any case
                     && !Utility.isReflectionCall(targetMethod)) {
                 continue;
@@ -1173,14 +1172,14 @@ public class InterCFG extends BaseCFG {
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
-                String className = Utility.dottedClassName(classDef.toString());
+                String className = ClassUtils.dottedClassName(classDef.toString());
 
                 if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
                     // don't resolve classes not belonging to AUT
                     continue;
                 }
 
-                if (Utility.isResourceClass(classDef) || Utility.isBuildConfigClass(classDef)) {
+                if (ClassUtils.isResourceClass(classDef) || ClassUtils.isBuildConfigClass(classDef)) {
                     LOGGER.debug("Skipping resource/build class: " + className);
                     // skip R + BuildConfig classes
                     continue;
@@ -1188,23 +1187,23 @@ public class InterCFG extends BaseCFG {
 
                 // as a side effect track whether the given class represents an activity, service or fragment
                 if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
-                    if (Utility.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    if (ComponentUtils.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Activity(classDef, ComponentType.ACTIVITY));
-                    } else if (Utility.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Fragment(classDef, ComponentType.FRAGMENT));
-                    } else if (Utility.isService(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isService(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Service(classDef, ComponentType.SERVICE));
-                    } else if (Utility.isBinder(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isBinder(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         binderClasses.add(classDef.toString());
                     }
                 }
 
                 for (Method method : classDef.getMethods()) {
 
-                    String methodSignature = Utility.deriveMethodSignature(method);
+                    String methodSignature = MethodUtils.deriveMethodSignature(method);
 
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
-                            || Utility.isARTMethod(methodSignature)) {
+                            || MethodUtils.isARTMethod(methodSignature)) {
                         // only construct dummy CFG for non ART classes
                         if (!properties.excludeARTClasses) {
                             BaseCFG intraCFG = dummyIntraCFG(method);
@@ -1220,7 +1219,7 @@ public class InterCFG extends BaseCFG {
                         intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
 
                         // add static initializers to dedicated sub graph
-                        if (Utility.isStaticInitializer(methodSignature)) {
+                        if (MethodUtils.isStaticInitializer(methodSignature)) {
                             addEdge(staticInitializersCFG.getEntry(), intraCFG.getEntry());
                             addEdge(intraCFG.getExit(), staticInitializersCFG.getExit());
                         }
@@ -1232,9 +1231,9 @@ public class InterCFG extends BaseCFG {
         // assign binder class to respective service
         for (String binderClass : binderClasses) {
             // typically binder classes are inner classes of the service
-            if (Utility.isInnerClass(binderClass)) {
-                String serviceName = Utility.getOuterClass(binderClass);
-                Optional<Component> component = Utility.getComponentByName(components, serviceName);
+            if (ClassUtils.isInnerClass(binderClass)) {
+                String serviceName = ClassUtils.getOuterClass(binderClass);
+                Optional<Component> component = ComponentUtils.getComponentByName(components, serviceName);
                 if (component.isPresent() && component.get().getComponentType() == ComponentType.SERVICE) {
                     Service service = (Service) component.get();
                     service.setBinder(binderClass);
@@ -1261,7 +1260,7 @@ public class InterCFG extends BaseCFG {
      */
     private BaseCFG dummyIntraCFG(Method targetMethod) {
 
-        BaseCFG cfg = new DummyCFG(Utility.deriveMethodSignature(targetMethod));
+        BaseCFG cfg = new DummyCFG(MethodUtils.deriveMethodSignature(targetMethod));
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
         return cfg;
     }

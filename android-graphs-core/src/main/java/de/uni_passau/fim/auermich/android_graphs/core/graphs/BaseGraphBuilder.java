@@ -1,7 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
 import org.jf.dexlib2.iface.DexFile;
@@ -71,7 +71,7 @@ public class BaseGraphBuilder {
         switch (type) {
             case INTRACFG:
                 Objects.requireNonNull(name, "CFG method name is mandatory!");
-                Optional<DexFile> dexFile = Utility.containsTargetMethod(dexFiles, name);
+                Optional<DexFile> dexFile = MethodUtils.containsTargetMethod(dexFiles, name);
                 if (!dexFile.isPresent()) {
                     throw new IllegalArgumentException("Method not present in dex files!");
                 }

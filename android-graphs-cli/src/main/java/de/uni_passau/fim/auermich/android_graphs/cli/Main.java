@@ -7,7 +7,7 @@ import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.MainCommand;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -173,7 +173,7 @@ public final class Main {
             switch (graphType.get()) {
                 case INTRACFG:
                     // check that specified target method is part of some class
-                    Optional<DexFile> dexFile = Utility.containsTargetMethod(dexFiles, intraCFGCmd.getTarget());
+                    Optional<DexFile> dexFile = MethodUtils.containsTargetMethod(dexFiles, intraCFGCmd.getTarget());
 
                     if (checkArguments(intraCFGCmd) && dexFile.isPresent()) {
 

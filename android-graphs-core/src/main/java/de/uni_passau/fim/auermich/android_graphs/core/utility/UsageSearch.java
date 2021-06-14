@@ -74,7 +74,7 @@ public final class UsageSearch {
             if (method == null) {
                 return null;
             } else {
-                return Utility.getMethodName(method.toString());
+                return MethodUtils.getMethodName(method.toString());
             }
         }
 
@@ -114,17 +114,17 @@ public final class UsageSearch {
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
-                if (Utility.dottedClassName(classDef.toString()).startsWith(apk.getManifest().getPackageName())) {
+                if (ClassUtils.dottedClassName(classDef.toString()).startsWith(apk.getManifest().getPackageName())) {
                     // only inspect application classes
                     for (Method method : classDef.getMethods()) {
                         MethodImplementation implementation = method.getImplementation();
                         if (implementation != null) {
-                            List<AnalyzedInstruction> instructions = Utility.getAnalyzedInstructions(dexFile, method);
+                            List<AnalyzedInstruction> instructions = MethodUtils.getAnalyzedInstructions(dexFile, method);
                             for (AnalyzedInstruction instruction : instructions) {
-                                if (Utility.isInvokeInstruction(instruction)) {
+                                if (InstructionUtils.isInvokeInstruction(instruction)) {
                                     String invokeTarget = ((ReferenceInstruction) instruction.getInstruction())
                                             .getReference().toString();
-                                    if (invokeTarget.equals(Utility.deriveMethodSignature(targetMethod))) {
+                                    if (invokeTarget.equals(MethodUtils.deriveMethodSignature(targetMethod))) {
                                         Usage usage = new Usage(classDef, method, instruction);
                                         usages.add(usage);
                                     }
@@ -162,7 +162,7 @@ public final class UsageSearch {
                 boolean foundUsage = false;
                 String className = classDef.toString();
 
-                if (!Utility.dottedClassName(className).startsWith(applicationPackage)) {
+                if (!ClassUtils.dottedClassName(className).startsWith(applicationPackage)) {
                     // don't consider usages outside the application package
                     continue;
                 }
@@ -172,8 +172,8 @@ public final class UsageSearch {
                     continue;
                 }
 
-                if (Utility.isInnerClass(className)) {
-                    if (clazz.equals(Utility.getOuterClass(className))) {
+                if (ClassUtils.isInnerClass(className)) {
+                    if (clazz.equals(ClassUtils.getOuterClass(className))) {
                         // any inner class of the given class is also not relevant
                         continue;
                     }
@@ -210,11 +210,11 @@ public final class UsageSearch {
                     // third check whether any method of the class is invoked
                     MethodImplementation implementation = method.getImplementation();
                     if (implementation != null) {
-                        List<AnalyzedInstruction> instructions = Utility.getAnalyzedInstructions(dexFile, method);
+                        List<AnalyzedInstruction> instructions = MethodUtils.getAnalyzedInstructions(dexFile, method);
                         for (AnalyzedInstruction instruction : instructions) {
-                            if (Utility.isInvokeInstruction(instruction)) {
+                            if (InstructionUtils.isInvokeInstruction(instruction)) {
                                 String invokeTarget = ((ReferenceInstruction) instruction.getInstruction()).getReference().toString();
-                                if (clazz.equals(Utility.getClassName(invokeTarget))) {
+                                if (clazz.equals(MethodUtils.getClassName(invokeTarget))) {
                                     usages.add(new Usage(classDef, method, instruction));
                                     foundUsage = true;
                                     break;

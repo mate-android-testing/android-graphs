@@ -5,6 +5,8 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.ClassUtils;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Format;
@@ -838,7 +840,7 @@ public class BaseGraphBuilderTest {
             if (interCFG.getShortestDistance(interCFG.getEntry(), vertex) == -1) {
                 unreachableVertices++;
 
-                String className = Utility.dottedClassName(Utility.getClassName(vertex.getMethod()));
+                String className = ClassUtils.dottedClassName(MethodUtils.getClassName(vertex.getMethod()));
                 if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
                     unreachableARTVertices++;
                 } else {
@@ -898,7 +900,7 @@ public class BaseGraphBuilderTest {
             if (interCFG.getShortestDistance(interCFG.getEntry(), vertex) == -1) {
                 unreachableVertices++;
 
-                String className = Utility.dottedClassName(Utility.getClassName(vertex.getMethod()));
+                String className = ClassUtils.dottedClassName(MethodUtils.getClassName(vertex.getMethod()));
                 if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
                     unreachableARTVertices++;
                 } else {
