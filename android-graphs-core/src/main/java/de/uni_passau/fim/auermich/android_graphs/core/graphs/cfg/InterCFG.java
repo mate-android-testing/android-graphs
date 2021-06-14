@@ -16,6 +16,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.UsageSearch;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -743,7 +744,7 @@ public class InterCFG extends BaseCFG {
 
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
         final Pattern exclusionPattern = properties.exclusionPattern;
-        Map<String, Set<ClassDef>> cachedUsagesPerClass = new HashMap<>();
+        Map<String, Set<UsageSearch.Usage>> cachedUsagesPerClass = new HashMap<>();
 
         // iterate over all methods in graph
         for (Map.Entry<String, BaseCFG> intraCFG : intraCFGs.entrySet()) {
@@ -785,20 +786,20 @@ public class InterCFG extends BaseCFG {
                         // callback is declared by some wrapper class
 
                         // check which application classes make use of the wrapper class
-                        Set<ClassDef> usages;
+                        Set<UsageSearch.Usage> usages;
 
                         // avoid redundant usage lookups of same class
                         if (cachedUsagesPerClass.containsKey(outerClass)) {
                             usages = cachedUsagesPerClass.get(outerClass);
                         } else {
-                            usages = Utility.findClassUsages(apk, outerClass);
+                            usages = UsageSearch.findClassUsages(apk, outerClass);
                             cachedUsagesPerClass.put(outerClass, usages);
                         }
 
                         // check whether any found class represents a (ui) component
-                        for (ClassDef usage : usages) {
+                        for (UsageSearch.Usage usage : usages) {
 
-                            String clazzName = usage.toString();
+                            String clazzName = usage.getClazz().toString();
                             Optional<Component> uiComponent = Utility.getComponentByName(components, clazzName);
 
                             if (uiComponent.isPresent()) {
@@ -823,20 +824,20 @@ public class InterCFG extends BaseCFG {
                         // callback is declared by some top-level listener or wrapper class
 
                         // check which application classes make use of the top level class
-                        Set<ClassDef> usages;
+                        Set<UsageSearch.Usage> usages;
 
                         // avoid redundant usage lookups of same class
                         if (cachedUsagesPerClass.containsKey(className)) {
                             usages = cachedUsagesPerClass.get(className);
                         } else {
-                            usages = Utility.findClassUsages(apk, className);
+                            usages = UsageSearch.findClassUsages(apk, className);
                             cachedUsagesPerClass.put(className, usages);
                         }
 
                         // check whether any found class represents a (ui) component
-                        for (ClassDef usage : usages) {
+                        for (UsageSearch.Usage usage : usages) {
 
-                            String clazzName = usage.toString();
+                            String clazzName = usage.getClazz().toString();
                             Optional<Component> uiComponent = Utility.getComponentByName(components, clazzName);
 
                             if (uiComponent.isPresent()) {
