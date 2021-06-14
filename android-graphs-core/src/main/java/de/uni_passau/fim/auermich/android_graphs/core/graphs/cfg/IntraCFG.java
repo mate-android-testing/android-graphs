@@ -226,7 +226,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
         addVertex(vertex);
 
         // keep track of invoke vertices
-        if (Utility.containsInvoke(basicBlock)) {
+        if (containsInvoke(basicBlock)) {
             addInvokeVertex(vertex);
         }
 
@@ -252,6 +252,25 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 addEdge(vertices.get(predecessor.getInstructionIndex()), vertex);
             }
         }
+    }
+
+    /**
+     * Checks whether a block statement contains an invoke instruction.
+     *
+     * @param blockStatement The block statement to be checked.
+     * @return Returns {@code true} if the block statement contains an
+     * invoke instruction, otherwise {@code false} is returned.
+     */
+    private boolean containsInvoke(final BlockStatement blockStatement) {
+
+        for (Statement statement : blockStatement.getStatements()) {
+            if (statement instanceof BasicStatement) {
+                if (InstructionUtils.isInvokeInstruction(((BasicStatement) statement).getInstruction())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

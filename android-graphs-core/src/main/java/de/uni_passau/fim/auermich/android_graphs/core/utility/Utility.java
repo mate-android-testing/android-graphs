@@ -266,26 +266,6 @@ public final class Utility {
     }
 
     /**
-     * Checks whether a block statement contains an invoke instruction.
-     *
-     * @param blockStatement The block statement to be checked.
-     * @return Returns {@code true} if the block statement contains an
-     * invoke instruction, otherwise {@code false} is returned.
-     */
-    public static boolean containsInvoke(final BlockStatement blockStatement) {
-
-        for (Statement statement : blockStatement.getStatements()) {
-            if (statement instanceof BasicStatement) {
-                if (InstructionUtils.isInvokeInstruction(((BasicStatement) statement).getInstruction())) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Backtracks a reflection call, i.e. newInstance(), in order to get the invoked class.
      *
      * @param apk The APK file.
