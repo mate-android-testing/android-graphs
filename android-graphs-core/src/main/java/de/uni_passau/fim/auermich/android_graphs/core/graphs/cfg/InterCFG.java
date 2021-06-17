@@ -49,7 +49,9 @@ public class InterCFG extends BaseCFG {
     private Properties properties;
 
     // track the set of components
-    private Set<Component> components = new HashSet<>();
+    private final Set<Component> components = new HashSet<>();
+
+    private final ClassHierarchy classHierarchy = new ClassHierarchy();
 
     /**
      * Maintains a reference to the individual intra CFGs.
@@ -1187,6 +1189,10 @@ public class InterCFG extends BaseCFG {
 
                 // as a side effect track whether the given class represents an activity, service or fragment
                 if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
+
+                    // re-assemble the class hierarchy
+                    updateClassHierarchy(dexFile, classDef);
+
                     if (ComponentUtils.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Activity(classDef, ComponentType.ACTIVITY));
                     } else if (ComponentUtils.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
@@ -1228,6 +1234,9 @@ public class InterCFG extends BaseCFG {
             }
         }
 
+        LOGGER.debug("Class Hierarchy: ");
+        LOGGER.debug(classHierarchy);
+
         // assign binder class to respective service
         for (String binderClass : binderClasses) {
             // typically binder classes are inner classes of the service
@@ -1249,6 +1258,21 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("List of services: " + components.stream()
                 .filter(c -> c.getComponentType() == ComponentType.SERVICE).collect(Collectors.toList()));
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
+    }
+
+    /**
+     * Updates the class hierarchy map with information of the given class and its super class
+     * and interfaces, respectively.
+     *
+     * @param dexFile The dex file containing the current class.
+     * @param classDef The given class.
+     */
+    private void updateClassHierarchy(final DexFile dexFile, final ClassDef classDef) {
+
+        ClassDef superClass = ClassUtils.getSuperClass(dexFile, classDef);
+        Set<ClassDef> interfaces = ClassUtils.getInterfaces(dexFile, classDef);
+        // TODO: remove non-application classes?
+        classHierarchy.addClass(classDef, superClass, interfaces);
     }
 
     /**

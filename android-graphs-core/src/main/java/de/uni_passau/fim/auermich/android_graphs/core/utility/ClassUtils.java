@@ -3,8 +3,10 @@ package de.uni_passau.fim.auermich.android_graphs.core.utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.ClassDef;
+import org.jf.dexlib2.iface.DexFile;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class ClassUtils {
@@ -37,6 +39,52 @@ public class ClassUtils {
 
     private ClassUtils() {
         throw new UnsupportedOperationException("utility class");
+    }
+
+    /**
+     * Gets the super class of the given class.
+     * NOTE: We assume that the super class is contained in the same dex file.
+     *
+     * @param dexFile The dex file potentially containing the super class.
+     * @param clazz The class for which we look up its super class.
+     * @return Returns the super class of the given class if present or {@code null} otherwise.
+     */
+    public static ClassDef getSuperClass(final DexFile dexFile, final ClassDef clazz) {
+
+        if (clazz.getSuperclass() == null || clazz.getSuperclass().equals("Ljava/lang/Object;")) {
+            return null;
+        }
+
+        for (ClassDef classDef : dexFile.getClasses()) {
+            if (clazz.getSuperclass().equals(classDef.toString())) {
+                return classDef;
+            }
+        }
+
+        LOGGER.warn("Super class for class " + clazz + " not found in given dex file!");
+        return null;
+    }
+
+    /**
+     * Gets the interfaces of the given class.
+     * NOTE: We assume that the interfaces are contained in the same dex file.
+     *
+     * @param dexFile The dex file potentially containing the interfaces.
+     * @param clazz The class for which we look up its interfaces.
+     * @return Returns the interfaces of the given class if present or an empty set otherwise.
+     */
+    public static Set<ClassDef> getInterfaces(final DexFile dexFile, final ClassDef clazz) {
+
+        Set<ClassDef> interfaces = new HashSet<>();
+        List<String> interfaceNames = clazz.getInterfaces();
+
+        for (ClassDef classDef : dexFile.getClasses()) {
+            if (interfaceNames.contains(classDef.toString())) {
+                interfaces.add(classDef);
+            }
+        }
+
+        return interfaces;
     }
 
     /**
