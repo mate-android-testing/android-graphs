@@ -24,6 +24,8 @@ public class DotConverter {
          *  while the label can be assigned any name.
          */
 
+        // TODO: handle vertices used for non-basic inter CFG
+
         String methodSignature = vertex.getMethod();
 
         if (methodSignature.equals("global")) {
@@ -103,6 +105,8 @@ public class DotConverter {
      * @return Returns the DOT label representing the given vertex.
      */
     public static String convertVertexToDOTLabel(final Vertex vertex) {
+
+        // TODO: handle vertices used for non-basic inter CFG
 
         // TODO: Display the instructions actually instead of solely the instruction indices.
         String label = "";

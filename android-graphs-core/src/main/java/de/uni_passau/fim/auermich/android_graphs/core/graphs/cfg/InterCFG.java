@@ -138,7 +138,7 @@ public class InterCFG extends BaseCFG {
             removeVertex(invokeVertex);
 
             List<Vertex> blockVertices = new ArrayList<>();
-            List<Vertex> exitVertices = new ArrayList<>();
+            List<List<Vertex>> exitVertices = new ArrayList<>();
 
             for (int i = 0; i < blocks.size(); i++) {
 
@@ -174,20 +174,22 @@ public class InterCFG extends BaseCFG {
                     break;
                 }
 
-                // look up the CFG matching the invocation target
+                // look up the CFGs matching the invocation target (multiple for overridden methods)
                 BasicStatement invokeStmt = (BasicStatement) ((BlockStatement) blockStmt).getLastStatement();
-                BaseCFG targetCFG = lookupTargetCFG(apk, invokeStmt);
+                Set<BaseCFG> targetCFGs = lookupTargetCFGs(apk, invokeStmt);
 
-                // the invoke vertex defines an edge to the invocation target
-                addEdge(blockVertex, targetCFG.getEntry());
+                // the invoke vertex defines an edge to each target CFG (invocation target)
+                targetCFGs.forEach(targetCFG -> addEdge(blockVertex, targetCFG.getEntry()));
 
-                // save exit vertex -> there is an edge to the return vertex part of the next basic block
-                exitVertices.add(targetCFG.getExit());
+                // there is an edge from each target CFC's exit vertex to the virtual return statement (next block)
+                exitVertices.add(targetCFGs.stream().map(BaseCFG::getExit).collect(Collectors.toList()));
             }
 
-            // connect the exit of the invocation target with the virtual return vertex
+            // connect each target CFC's exit with the corresponding virtual return vertex
             for (int i = 0; i < exitVertices.size(); i++) {
-                addEdge(exitVertices.get(i), blockVertices.get(i + 1));
+                for (Vertex exitVertex : exitVertices.get(i)) {
+                    addEdge(exitVertex, blockVertices.get(i + 1));
+                }
             }
 
             /*
@@ -231,55 +233,68 @@ public class InterCFG extends BaseCFG {
      * @param invokeStmt The invoke statement defining the target.
      * @return Returns the CFG matching the given invoke target.
      */
-    private BaseCFG lookupTargetCFG(final APK apk, final BasicStatement invokeStmt) {
+    private Set<BaseCFG> lookupTargetCFGs(final APK apk, final BasicStatement invokeStmt) {
+
+        Set<BaseCFG> targetCFGs = new HashSet<>();
 
         Instruction instruction = invokeStmt.getInstruction().getInstruction();
         String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
 
-        if (intraCFGs.containsKey(targetMethod)) {
-            return intraCFGs.get(targetMethod);
-        } else {
-            /*
-             * If there is a component invocation, e.g. a call to startActivity(), we
-             * replace the targetCFG with the constructor of the respective component.
-             */
-            if (ComponentUtils.isComponentInvocation(components, targetMethod)) {
-                String componentConstructor = ComponentUtils.isComponentInvocation(components, invokeStmt.getInstruction());
-                if (componentConstructor != null) {
-                    if (intraCFGs.containsKey(componentConstructor)) {
-                        return intraCFGs.get(componentConstructor);
-                    } else {
-                        LOGGER.warn("Constructor " + componentConstructor + " not contained in dex files!");
-                    }
-                } else {
-                    LOGGER.warn("Couldn't derive component constructor for method: " + targetMethod);
-                }
-            } else if (Utility.isReflectionCall(targetMethod)) {
-                // replace the reflection call with the internally invoked class constructor
-                String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
-                if (clazz != null) {
-                    LOGGER.debug("Class invoked by reflection: " + clazz);
-                    String constructor = ClassUtils.getDefaultConstructor(clazz);
-                    if (intraCFGs.containsKey(constructor)) {
-                        return intraCFGs.get(constructor);
-                    } else {
-                        LOGGER.warn("Constructor " + constructor + " not contained in dex files!");
-                    }
-                }
+        LOGGER.debug("Lookup target CFGs for " + targetMethod);
+
+        /*
+        * We can't distinguish whether the given method is invoked or any method
+        * that overrides the given method. Thus, we need to over-approximate in this case
+        * and connect the invoke with each overridden method (CFG) as well.
+         */
+        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(targetMethod);
+
+        for (String overriddenMethod : overriddenMethods) {
+            if (intraCFGs.containsKey(overriddenMethod)) {
+                targetCFGs.add(intraCFGs.get(overriddenMethod));
             } else {
                 /*
-                 * There are some Android specific classes, e.g. android/view/View, which are
-                 * not included in the classes.dex file.
+                 * If there is a component invocation, e.g. a call to startActivity(), we
+                 * replace the targetCFG with the constructor of the respective component.
                  */
-                LOGGER.warn("Method " + targetMethod + " not contained in dex files!");
+                if (ComponentUtils.isComponentInvocation(components, overriddenMethod)) {
+                    String componentConstructor = ComponentUtils.isComponentInvocation(components, invokeStmt.getInstruction());
+                    if (componentConstructor != null) {
+                        if (intraCFGs.containsKey(componentConstructor)) {
+                            targetCFGs.add(intraCFGs.get(componentConstructor));
+                        } else {
+                            LOGGER.warn("Constructor " + componentConstructor + " not contained in dex files!");
+                            targetCFGs.add(dummyCFG(overriddenMethod));
+                        }
+                    } else {
+                        LOGGER.warn("Couldn't derive component constructor for method: " + overriddenMethod);
+                        targetCFGs.add(dummyCFG(overriddenMethod));
+                    }
+                } else if (Utility.isReflectionCall(overriddenMethod)) {
+                    // replace the reflection call with the internally invoked class constructor
+                    String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
+                    if (clazz != null) {
+                        LOGGER.debug("Class invoked by reflection: " + clazz);
+                        String constructor = ClassUtils.getDefaultConstructor(clazz);
+                        if (intraCFGs.containsKey(constructor)) {
+                            targetCFGs.add(intraCFGs.get(constructor));
+                        } else {
+                            LOGGER.warn("Constructor " + constructor + " not contained in dex files!");
+                            targetCFGs.add(dummyCFG(overriddenMethod));
+                        }
+                    }
+                } else {
+                    /*
+                     * There are some Android specific classes, e.g. android/view/View, which are
+                     * not included in the classes.dex file.
+                     */
+                    LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
             }
         }
 
-        // we provide a dummy CFG for those invocations we couldn't derive the target
-        BaseCFG targetCFG = dummyIntraCFG(targetMethod);
-        intraCFGs.put(targetMethod, targetCFG);
-        addSubGraph(targetCFG);
-        return targetCFG;
+        return targetCFGs;
     }
 
     /**
@@ -1060,6 +1075,14 @@ public class InterCFG extends BaseCFG {
                     LOGGER.debug("Reflection call detected!");
                 }
 
+                /*
+                * TODO: combine virtual return statements for overriden methods
+                * Since we need to over-approximate method calls, i.e. we add for each
+                * method that overrides the given method an edge, we would have actually
+                * multiple virtual return statements, but this would require here a redundant
+                * lookup of the overridden methods, which we ignore right now.
+                 */
+
                 // add return statement to next block
                 block.add(new ReturnStatement(blockStatement.getMethod(), targetMethod,
                         analyzedInstruction.getInstructionIndex()));
@@ -1119,28 +1142,29 @@ public class InterCFG extends BaseCFG {
                 continue;
             }
 
-            // there might be multiple successors in a try-catch block
+            // save the original successor vertices
             Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
 
-            // get the CFG matching the invocation target
-            BaseCFG targetCFG = lookupTargetCFG(apk, invokeStmt);
+            // get the CFGs matching the invocation target (multiple for overriden methods)
+            Set<BaseCFG> targetCFGs = lookupTargetCFGs(apk, invokeStmt);
 
             // remove edges between invoke vertex and original successors
             removeEdges(getOutgoingEdges(invokeVertex));
 
-            // the invocation vertex defines an edge to the target CFG
-            addEdge(invokeVertex, targetCFG.getEntry());
+            // the invocation vertex defines an edge to each target CFG
+            targetCFGs.forEach(targetCFG -> addEdge(invokeVertex, targetCFG.getEntry()));
 
             // TODO: replace target method of virtual return statement in case of component invocation or reflection call
+            // TODO: handle multiple virtual return vertices for overridden methods
 
             // insert virtual return vertex
-            ReturnStatement returnStmt = new ReturnStatement(invokeVertex.getMethod(), targetCFG.getMethodName(),
+            ReturnStatement returnStmt = new ReturnStatement(invokeVertex.getMethod(), targetMethod,
                     invokeStmt.getInstructionIndex());
             Vertex returnVertex = new Vertex(returnStmt);
             addVertex(returnVertex);
 
-            // add edge from exit of target CFG to virtual return vertex
-            addEdge(targetCFG.getExit(), returnVertex);
+            // add edge from exit of each target CFG to virtual return vertex
+            targetCFGs.forEach(targetCFG -> addEdge(targetCFG.getExit(), returnVertex));
 
             // add edge from virtual return vertex to each original successor
             for (Vertex successor : successors) {
@@ -1273,6 +1297,19 @@ public class InterCFG extends BaseCFG {
         Set<ClassDef> interfaces = ClassUtils.getInterfaces(dexFile, classDef);
         // TODO: remove non-application classes?
         classHierarchy.addClass(classDef, superClass, interfaces);
+    }
+
+    /**
+     * Creates and adds a dummy CFG for the given method.
+     *
+     * @param targetMethod The method for which a dummy CFG should be generated.
+     * @return Returns the constructed dummy CFG.
+     */
+    private BaseCFG dummyCFG(String targetMethod) {
+        BaseCFG targetCFG = dummyIntraCFG(targetMethod);
+        intraCFGs.put(targetMethod, targetCFG);
+        addSubGraph(targetCFG);
+        return targetCFG;
     }
 
     /**

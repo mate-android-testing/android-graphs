@@ -1,14 +1,18 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.ClassDef;
+import org.jf.dexlib2.iface.Method;
 
 import java.util.*;
 
 public class ClassHierarchy {
 
+    private static final Logger LOGGER = LogManager.getLogger(ClassHierarchy.class);
     private Map<String, Class> classHierarchy;
 
-    public class Class {
+    private class Class {
 
         private final ClassDef clazz;
         private ClassDef superClass;
@@ -65,7 +69,7 @@ public class ClassHierarchy {
             builder.append(" | ");
             builder.append("sub classes: ");
             builder.append(subClasses);
-            builder.append( "}");
+            builder.append("}");
             return builder.toString();
         }
 
@@ -104,6 +108,14 @@ public class ClassHierarchy {
         update(clazz, superClass, interfaces);
     }
 
+    /**
+     * Internally updates the class hierarchy by introducing back-references
+     * from the super class and interfaces.
+     *
+     * @param clazz      The given class.
+     * @param superClass The super class of the given class.
+     * @param interfaces The interfaces of the given class.
+     */
     private void update(Class clazz, ClassDef superClass, Set<ClassDef> interfaces) {
 
         if (superClass != null) {
@@ -119,6 +131,76 @@ public class ClassHierarchy {
                 interfaceClazz.addSubClass(clazz.getClazz());
             }
         }
+    }
+
+    /**
+     * Looks up the class hierarchy downwards for methods that override the given method.
+     *
+     * @param method The given method.
+     * @return Returns any method that overrides the given method, including the method itself.
+     */
+    public Set<String> getOverriddenMethods(String method) {
+
+        Set<String> overriddenMethods = new HashSet<>();
+
+        /*
+        * The method itself is always part of the result set.
+        *
+        * NOTE: This method might be inherited, e.g. notifyObservers(), from a class
+        * that is not contained in the dex files, thus we always add it manually.
+         */
+        overriddenMethods.add(method);
+
+        String methodName = MethodUtils.getMethodName(method);
+        String className = MethodUtils.getClassName(method);
+        Class clazz = getClassByName(className);
+
+        if (clazz != null) {
+            overriddenMethods.addAll(getOverriddenMethodsRecursive(clazz, methodName));
+        } else {
+            LOGGER.warn("No entry for class: " + className);
+            /*
+            * This can be a call of 'Ljava/lang/Class;->newInstance()Ljava/lang/Object;' for instance.
+            * Since we always try to resolve reflection calls, this method comes up here, but the
+            * class defining the method is not contained in the APK. We need to pass the method
+            * unchanged to the next processing step.
+             */
+            overriddenMethods.add(method);
+        }
+
+        if (overriddenMethods.size() > 1)
+            LOGGER.debug("We have for the method " + method + " the following overridden methods: " + overriddenMethods);
+        return overriddenMethods;
+    }
+
+    /**
+     * Recursively check whether in the given class a method overrides the given method.
+     *
+     * @param clazz The given class.
+     * @param methodName The method name of the base method.
+     * @return Returns any method that overrides the given method, including the method itself.
+     */
+    private Set<String> getOverriddenMethodsRecursive(Class clazz, String methodName) {
+
+        Set<String> subClassMethods = new HashSet<>();
+
+        // check whether the current class overrides the given method
+        for (Method method : clazz.getClazz().getMethods()) {
+            if (MethodUtils.getMethodName(method.toString()).equals(methodName)) {
+                subClassMethods.add(method.toString());
+            }
+        }
+
+        // recursively step down in the class hierarchy checking whether any sub class overrides the given method
+        for (ClassDef subClass : clazz.getSubClasses()) {
+            Class subClazz = getClass(subClass);
+            if (subClazz != null) {
+                subClassMethods.addAll(getOverriddenMethodsRecursive(subClazz, methodName));
+            } else {
+                LOGGER.warn("No entry for sub class: " + subClass);
+            }
+        }
+        return subClassMethods;
     }
 
     @Override
