@@ -191,21 +191,24 @@ public class ClassHierarchy {
 
                     overriddenMethods.add(superMethod);
                 } else {
+                    LOGGER.debug("Method " + method + " not defined in any super class nor current class!");
                     /*
-                    * The method is not defined by any super class but at least by the current class.
-                    * Since we need to over-approximate method invocations, we need to check every
-                    * sub class as well for potentially overriding the given method.
+                    * The method is not defined by any accessible super class nor in the current class.
+                    * This can be for instance an ART method like 'bindService()', where the super class
+                    * isn't contained in the APK. We need to pass the method unchanged to the next processing step.
                      */
                     overriddenMethods.add(method);
-                    overriddenMethods.addAll(getOverriddenMethodsRecursive(clazz, methodName));
                 }
             } else {
-                // go downwards in the class hierarchy for a sub class that overrides the method
-                overriddenMethods.addAll(getOverriddenMethodsRecursive(clazz, methodName));
-
-                if (overriddenMethods.isEmpty()) {
-                    LOGGER.warn("Method " + method + " not defined by any class!");
-                    // fall back
+                /*
+                * The method is not defined by any super class but at least in the current class.
+                * Since we need to over-approximate method invocations, we need to check every
+                * sub class as well for potentially overriding the given method. However, we
+                * ignore the constructor chain downwards in the class hierarchy.
+                 */
+                if (!MethodUtils.isConstructorCall(method)) {
+                    overriddenMethods.addAll(getOverriddenMethodsRecursive(clazz, methodName));
+                } else {
                     overriddenMethods.add(method);
                 }
             }
@@ -218,6 +221,10 @@ public class ClassHierarchy {
              * unchanged to the next processing step.
              */
             overriddenMethods.add(method);
+        }
+
+        if (overriddenMethods.isEmpty()) {
+            LOGGER.warn("Couldn't derive any overridden method for: " + method);
         }
 
         if (overriddenMethods.size() > 1)

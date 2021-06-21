@@ -14,7 +14,10 @@ import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.util.MethodUtil;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 public class MethodUtils {
 
@@ -88,6 +91,18 @@ public class MethodUtils {
      */
     public static boolean isCallback(String methodSignature) {
         return ANDROID_CALLBACKS.contains(getMethodName(methodSignature));
+    }
+
+    /**
+     * Checks whether the given method represents a constructor call.
+     *
+     * @param methodSignature The given method.
+     * @return Returns {@code true} if the method is a constructor call,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isConstructorCall(String methodSignature) {
+        String method = MethodUtils.getMethodName(methodSignature);
+        return method.startsWith("<init>(") && method.endsWith(")V");
     }
 
     /**
