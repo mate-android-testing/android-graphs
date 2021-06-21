@@ -247,7 +247,7 @@ public class InterCFG extends BaseCFG {
         * that overrides the given method. Thus, we need to over-approximate in this case
         * and connect the invoke with each overridden method (CFG) as well.
          */
-        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(targetMethod);
+        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(targetMethod, apk, properties);
 
         for (String overriddenMethod : overriddenMethods) {
             if (intraCFGs.containsKey(overriddenMethod)) {
@@ -286,9 +286,11 @@ public class InterCFG extends BaseCFG {
                 } else {
                     /*
                      * There are some Android specific classes, e.g. android/view/View, which are
-                     * not included in the classes.dex file.
+                     * not included in the classes.dex file, or which we don't want to resolve.
                      */
-                    LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
+                    if (!overriddenMethod.equals(targetMethod)) {
+                        LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
+                    }
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
             }

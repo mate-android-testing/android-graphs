@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.ClassDef;
@@ -84,7 +85,7 @@ public class ClassHierarchy {
     }
 
     private Class getClass(ClassDef classDef) {
-        return classHierarchy.get(classDef.toString());
+        return classDef == null ? null : classHierarchy.get(classDef.toString());
     }
 
     public void addClass(ClassDef classDef) {
@@ -134,43 +135,118 @@ public class ClassHierarchy {
     }
 
     /**
-     * Looks up the class hierarchy downwards for methods that override the given method.
+     * Traverses the class hierarchy to get potential invocations of the given method in any
+     * super or sub class. First, we check any super class. If any of those define the method,
+     * this method is returned. If the method is overridden by any sub class, we return all
+     * those methods including the method of the current class itself.
      *
      * @param method The given method.
-     * @return Returns any method that overrides the given method, including the method itself.
+     * @param apk The APK file.
+     * @param properties The global properties.
+     * @return Returns the overridden method(s) in the super or sub classes.
      */
-    public Set<String> getOverriddenMethods(String method) {
+    public Set<String> getOverriddenMethods(String method, APK apk, Properties properties) {
 
         Set<String> overriddenMethods = new HashSet<>();
-
-        /*
-        * The method itself is always part of the result set.
-        *
-        * NOTE: This method might be inherited, e.g. notifyObservers(), from a class
-        * that is not contained in the dex files, thus we always add it manually.
-         */
-        overriddenMethods.add(method);
 
         String methodName = MethodUtils.getMethodName(method);
         String className = MethodUtils.getClassName(method);
         Class clazz = getClassByName(className);
 
         if (clazz != null) {
-            overriddenMethods.addAll(getOverriddenMethodsRecursive(clazz, methodName));
+
+            /*
+            * First, check whether the current class defines the method, otherwise look up
+            * in the class hierarchy for any super class defining the method. If this is also
+            * not the case, we need to look up downwards in the class hierarchy for a sub class
+            * overriding the method.
+             */
+            boolean currentClassDefinesMethod = false;
+
+            for (Method m : clazz.getClazz().getMethods()) {
+                if (m.toString().equals(method)) {
+                    currentClassDefinesMethod = true;
+                    break;
+                }
+            }
+
+            if (!currentClassDefinesMethod) {
+                // check super classes
+                String superMethod = invokesSuperMethod(getClass(clazz.superClass), methodName);
+
+                if (superMethod != null) {
+
+                    if (properties.resolveOnlyAUTClasses) {
+                        String dottedClassName = ClassUtils.dottedClassName(MethodUtils.getClassName(superMethod));
+                        if (!dottedClassName.startsWith(apk.getManifest().getPackageName())) {
+                            LOGGER.debug("Super class method " + superMethod + " that shouldn't be resolved!");
+                            /*
+                            * This can be a super class method that is actually contained in the dex file,
+                            * but should not be resolved according to the configuration. We fall back to
+                            * the original method.
+                             */
+                            superMethod = method;
+                        }
+                    }
+
+                    overriddenMethods.add(superMethod);
+                } else {
+                    /*
+                    * The method is not defined by any super class but at least by the current class.
+                    * Since we need to over-approximate method invocations, we need to check every
+                    * sub class as well for potentially overriding the given method.
+                     */
+                    overriddenMethods.add(method);
+                    overriddenMethods.addAll(getOverriddenMethodsRecursive(clazz, methodName));
+                }
+            } else {
+                // go downwards in the class hierarchy for a sub class that overrides the method
+                overriddenMethods.addAll(getOverriddenMethodsRecursive(clazz, methodName));
+
+                if (overriddenMethods.isEmpty()) {
+                    LOGGER.warn("Method " + method + " not defined by any class!");
+                    // fall back
+                    overriddenMethods.add(method);
+                }
+            }
         } else {
             LOGGER.warn("No entry for class: " + className);
             /*
-            * This can be a call of 'Ljava/lang/Class;->newInstance()Ljava/lang/Object;' for instance.
-            * Since we always try to resolve reflection calls, this method comes up here, but the
-            * class defining the method is not contained in the APK. We need to pass the method
-            * unchanged to the next processing step.
+             * This can be a call of 'Ljava/lang/Class;->newInstance()Ljava/lang/Object;' for instance.
+             * Since we always try to resolve reflection calls, this method comes up here, but the
+             * class defining the method is not contained in the APK. We need to pass the method
+             * unchanged to the next processing step.
              */
             overriddenMethods.add(method);
         }
 
         if (overriddenMethods.size() > 1)
             LOGGER.debug("We have for the method " + method + " the following overridden methods: " + overriddenMethods);
+
         return overriddenMethods;
+    }
+
+    /**
+     * Looks up the super classes if any of those defines the given method.
+     *
+     * @param superClazz The super class from which the search is started.
+     * @param methodName The method which should be looked up in the super classes.
+     * @return Returns the super method if any, otherwise {@code null} is returned.
+     */
+    private String invokesSuperMethod(Class superClazz, String methodName) {
+
+        while (superClazz != null) {
+
+            for (Method method : superClazz.getClazz().getMethods()) {
+                if (MethodUtils.getMethodName(method.toString()).equals(methodName)) {
+                    LOGGER.debug("Super class " + superClazz.getClazz() + " defines the method " + methodName);
+                    return method.toString();
+                }
+            }
+
+            superClazz = getClass(superClazz.superClass);
+        }
+        return null;
     }
 
     /**
