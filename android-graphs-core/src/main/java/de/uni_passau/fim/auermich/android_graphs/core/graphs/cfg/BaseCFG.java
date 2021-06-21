@@ -24,6 +24,7 @@ import org.jgrapht.graph.builder.GraphTypeBuilder;
 import org.jgrapht.nio.Attribute;
 import org.jgrapht.nio.DefaultAttribute;
 import org.jgrapht.nio.dot.*;
+import org.jgrapht.nio.json.JSONExporter;
 import org.w3c.dom.Document;
 
 
@@ -233,6 +234,16 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     @Override
     public String toString() {
         return graph.toString();
+    }
+
+    /**
+     * Converts a graph into a JSON file.
+     *
+     * @param output The file path of the JSON file.
+     */
+    private void convertGraphToJSON(File output) {
+        JSONExporter<Vertex, Edge> exporter = new JSONExporter<>();
+        exporter.exportGraph(graph, output);
     }
 
     /**
