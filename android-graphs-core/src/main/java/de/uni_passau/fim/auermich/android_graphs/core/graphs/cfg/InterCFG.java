@@ -549,7 +549,7 @@ public class InterCFG extends BaseCFG {
 
         if (!intraCFGs.containsKey(onRestoreInstanceState)) {
             // use the default onRestoreInstanceState()
-            activity.onRestoreInstanceStateMethod();
+            onRestoreInstanceState = activity.onRestoreInstanceStateMethod();
         }
 
         BaseCFG onRestoreInstanceStateCFG = addLifecycle(onRestoreInstanceState, onStartCFG);
