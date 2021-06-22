@@ -50,8 +50,8 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
             .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
             .edgeClass(Edge.class).buildGraph();
 
-    private Vertex entry; // = new Vertex(-1, null, null);
-    private Vertex exit; // = new Vertex(-2, null, null);
+    private Vertex entry;
+    private Vertex exit;
 
     // save vertices that include an invoke statement
     private Set<Vertex> invokeVertices = new HashSet<>();
@@ -261,13 +261,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
             return map;
         });
 
-        try {
-            Writer writer = new FileWriter(output);
-            exporter.exportGraph(graph, writer);
-        } catch (IOException e) {
-            LOGGER.warn(e.getMessage());
-            e.printStackTrace();
-        }
+        exporter.exportGraph(graph, output);
     }
 
     /**
@@ -276,12 +270,18 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * for larger graphs it takes too long.
      *
      * @param outputFile The file path of the resulting SVG file.
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertices The set of target vertices.
      */
-    private void convertGraphToSVG(File outputFile) {
+    private void convertGraphToSVG(File outputFile, Set<Vertex> visitedVertices, Set<Vertex> targetVertices) {
 
         JGraphXAdapter<Vertex, Edge> graphXAdapter
                 = new JGraphXAdapter<>(graph);
         graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        if (!visitedVertices.isEmpty() || !targetVertices.isEmpty()) {
+            colorVertices(graphXAdapter, visitedVertices, targetVertices);
+        }
 
         // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
         mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
@@ -310,12 +310,18 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * This method should be only used for small graphs, i.e. not more than 1000 (max 2000) vertices.
      *
      * @param output The file path of the resulting PNG file.
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertices The set of target vertices.
      */
-    private void convertGraphToPNG(File output) {
+    private void convertGraphToPNG(File output, Set<Vertex> visitedVertices, Set<Vertex> targetVertices) {
 
         JGraphXAdapter<Vertex, Edge> graphXAdapter
                 = new JGraphXAdapter<>(graph);
         graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        if (!visitedVertices.isEmpty() || !targetVertices.isEmpty()) {
+            colorVertices(graphXAdapter, visitedVertices, targetVertices);
+        }
 
         // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
         mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
@@ -338,25 +344,68 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     /**
+     * Marks the given set of visited and target vertices in different colors.
+     *
+     * @param graphXAdapter The graph adapter.
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertices The set of target vertices.
+     */
+    private void colorVertices(JGraphXAdapter<Vertex, Edge> graphXAdapter, Set<Vertex> visitedVertices,
+                               Set<Vertex> targetVertices) {
+
+        Map<Vertex, mxICell> vertexToCellMap = graphXAdapter.getVertexToCellMap();
+
+        /*
+         * We mark the covered target vertices orange in the graph.
+         */
+        Set<Vertex> coveredTargets = new HashSet<>(targetVertices);
+        coveredTargets.retainAll(visitedVertices);
+        List<Object> coveredTargetCells = new ArrayList<>();
+        coveredTargets.forEach(v -> coveredTargetCells.add(vertexToCellMap.get(v)));
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "orange", coveredTargetCells.toArray());
+
+        /*
+         * We mark the visited vertices red in the graph.
+         */
+        List<Object> visitedCells = new ArrayList<>();
+        visitedVertices.stream().filter(Predicate.not(coveredTargets::contains))
+                .forEach(v -> visitedCells.add(vertexToCellMap.get(v)));
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "red", visitedCells.toArray());
+
+        /*
+         * We mark the yet unvisited target vertices green in the graph.
+         */
+        List<Object> targetCells = new ArrayList<>();
+        targetVertices.stream().filter(Predicate.not(coveredTargets::contains))
+                .forEach(v -> targetCells.add(vertexToCellMap.get(v)));
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "green", targetCells.toArray());
+
+        // update layout
+        graphXAdapter.refresh();
+    }
+
+    /**
      * Draws the CFG where vertices are encoded as (instruction id, instruction opcode).
      */
     @Override
     public void drawGraph() {
 
-        // TODO: check whether this path still works within the jar executable
+        // FIXME: drawing only works within IDE, no valid file paths when being executed as via command line
         Path resourceDirectory = Paths.get("android-graphs-core","src", "main", "resources");
 
         if (size() <= 1000) {
             File output = new File(resourceDirectory.toFile(), "graph.png");
-            convertGraphToPNG(output);
+            convertGraphToPNG(output, Collections.emptySet(), Collections.emptySet());
         } else if (size() <= 5000) {
             // can theoretically render large graphs to SVG, but this takes quite some time
             File output = new File(resourceDirectory.toFile(), "graph.svg");
-            convertGraphToSVG(output);
+            convertGraphToSVG(output, Collections.emptySet(), Collections.emptySet());
         } else {
-            // too 'large' graphs can't be handled by the JGraphXAdapter class
+            // too 'large' graphs can't be handled by the JGraphXAdapter class, export to DOT and JSON
             File output = new File(resourceDirectory.toFile(), "graph.dot");
             convertGraphToDOT(output);
+            output = new File(resourceDirectory.toFile(), "graph.json");
+            convertGraphToJSON(output);
         }
     }
 
@@ -364,138 +413,50 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * Draws the graph and marks the visited vertices in a different color as well
      * as the selected target vertex.
      *
+     * @param outputDir The output directory of the graph.
      * @param visitedVertices The set of visited vertices.
-     * @param targetVertex The selected target vertex.
-     * @param output The output path of graph.
+     * @param targetVertex The selected target vertices.
      */
-    public void drawGraph(Set<Vertex> visitedVertices, Vertex targetVertex, File output) {
-
-        JGraphXAdapter<Vertex, Edge> graphXAdapter
-                = new JGraphXAdapter<>(graph);
-        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
-
-        // retrieve for each vertex the corresponding cell
-        List<Object> cells = new ArrayList<>();
-
-        Map<Vertex, mxICell> vertexToCellMap = graphXAdapter.getVertexToCellMap();
-        visitedVertices.forEach(v -> cells.add(vertexToCellMap.get(v)));
-
-        // mark the cells with a certain color
-        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "red", cells.toArray());
-
-        // mark the target vertex as well
-        mxICell targetCell = vertexToCellMap.get(targetVertex);
-        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "green", new Object[]{targetCell});
-
-        graphXAdapter.refresh();
-
-        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
-        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
-
-        // mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
-        // ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
-
-        layout.execute(graphXAdapter.getDefaultParent());
-
-        BufferedImage image =
-                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
-
-        try {
-            output.createNewFile();
-            ImageIO.write(image, "PNG", output);
-        } catch (IOException e) {
-            LOGGER.warn(e.getMessage());
-        }
+    public void drawGraph(File outputDir, Set<Vertex> visitedVertices, Vertex targetVertex) {
+        drawGraph(outputDir, visitedVertices, Collections.singleton(targetVertex));
     }
 
     /**
      * Draws the graph where both the visited and target vertices are marked
      * in a different color.
      *
+     * @param outputDir The output directory of the graph.
      * @param visitedVertices The set of visited vertices.
      * @param targetVertices The selected target vertices.
-     * @param output The output path of graph.
      */
-    public void drawGraph(Set<Vertex> visitedVertices, Set<Vertex> targetVertices, File output) {
+    public void drawGraph(File outputDir, Set<Vertex> visitedVertices, Set<Vertex> targetVertices) {
 
         LOGGER.info("Number of visited vertices: " + visitedVertices.size());
         LOGGER.info("Number of target vertices: " + targetVertices.size());
 
-        JGraphXAdapter<Vertex, Edge> graphXAdapter
-                = new JGraphXAdapter<>(graph);
-        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
-
-        Map<Vertex, mxICell> vertexToCellMap = graphXAdapter.getVertexToCellMap();
-
-        // we like to mark covered target vertices in a different color
-        Set<Vertex> coveredTargets = new HashSet<>(targetVertices);
-        coveredTargets.retainAll(visitedVertices);
-
-        LOGGER.info("Number of covered target vertices: " + coveredTargets.size());
-
-        // map covered target vertices to cells
-        List<Object> coveredTargetCells = new ArrayList<>();
-        coveredTargets.forEach(v -> coveredTargetCells.add(vertexToCellMap.get(v)));
-
-        // mark covered target vertices orange
-        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "orange", coveredTargetCells.toArray());
-
-        // map visited vertices to cells
-        List<Object> visitedCells = new ArrayList<>();
-        visitedVertices.stream().filter(Predicate.not(coveredTargets::contains))
-                .forEach(v -> visitedCells.add(vertexToCellMap.get(v)));
-
-        // mark visited vertices red
-        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "red", visitedCells.toArray());
-
-        // map target vertices to cells
-        List<Object> targetCells = new ArrayList<>();
-        targetVertices.stream().filter(Predicate.not(coveredTargets::contains))
-                .forEach(v -> targetCells.add(vertexToCellMap.get(v)));
-
-        // mark target vertices green
-        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "green", targetCells.toArray());
-
-        graphXAdapter.refresh();
-
-        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
-        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
-        layout.execute(graphXAdapter.getDefaultParent());
-
-        BufferedImage image =
-                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
-
-        try {
-            output.createNewFile();
-            ImageIO.write(image, "PNG", output);
-        } catch (IOException e) {
-            LOGGER.warn(e.getMessage());
+        if (size() <= 1000) {
+            File output = new File(outputDir, "graph.png");
+            convertGraphToPNG(output, visitedVertices, targetVertices);
+        } else if (size() <= 5000) {
+            // can theoretically render large graphs to SVG, but this takes quite some time
+            File output = new File(outputDir, "graph.svg");
+            convertGraphToSVG(output, visitedVertices, targetVertices);
+        } else {
+            // too 'large' graphs can't be handled by the JGraphXAdapter class, export to DOT and JSON
+            File output = new File(outputDir, "graph.dot");
+            convertGraphToDOT(output);
+            output = new File(outputDir, "graph.json");
+            convertGraphToJSON(output);
         }
     }
 
     /**
      * Draws the raw graph and saves it at the specified output path.
      *
-     * @param outputPath The location where the graph should be saved.
+     * @param outputDir The output directory of the graph.
      */
-    public void drawGraph(File outputPath) {
-        JGraphXAdapter<Vertex, Edge> graphXAdapter
-                = new JGraphXAdapter<>(graph);
-        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
-
-        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
-        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
-        layout.execute(graphXAdapter.getDefaultParent());
-
-        BufferedImage image =
-                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
-
-        try {
-            outputPath.createNewFile();
-            ImageIO.write(image, "PNG", outputPath);
-        } catch (IOException e) {
-            LOGGER.warn(e.getMessage());
-        }
+    public void drawGraph(File outputDir) {
+        drawGraph(outputDir, Collections.emptySet(), Collections.emptySet());
     }
 
     /**

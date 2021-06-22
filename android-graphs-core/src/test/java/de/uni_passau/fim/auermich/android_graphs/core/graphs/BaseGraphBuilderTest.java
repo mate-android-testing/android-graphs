@@ -205,7 +205,7 @@ public class BaseGraphBuilderTest {
         Path resourceDirectory = Paths.get("android-graphs-lib","src", "test", "resources");
         File file = new File(resourceDirectory.toFile(), "graph.png");
 
-        ((BaseCFG) baseGraph).drawGraph(visitedVertices, targetVertex, file);
+        ((BaseCFG) baseGraph).drawGraph(file, visitedVertices, targetVertex);
     }
 
     /**

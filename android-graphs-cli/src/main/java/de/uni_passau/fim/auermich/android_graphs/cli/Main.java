@@ -120,8 +120,6 @@ public final class Main {
      */
     private static boolean checkArguments(IntraCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTRACFG;
-        // Objects.requireNonNull(cmd.getMetric());
-        // Objects.requireNonNull(cmd.getTarget());
         return true;
     }
 
@@ -132,7 +130,6 @@ public final class Main {
      */
     private static boolean checkArguments(InterCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTERCFG;
-        // Objects.requireNonNull(cmd.getMetric());
         return true;
     }
 

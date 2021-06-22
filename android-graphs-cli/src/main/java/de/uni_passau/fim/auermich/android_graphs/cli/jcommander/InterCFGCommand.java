@@ -9,22 +9,11 @@ public class InterCFGCommand {
 
     private GraphType graphType = GraphType.INTERCFG;
 
-    /*
-    * TODO: Provide a field that enables an approach level / branch distance request.
-    *  This requires a target vertex or a list of target vertices plus a path to
-    *  a traces or multiple traces files. I assume that we need for this an additional
-    *  sub command that encompasses a metric (approach level / branch distance), a target
-    *  and the path to the traces file(s).
-     */
-
     @Parameter(names = {"-art"}, description = "Whether ART classes should be resolved.")
     private boolean art = false;
 
     @Parameter(names = {"-oaut", "-only-aut"}, description = "Whether only AUT classes should be resolved.")
     private boolean resolveOnlyAUTClasses = false;
-
-    @Parameter(names = { "-m", "-metric" }, description = "Metric.")
-    private String metric;
 
     @Parameter(names = { "-b", "-basic-blocks" }, description = "Whether to use basic blocks or not.")
     private boolean useBasicBlocks = false;
@@ -39,10 +28,6 @@ public class InterCFGCommand {
 
     public boolean isUseBasicBlocks() {
         return useBasicBlocks;
-    }
-
-    public String getMetric() {
-        return metric;
     }
 
     public GraphType getGraphType() {

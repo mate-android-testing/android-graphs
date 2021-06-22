@@ -10,9 +10,6 @@ public class MainCommand {
             required = true, converter = CustomFileConverter.class)
     private File apkFile;
 
-    @Parameter(names = { "-e", "-exceptional" }, description = "Whether the graph should contain edges from try-catch blocks.")
-    private boolean exceptionalFlow = false;
-
     @Parameter(names = { "-d", "-debug" }, description = "Debug mode.")
     private boolean debug = false;
 
@@ -40,10 +37,6 @@ public class MainCommand {
 
     public File getAPKFile() {
         return apkFile;
-    }
-
-    public boolean isExceptionalFlow() {
-        return exceptionalFlow;
     }
 
     public boolean isDebug() {
