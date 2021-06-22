@@ -17,6 +17,9 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Enables the construction of an intra or inter CFG.
+ */
 public class GraphUtils {
 
     private static final Logger LOGGER = LogManager.getLogger(GraphUtils.class);
@@ -34,7 +37,7 @@ public class GraphUtils {
      * @param useBasicBlocks Whether to use basic blocks or not.
      * @return Returns an intraCFG for the specified method.
      */
-    public static BaseCFG constructIntraCFG(final File apkPath, String method, final boolean useBasicBlocks) {
+    public static BaseCFG constructIntraCFG(final File apkPath, final String method, final boolean useBasicBlocks) {
 
         MultiDexContainer<? extends DexBackedDexFile> apk = null;
 
@@ -79,10 +82,11 @@ public class GraphUtils {
      * @param apkPath           The path to the APK file.
      * @param useBasicBlocks    Whether to use basic blocks or not.
      * @param excludeARTClasses Whether to exclude ART classes or not.
+     * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
      * @return Returns an interCFG.
      */
     public static BaseCFG constructInterCFG(final File apkPath, final boolean useBasicBlocks,
-                                            final boolean excludeARTClasses) {
+                                            final boolean excludeARTClasses, final boolean onlyResolveAUTClasses) {
 
         MultiDexContainer<? extends DexBackedDexFile> apk = null;
 
@@ -119,6 +123,10 @@ public class GraphUtils {
 
         if (excludeARTClasses) {
             builder = builder.withExcludeARTClasses();
+        }
+
+        if (onlyResolveAUTClasses) {
+            builder = builder.withResolveOnlyAUTClasses();
         }
 
         BaseGraph baseGraph = builder.build();
