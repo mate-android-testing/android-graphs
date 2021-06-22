@@ -242,7 +242,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @param output The file path of the JSON file.
      */
     private void convertGraphToJSON(File output) {
-        JSONExporter<Vertex, Edge> exporter = new JSONExporter<>();
+        JSONExporter<Vertex, Edge> exporter = new JSONExporter<>(Vertex::toString);
         exporter.exportGraph(graph, output);
     }
 
