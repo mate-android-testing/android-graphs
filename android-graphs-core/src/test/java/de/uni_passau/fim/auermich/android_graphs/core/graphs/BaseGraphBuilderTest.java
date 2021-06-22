@@ -1259,4 +1259,58 @@ public class BaseGraphBuilderTest {
             baseGraph.drawGraph();
         }
     }
+
+    /**
+     * Tests the coloring mechanism of the visited and target vertices.
+     * The visited vertices get marked in green.
+     * The uncovered target vertices get marked in red.
+     * The covered target vertices get marked in orange.
+     *
+     * @throws IOException Should never happen.
+     */
+    @Test
+    public void testGraphColoring() throws IOException {
+
+        Path resourceDirectory = Paths.get("src", "test", "resources");
+        File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
+
+        MultiDexContainer<? extends DexBackedDexFile> apk
+                = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
+
+        List<DexFile> dexFiles = new ArrayList<>();
+
+        apk.getDexEntryNames().forEach(dexFile -> {
+            try {
+                dexFiles.add(apk.getEntry(dexFile).getDexFile());
+            } catch (IOException e) {
+                e.printStackTrace();
+                throw new IllegalStateException("Couldn't load dex file!");
+            }
+        });
+
+        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+                .withName("global")
+                .withBasicBlocks()
+                .withAPKFile(apkFile)
+                .withExcludeARTClasses()
+                .withResolveOnlyAUTClasses()
+                .build();
+
+        BaseCFG interCFG = (BaseCFG) baseGraph;
+
+        Set<Vertex> targets = new HashSet<>();
+        Vertex target1 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->97");
+        Vertex target2 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->100");
+        targets.add(target1);
+        targets.add(target2);
+
+        Set<Vertex> visitedVertices = new HashSet<>();
+        Vertex visited1 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->90");
+        Vertex visited2 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->84");
+        visitedVertices.add(target1);
+        visitedVertices.add(visited1);
+        visitedVertices.add(visited2);
+
+        interCFG.drawGraph(resourceDirectory.toFile(), visitedVertices, targets);
+    }
 }

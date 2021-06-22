@@ -370,15 +370,15 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         List<Object> visitedCells = new ArrayList<>();
         visitedVertices.stream().filter(Predicate.not(coveredTargets::contains))
                 .forEach(v -> visitedCells.add(vertexToCellMap.get(v)));
-        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "red", visitedCells.toArray());
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "green", visitedCells.toArray());
 
         /*
-         * We mark the yet unvisited target vertices green in the graph.
+         * We mark the yet uncovered target vertices green in the graph.
          */
         List<Object> targetCells = new ArrayList<>();
         targetVertices.stream().filter(Predicate.not(coveredTargets::contains))
                 .forEach(v -> targetCells.add(vertexToCellMap.get(v)));
-        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "green", targetCells.toArray());
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "red", targetCells.toArray());
 
         // update layout
         graphXAdapter.refresh();
