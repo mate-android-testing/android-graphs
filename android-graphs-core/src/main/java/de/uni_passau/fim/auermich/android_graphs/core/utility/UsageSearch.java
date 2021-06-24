@@ -12,6 +12,9 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+/**
+ * Enables to search for usages of a class or method, respectively.
+ */
 public final class UsageSearch {
 
     private static final Logger LOGGER = LogManager.getLogger(UsageSearch.class);
@@ -20,10 +23,24 @@ public final class UsageSearch {
         throw new UnsupportedOperationException("utility class!");
     }
 
+    /**
+     * The internal representation of a usage.
+     */
     public static class Usage {
 
+        /**
+         * The class that makes use of the looked up class/method.
+         */
         private ClassDef clazz;
+
+        /**
+         * The method that makes use of the looked up class/method.
+         */
         private Method method;
+
+        /**
+         * The instruction that makes use of the looked up class/method.
+         */
         private AnalyzedInstruction instruction;
 
         public Usage(ClassDef clazz) {

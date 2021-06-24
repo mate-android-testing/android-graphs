@@ -18,7 +18,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Enables the construction of an intra or inter CFG.
+ * Enables the construction of an intra or inter CFG. This class is nothing else
+ * than a factory that should be used by MATE.
  */
 public class GraphUtils {
 

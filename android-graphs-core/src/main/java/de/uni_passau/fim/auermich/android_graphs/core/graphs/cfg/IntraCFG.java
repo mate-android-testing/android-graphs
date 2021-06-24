@@ -21,6 +21,9 @@ import org.jgrapht.graph.builder.GraphTypeBuilder;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Represents an intra procedural control flow graph.
+ */
 public class IntraCFG extends BaseCFG implements Cloneable {
 
     private static final Logger LOGGER = LogManager.getLogger(IntraCFG.class);

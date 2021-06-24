@@ -8,11 +8,21 @@ import org.jf.dexlib2.iface.Method;
 
 import java.util.*;
 
+/**
+ * Represents the class hierarchy between the application classes.
+ */
 public class ClassHierarchy {
 
     private static final Logger LOGGER = LogManager.getLogger(ClassHierarchy.class);
+
+    /**
+     * A mapping of a class name to its class.
+     */
     private Map<String, Class> classHierarchy;
 
+    /**
+     * The internal representation of a class.
+     */
     private class Class {
 
         private final ClassDef clazz;

@@ -41,16 +41,28 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * Represents an inter procedural control flow graph.
+ */
 public class InterCFG extends BaseCFG {
 
     private static final Logger LOGGER = LogManager.getLogger(InterCFG.class);
     private static final GraphType GRAPH_TYPE = GraphType.INTERCFG;
 
+    /**
+     * Properties relevant for the construction process, e.g. whether basic blocks should be used.
+     */
     private Properties properties;
 
-    // track the set of components
+    /**
+     * Maintains the set of components, i.e. activities, services and fragments.
+     */
     private final Set<Component> components = new HashSet<>();
 
+    /**
+     * Maintains the class relation between the application classes in both directions.
+     * This includes the super class, the interfaces and the sub classes of a class.
+     */
     private final ClassHierarchy classHierarchy = new ClassHierarchy();
 
     /**

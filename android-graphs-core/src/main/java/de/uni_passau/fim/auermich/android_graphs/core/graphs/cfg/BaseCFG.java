@@ -390,7 +390,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     @Override
     public void drawGraph() {
 
-        // FIXME: drawing only works within IDE, no valid file paths when being executed as via command line
+        // FIXME: drawing only works within IDE, no valid file path when being executed via command line
         Path resourceDirectory = Paths.get("android-graphs-core","src", "main", "resources");
 
         if (size() <= 1000) {
