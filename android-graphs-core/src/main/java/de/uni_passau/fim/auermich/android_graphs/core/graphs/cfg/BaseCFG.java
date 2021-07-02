@@ -460,6 +460,22 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     /**
+     * Draws the graph where vertices matching the criterion are marked.
+     *
+     * @param outputDir The output directory of the graph.
+     * @param criterion Either a class or a method that should be marked.
+     */
+    public void drawGraph(File outputDir, String criterion) {
+
+        Set<Vertex> toBeMarked = getVertices()
+                .stream()
+                .filter(vertex -> vertex.getMethod().startsWith(criterion))
+                .collect(Collectors.toSet());
+
+        drawGraph(outputDir, Collections.emptySet(), toBeMarked);
+    }
+
+    /**
      * Performs a deep copy of the graph.
      *
      * @return Returns a deep copy of the graph.

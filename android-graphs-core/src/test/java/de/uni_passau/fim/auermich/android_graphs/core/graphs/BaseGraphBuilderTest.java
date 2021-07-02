@@ -1260,19 +1260,11 @@ public class BaseGraphBuilderTest {
         }
     }
 
-    /**
-     * Tests the coloring mechanism of the visited and target vertices.
-     * The visited vertices get marked in green.
-     * The uncovered target vertices get marked in red.
-     * The covered target vertices get marked in orange.
-     *
-     * @throws IOException Should never happen.
-     */
-    @Test
-    public void testGraphColoring() throws IOException {
+    private static Path getResourceDirectory() {
+        return Paths.get("src", "test", "resources");
+    }
 
-        Path resourceDirectory = Paths.get("src", "test", "resources");
-        File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
+    private static BaseGraph buildInterCFG(File apkFile) throws IOException {
 
         MultiDexContainer<? extends DexBackedDexFile> apk
                 = DexFileFactory.loadDexContainer(apkFile, API_OPCODE);
@@ -1288,15 +1280,30 @@ public class BaseGraphBuilderTest {
             }
         });
 
-        BaseGraph baseGraph = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
+        return new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
                 .withName("global")
                 .withBasicBlocks()
                 .withAPKFile(apkFile)
                 .withExcludeARTClasses()
                 .withResolveOnlyAUTClasses()
                 .build();
+    }
 
-        BaseCFG interCFG = (BaseCFG) baseGraph;
+    /**
+     * Tests the coloring mechanism of the visited and target vertices.
+     * The visited vertices get marked in green.
+     * The uncovered target vertices get marked in red.
+     * The covered target vertices get marked in orange.
+     *
+     * @throws IOException Should never happen.
+     */
+    @Test
+    public void testGraphColoring() throws IOException {
+
+        Path resourceDirectory = getResourceDirectory();
+        File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
+
+        BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
 
         Set<Vertex> targets = new HashSet<>();
         Vertex target1 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->97");
@@ -1312,5 +1319,41 @@ public class BaseGraphBuilderTest {
         visitedVertices.add(visited2);
 
         interCFG.drawGraph(resourceDirectory.toFile(), visitedVertices, targets);
+    }
+
+    /**
+     * Tests the coloring of a specific method. The vertices referring to the method get marked in red.
+     *
+     * @throws IOException Should never happen.
+     */
+    @Test
+    public void testMethodColoring() throws IOException {
+
+        Path resourceDirectory = getResourceDirectory();
+        File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
+
+        BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
+
+        // mark given method in graph
+        String criterion = "Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V";
+        interCFG.drawGraph(resourceDirectory.toFile(), criterion);
+    }
+
+    /**
+     * Tests the coloring of a specific class. The vertices referring to the class get marked in red.
+     *
+     * @throws IOException Should never happen.
+     */
+    @Test
+    public void testClassColoring() throws IOException {
+
+        Path resourceDirectory = getResourceDirectory();
+        File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
+
+        BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
+
+        // mark given method in graph
+        String criterion = "Lcom/zola/bmi/BMIMain$PlaceholderFragment;";
+        interCFG.drawGraph(resourceDirectory.toFile(), criterion);
     }
 }

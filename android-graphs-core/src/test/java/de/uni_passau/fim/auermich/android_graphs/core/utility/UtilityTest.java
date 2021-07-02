@@ -1,10 +1,7 @@
-package de.uni_passau.fim.auermich.android_graphs.core.graphs.utility;
+package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.ByteSource;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.ClassUtils;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.ComponentUtils;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import org.antlr.runtime.RecognitionException;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.iface.ClassDef;
