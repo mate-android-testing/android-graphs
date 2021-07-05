@@ -4,14 +4,12 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.InstructionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.Format;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 
 public class Vertex implements Cloneable, Comparable<Vertex> {
 
@@ -87,6 +85,35 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
     }
 
     /**
+     * Checks whether a given vertex represents/contains an if statement.
+     *
+     * @return Returns whether the given vertex represents/contains an if statement.
+     */
+    public boolean isIfVertex() {
+
+        switch (statement.getType()) {
+            case ENTRY_STATEMENT:
+            case RETURN_STATEMENT:
+            case EXIT_STATEMENT:
+                return false;
+            case BASIC_STATEMENT:
+                BasicStatement stmt = (BasicStatement) statement;
+                return InstructionUtils.isBranchingInstruction(stmt.getInstruction());
+            case BLOCK_STATEMENT:
+                // Since an if instruction denotes the end of a basic block, we only need to look at the last instruction.
+                BlockStatement block = (BlockStatement) statement;
+                Statement lastStmt = block.getLastStatement();
+                if (lastStmt instanceof BasicStatement) {
+                    return InstructionUtils.isBranchingInstruction(((BasicStatement) lastStmt).getInstruction());
+                } else {
+                    return false;
+                }
+            default:
+                throw new UnsupportedOperationException("Statement type not supported yet!");
+        }
+    }
+
+    /**
      * Checks whether a given vertex represents a branch target, i.e. a successor of an if-statement.
      * Essentially, every branch target must be a leader instruction.
      *
@@ -100,44 +127,28 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
             case EXIT_STATEMENT:
                 return false;
             case BASIC_STATEMENT:
-                BasicStatement stmt = (BasicStatement) statement;
-                Set<AnalyzedInstruction> predecessors = stmt.getInstruction().getPredecessors();
                 // check if one of the predecessors is an if statement
-                for (AnalyzedInstruction predecessor : predecessors) {
-                    Format format = predecessor.getInstruction().getOpcode().format;
-                    // 21t and 22t are if instructions
-                    if (format == Format.Format21t
-                            || format == Format.Format22t) {
-                        return true;
-                    }
-                }
-                return false;
+                BasicStatement stmt = (BasicStatement) statement;
+                return stmt.getInstruction().getPredecessors().stream()
+                        .anyMatch(InstructionUtils::isBranchingInstruction);
             case BLOCK_STATEMENT:
-                // TODO: it should be sufficient to look at the first instruction -> branch is a leader instruction!
-                // inspect each single statement in the basic block
+                // Since a branch represents a leader instruction (basic block), we only need to look at the first instruction.
                 BlockStatement block = (BlockStatement) statement;
-                List<Statement> stmts = block.getStatements();
+                Statement firstStmt = block.getFirstStatement();
 
-                for (Statement statement : stmts) {
-                    if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
-                        BasicStatement basicStatement = (BasicStatement) statement;
-                        Set<AnalyzedInstruction> preds = basicStatement.getInstruction().getPredecessors();
-                        // check if one of the predecessors is an if statement
-                        for (AnalyzedInstruction predecessor : preds) {
-                            Format format = predecessor.getInstruction().getOpcode().format;
-                            // 21t and 22t are if instructions
-                            if (format == Format.Format21t
-                                    || format == Format.Format22t) {
-                                return true;
-                            }
-                        }
-                    }
+                if (firstStmt instanceof BasicStatement) {
+                    // check whether any of the predecessors represents an if statement
+                    return ((BasicStatement) firstStmt)
+                            .getInstruction()
+                            .getPredecessors()
+                            .stream()
+                            .anyMatch(InstructionUtils::isBranchingInstruction);
+                } else {
+                    return false;
                 }
-                return false;
             default:
-                throw new UnsupportedOperationException("Statement type not supported yet");
+                throw new UnsupportedOperationException("Statement type not supported yet!");
         }
-
     }
 
     /**
