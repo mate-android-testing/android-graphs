@@ -35,6 +35,8 @@ import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.AllDirectedPaths;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
+import org.jgrapht.traverse.BreadthFirstIterator;
+import org.jgrapht.traverse.DepthFirstIterator;
 
 import java.io.File;
 import java.util.*;
@@ -1401,76 +1403,152 @@ public class InterCFG extends BaseCFG {
     @Override
     public Vertex lookUpVertex(String trace) {
 
-        // TODO: may support lookup of a virtual return vertex
+        // TODO: support lookup of a virtual return vertex
 
-        // decompose trace into class, method  and instruction index
+        /*
+        * A trace has the following form:
+        *   className -> methodName -> ([entry|exit|if|return])? -> (index)?
+        *
+        * The first two components are always fixed, while the instruction type and the instruction index
+        * are optional, but not both at the same time:
+        *
+        * Making the instruction type optional allows to search (by index) for a custom instruction, e.g. a branch.
+        * Making the index optional allows to look up virtual entry and exit vertices.
+         */
         String[] tokens = trace.split("->");
-
-        // class + method + entry|exit|instruction-index
-        assert tokens.length == 3;
 
         // retrieve fully qualified method name (class name + method name)
         String method = tokens[0] + "->" + tokens[1];
 
         // check whether method belongs to graph
         if (!intraCFGs.containsKey(method)) {
-            throw new IllegalArgumentException("Given trace refers to a method not part of the graph!");
+            throw new IllegalArgumentException("Given trace refers to a method not part of the graph: " + method);
         }
 
-        if (tokens[2].equals("entry")) {
-            return intraCFGs.get(method).getEntry();
-        } else if (tokens[2].equals("exit")) {
-            return intraCFGs.get(method).getExit();
-        } else {
-            // iterate over all paths between entry and exit vertex
-            int instructionIndex = Integer.parseInt(tokens[2]);
+        if (tokens.length == 3) {
 
+            if (tokens[2].equals("entry")) {
+                return intraCFGs.get(method).getEntry();
+            } else if (tokens[2].equals("exit")) {
+                return intraCFGs.get(method).getExit();
+            } else {
+                // lookup of a branch
+                int instructionIndex = Integer.parseInt(tokens[2]);
+                Vertex entry = intraCFGs.get(method).getEntry();
+                return lookUpVertex(method, instructionIndex, entry);
+            }
+
+        } else if (tokens.length == 4) {
+
+            // String instructionType = tokens[2];
+            int instructionIndex = Integer.parseInt(tokens[3]);
             Vertex entry = intraCFGs.get(method).getEntry();
-            Vertex exit = intraCFGs.get(method).getExit();
+            return lookUpVertex(method, instructionIndex, entry);
 
-            /*
-             * If the 'AllDirectedPaths' algorithm appears to be too slow, we could alternatively use
-             * some traversal strategy supplied by JGraphT, see https://jgrapht.org/javadoc-1.4.0/org/jgrapht/traverse/package-summary.html.
-             * If this is still not good enough, we can roll out our own search algorithm. One could
-             * perform a parallel forward/backward search starting from the entry and exit vertex, respectively.
-             * If a forward/backward step falls out of the given method, i.e. a vertex of a different method is reached,
-             * we can directly jump from the entry vertex to the virtual return vertex in case of a forward step,
-             * otherwise (a backward step was performed) we can directly jump to the invoke vertex leading to
-             * the entry of the different method.
-             */
-
-            AllDirectedPaths<Vertex, Edge> allDirectedPaths = new AllDirectedPaths<>(graph);
-            // TODO: verify how the flag 'simplePathsOnly' affects the traversal
-            List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
-
-            /*
-            Set<Vertex> vertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
-
-            paths.parallelStream().forEach(path -> path.getEdgeList().parallelStream().forEach(edge -> {
-                vertices.add(edge.getSource());
-                vertices.add(edge.getTarget());
-            }));
-
-            return vertices.parallelStream()
-                    .filter(vertex -> vertex.containsInstruction(method, instructionIndex))
-                    .findAny().orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
-             */
-
-            // https://stackoverflow.com/questions/64929090/nested-parallel-stream-execution-in-java-findany-randomly-fails
-            return paths.parallelStream().flatMap(path -> path.getEdgeList().parallelStream()
-                    .map(edge -> {
-                        Vertex source = edge.getSource();
-                        Vertex target = edge.getTarget();
-
-                        if (source.containsInstruction(method, instructionIndex)) {
-                            return source;
-                        } else if (target.containsInstruction(method, instructionIndex)) {
-                            return target;
-                        } else {
-                            return null;
-                        }
-                    }).filter(Objects::nonNull)).findAny()
-                    .orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
+        } else {
+            throw new IllegalArgumentException("Unrecognized trace: " + trace);
         }
+    }
+
+    /**
+     * Looks up a vertex in the graph.
+     *
+     * @param method The method the vertex belongs to.
+     * @param instructionIndex The instruction index.
+     * @param entry The entry vertex of the given method (bound for the look up).
+     * @param exit The exit vertex of the given method (bound for the look up).
+     * @return Returns the vertex described by the given method and the instruction index, otherwise
+     *          a {@link IllegalArgumentException} is thrown.
+     */
+    @SuppressWarnings("unused")
+    private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry, Vertex exit) {
+
+        /*
+         * If the 'AllDirectedPaths' algorithm appears to be too slow, we could alternatively use
+         * some traversal strategy supplied by JGraphT, see
+         * https://jgrapht.org/javadoc-1.4.0/org/jgrapht/traverse/package-summary.html.
+         * If this is still not good enough, we can roll out our own search algorithm. One could
+         * perform a parallel forward/backward search starting from the entry and exit vertex, respectively.
+         * If a forward/backward step falls out of the given method, i.e. a vertex of a different method is reached,
+         * we can directly jump from the entry vertex to the virtual return vertex in case of a forward step,
+         * otherwise (a backward step was performed) we can directly jump to the invoke vertex leading to
+         * the entry of the different method.
+         */
+
+        AllDirectedPaths<Vertex, Edge> allDirectedPaths = new AllDirectedPaths<>(graph);
+
+        /*
+        * In general this algorithm is really fast, however, when dealing with cycles in the graph, the algorithm
+        * fails to find the desired vertex. If we adjust the 'simplePathsOnly' parameter to handle cycles the
+        * algorithm can be really slow.
+         */
+        List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
+
+        // https://stackoverflow.com/questions/64929090/nested-parallel-stream-execution-in-java-findany-randomly-fails
+        return paths.parallelStream().flatMap(path -> path.getEdgeList().parallelStream()
+                .map(edge -> {
+                    Vertex source = edge.getSource();
+                    Vertex target = edge.getTarget();
+
+                    LOGGER.debug("Inspecting source vertex: " + source);
+                    LOGGER.debug("Inspecting target vertex: " + target);
+
+
+                    if (source.containsInstruction(method, instructionIndex)) {
+                        return source;
+                    } else if (target.containsInstruction(method, instructionIndex)) {
+                        return target;
+                    } else {
+                        return null;
+                    }
+                }).filter(Objects::nonNull)).findAny()
+                .orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
+    }
+
+    /**
+     * Performs a depth first search for looking up the vertex.
+     *
+     * @param method The method describing the vertex.
+     * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
+     * @param entry The entry vertex of the method (limits the search).
+     * @return Returns the vertex described by the given method and the instruction index, otherwise
+     *          a {@link IllegalArgumentException} is thrown.
+     */
+    private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry) {
+
+        DepthFirstIterator<Vertex, Edge> dfs = new DepthFirstIterator<>(graph, entry);
+
+        while (dfs.hasNext()) {
+            Vertex vertex = dfs.next();
+            if (vertex.containsInstruction(method, instructionIndex)) {
+                return vertex;
+            }
+        }
+
+        throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
+    }
+
+    /**
+     * Performs a breadth first search for looking up the vertex.
+     *
+     * @param method The method describing the vertex.
+     * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
+     * @param entry The entry vertex of the method (limits the search).
+     * @return Returns the vertex described by the given method and the instruction index, otherwise
+     *          a {@link IllegalArgumentException} is thrown.
+     */
+    @SuppressWarnings("unused")
+    private Vertex lookUpVertexBFS(String method, int instructionIndex, Vertex entry) {
+
+        BreadthFirstIterator<Vertex, Edge> bfs = new BreadthFirstIterator<>(graph, entry);
+
+        while (bfs.hasNext()) {
+            Vertex vertex = bfs.next();
+            if (vertex.containsInstruction(method, instructionIndex)) {
+                return vertex;
+            }
+        }
+
+        throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
     }
 }
