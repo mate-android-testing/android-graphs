@@ -1092,7 +1092,7 @@ public class InterCFG extends BaseCFG {
                 }
 
                 /*
-                * TODO: combine virtual return statements for overriden methods
+                * TODO: combine virtual return statements for overridden methods
                 * Since we need to over-approximate method calls, i.e. we add for each
                 * method that overrides the given method an edge, we would have actually
                 * multiple virtual return statements, but this would require here a redundant
@@ -1402,8 +1402,6 @@ public class InterCFG extends BaseCFG {
      */
     @Override
     public Vertex lookUpVertex(String trace) {
-
-        // TODO: support lookup of a virtual return vertex
 
         /*
         * A trace has the following form:

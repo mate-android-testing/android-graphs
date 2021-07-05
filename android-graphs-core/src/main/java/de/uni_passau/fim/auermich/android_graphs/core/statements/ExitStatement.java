@@ -35,6 +35,7 @@ public class ExitStatement extends Statement implements Cloneable {
         return Objects.hash(method);
     }
 
+    @Override
     public ExitStatement clone() {
         return (ExitStatement) super.clone();
     }

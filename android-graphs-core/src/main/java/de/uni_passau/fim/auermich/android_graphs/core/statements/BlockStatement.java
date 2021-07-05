@@ -76,6 +76,7 @@ public class BlockStatement extends Statement implements Cloneable {
     }
 
 
+    @Override
     public BlockStatement clone() {
         BlockStatement clone = (BlockStatement) super.clone();
         return clone;

@@ -56,6 +56,11 @@ public class ReturnStatement extends Statement implements Cloneable {
         return targetMethod;
     }
 
+    public int getId() {
+        return id;
+    }
+
+    @Override
     public ReturnStatement clone() {
         ReturnStatement stmt = (ReturnStatement) super.clone();
         stmt.targetMethod = this.getTargetMethod();

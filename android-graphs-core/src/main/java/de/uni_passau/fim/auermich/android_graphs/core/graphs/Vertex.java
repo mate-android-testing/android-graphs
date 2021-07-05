@@ -3,6 +3,7 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.InstructionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -54,9 +55,11 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
 
         switch (statement.getType()) {
             case ENTRY_STATEMENT:
-            case RETURN_STATEMENT:
             case EXIT_STATEMENT:
                 return false;
+            case RETURN_STATEMENT:
+                ReturnStatement returnStmt = (ReturnStatement) statement;
+                return returnStmt.getMethod().equals(method) && returnStmt.getId() == instructionID;
             case BASIC_STATEMENT:
                 BasicStatement stmt = (BasicStatement) statement;
                 return statement.getMethod().equals(method)
@@ -66,19 +69,23 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                 BlockStatement block = (BlockStatement) statement;
                 List<Statement> stmts = block.getStatements();
 
-                boolean containsInstruction = false;
-
                 for (Statement statement : stmts) {
-                    if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
+                    if (statement instanceof BasicStatement) {
                         BasicStatement basicStatement = (BasicStatement) statement;
                         if (basicStatement.getMethod().equals(method)
                                 && basicStatement.getInstructionIndex() == instructionID) {
-                            containsInstruction = true;
-                            break;
+                            return true;
+                        }
+                    } else if (statement instanceof ReturnStatement) {
+                        ReturnStatement returnStatement = (ReturnStatement) statement;
+                        if (returnStatement.getMethod().equals(method)
+                                && returnStatement.getId() == instructionID) {
+                            return true;
                         }
                     }
                 }
-                return containsInstruction;
+
+                return false;
             default:
                 throw new UnsupportedOperationException("Statement type not supported yet");
         }

@@ -36,6 +36,7 @@ public class EntryStatement extends Statement implements Cloneable {
         return Objects.hash(method);
     }
 
+    @Override
     public EntryStatement clone() {
         return (EntryStatement) super.clone();
     }

@@ -55,7 +55,7 @@ public class BasicStatement extends Statement implements Cloneable {
         return Objects.hash(method, instruction.getInstructionIndex());
     }
 
-
+    @Override
     public BasicStatement clone() {
         BasicStatement clone = (BasicStatement) super.clone();
         Cloner cloner = new Cloner();
