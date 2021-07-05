@@ -89,6 +89,8 @@ public class GraphUtils {
     public static BaseCFG constructInterCFG(final File apkPath, final boolean useBasicBlocks,
                                             final boolean excludeARTClasses, final boolean onlyResolveAUTClasses) {
 
+        long start = System.currentTimeMillis();
+
         MultiDexContainer<? extends DexBackedDexFile> apk = null;
 
         try {
@@ -131,6 +133,10 @@ public class GraphUtils {
         }
 
         BaseGraph baseGraph = builder.build();
+
+        long end = System.currentTimeMillis();
+        LOGGER.debug("Graph construction took: " + ((end - start) / 1000) + " seconds");
+
         return (BaseCFG) baseGraph;
     }
 }
