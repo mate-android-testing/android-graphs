@@ -58,8 +58,15 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
             case EXIT_STATEMENT:
                 return false;
             case RETURN_STATEMENT:
-                ReturnStatement returnStmt = (ReturnStatement) statement;
-                return returnStmt.getMethod().equals(method) && returnStmt.getId() == instructionID;
+                /*
+                * Although the subsequent code works, we can't distinguish between the virtual return statement
+                * and a basic statement referring to the same instruction index. Depending on the order how vertices
+                * are traversed, we may return one time the virtual return vertex and one time the vertex containing
+                * the actual instruction. Thus, we disable the look up of virtual return vertices right now.
+                 */
+                // ReturnStatement returnStmt = (ReturnStatement) statement;
+                // return returnStmt.getMethod().equals(method) && returnStmt.getId() == instructionID;
+                return false;
             case BASIC_STATEMENT:
                 BasicStatement stmt = (BasicStatement) statement;
                 return statement.getMethod().equals(method)
@@ -80,7 +87,8 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                         ReturnStatement returnStatement = (ReturnStatement) statement;
                         if (returnStatement.getMethod().equals(method)
                                 && returnStatement.getId() == instructionID) {
-                            return true;
+                            // See the comment for the non-nested return statement.
+                            // return true;
                         }
                     }
                 }
