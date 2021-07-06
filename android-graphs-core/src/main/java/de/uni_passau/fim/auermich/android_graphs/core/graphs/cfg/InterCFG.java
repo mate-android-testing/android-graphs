@@ -99,12 +99,6 @@ public class InterCFG extends BaseCFG {
         // track relations between components
         ComponentUtils.checkComponentRelations(apk, components);
 
-        if (properties.useBasicBlocks) {
-            constructCFGWithBasicBlocks(apk);
-        } else {
-            constructCFGNoBasicBlocks(apk);
-        }
-
         // add for each component a callback graph
         Map<String, BaseCFG> callbackGraphs = addCallbackGraphs();
 
@@ -115,6 +109,12 @@ public class InterCFG extends BaseCFG {
         addUICallbacks(apk, callbackGraphs);
 
         LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
+
+        if (properties.useBasicBlocks) {
+            constructCFGWithBasicBlocks(apk);
+        } else {
+            constructCFGNoBasicBlocks(apk);
+        }
     }
 
     /**
@@ -245,7 +245,8 @@ public class InterCFG extends BaseCFG {
      *
      * @param apk The APK file.
      * @param invokeStmt The invoke statement defining the target.
-     * @return Returns the CFG matching the given invoke target.
+     * @return Returns the CFGs matching the given invoke target. If no CFG could be derived,
+     *          a {@link IllegalStateException} is thrown.
      */
     private Set<BaseCFG> lookupTargetCFGs(final APK apk, final BasicStatement invokeStmt) {
 
@@ -308,6 +309,11 @@ public class InterCFG extends BaseCFG {
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
             }
+        }
+
+        if (targetCFGs.isEmpty()) {
+            LOGGER.error("Couldn't derive target CFG for target method " + targetMethod);
+            throw new IllegalStateException("Couldn't derive target CFG for target method " + targetMethod);
         }
 
         return targetCFGs;
