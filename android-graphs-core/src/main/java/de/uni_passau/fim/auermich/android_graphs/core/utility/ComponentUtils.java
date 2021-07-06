@@ -32,6 +32,7 @@ public class ComponentUtils {
         add("Landroid/support/v7/app/AppCompatActivity;");
         add("Landroid/support/v7/app/ActionBarActivity;");
         add("Landroid/support/v4/app/FragmentActivity;");
+        add("Landroid/preference/PreferenceActivity;");
     }};
 
     /**
@@ -138,6 +139,10 @@ public class ComponentUtils {
                         if (activity.isPresent()) {
                             // return the full-qualified name of the constructor
                             return activity.get().getDefaultConstructor();
+                        } else {
+                            LOGGER.warn("Potentially not recognized activity name: " + activityName);
+                            // only inspect the closest const_class instruction for the activity name
+                            return null;
                         }
                     } else {
                         if (analyzedInstruction.getPredecessors().isEmpty()) {
