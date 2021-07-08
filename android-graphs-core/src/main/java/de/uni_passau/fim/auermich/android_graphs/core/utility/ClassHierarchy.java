@@ -168,7 +168,7 @@ public class ClassHierarchy {
             /*
             * First, check whether the current class defines the method, otherwise look up
             * in the class hierarchy for any super class defining the method. If this is also
-            * not the case, we need to look up downwards in the class hierarchy for a sub class
+            * not the case, we need to look downwards in the class hierarchy for a sub class
             * overriding the method.
              */
             boolean currentClassDefinesMethod = false;
@@ -256,7 +256,7 @@ public class ClassHierarchy {
 
             for (Method method : superClazz.getClazz().getMethods()) {
                 if (MethodUtils.getMethodName(method.toString()).equals(methodName)) {
-                    LOGGER.debug("Super class " + superClazz.getClazz() + " defines the method " + methodName);
+                    LOGGER.debug("(Super) class " + superClazz.getClazz() + " defines the method " + methodName);
                     return method.toString();
                 }
             }
@@ -264,6 +264,19 @@ public class ClassHierarchy {
             superClazz = getClass(superClazz.superClass);
         }
         return null;
+    }
+
+    /**
+     * Checks whether the given method is invoked by the current class or any super class.
+     *
+     * @param methodSignature The method to be checked against.
+     * @return Returns the method signature of the defining class or {@code null} if no such class exists.
+     */
+    public String invokedByCurrentClassOrAnySuperClass(String methodSignature) {
+        String methodName = MethodUtils.getMethodName(methodSignature);
+        String className = MethodUtils.getClassName(methodSignature);
+        Class clazz = getClassByName(className);
+        return invokesSuperMethod(clazz, methodName);
     }
 
     /**

@@ -298,6 +298,29 @@ public class InterCFG extends BaseCFG {
                             targetCFGs.add(dummyCFG(overriddenMethod));
                         }
                     }
+                } else if (DialogUtils.isDialogInvocation(overriddenMethod)) {
+                    LOGGER.debug("Dialog invocation detected: " + overriddenMethod);
+
+                    /*
+                    * When any showDialog() method is invoked, the respective onCreateDialog() method
+                    * is called. We need to check the activity class itself and super classes for the
+                    * implementation of onCreateDialog().
+                     */
+                    final String onCreateDialogMethod = DialogUtils.getOnCreateDialogMethod(overriddenMethod);
+                    String onCreateDialog = MethodUtils.getClassName(overriddenMethod) + "->" + onCreateDialogMethod;
+                    onCreateDialog = classHierarchy.invokedByCurrentClassOrAnySuperClass(onCreateDialog);
+
+                    if (onCreateDialog != null) {
+                        if (intraCFGs.containsKey(onCreateDialog)) {
+                            targetCFGs.add(intraCFGs.get(onCreateDialog));
+                        } else {
+                            LOGGER.warn("Method " + onCreateDialog + " not contained in dex files!");
+                            targetCFGs.add(dummyCFG(overriddenMethod));
+                        }
+                    } else {
+                        LOGGER.warn("OnCreateDialog() not defined by any class for invocation: " + overriddenMethod);
+                        targetCFGs.add(dummyCFG(overriddenMethod));
+                    }
                 } else {
                     /*
                      * There are some Android specific classes, e.g. android/view/View, which are
