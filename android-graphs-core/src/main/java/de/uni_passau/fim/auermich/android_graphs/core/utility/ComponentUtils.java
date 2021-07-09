@@ -14,10 +14,7 @@ import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction22c;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 public class ComponentUtils {
 
@@ -582,5 +579,37 @@ public class ComponentUtils {
                 });
             }
         }
+    }
+
+    /**
+     * Checks whether the given class represents an application class by checking against the super class.
+     *
+     * @param classes      The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is an application class,
+     *              otherwise {@code false}.
+     */
+    public static boolean isApplication(final List<ClassDef> classes, final ClassDef currentClass) {
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            if (superClass.equals("Landroid/app/Application;")) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

@@ -103,7 +103,7 @@ public class InterCFG extends BaseCFG {
         Map<String, BaseCFG> callbackGraphs = addCallbackGraphs();
 
         // add lifecycle of components + global entry points
-        addLifecycle(callbackGraphs);
+        addLifecycleAndGlobalEntryPoints(callbackGraphs);
 
         // add the UI callbacks specified either through XML or directly in code
         addUICallbacks(apk, callbackGraphs);
@@ -347,7 +347,7 @@ public class InterCFG extends BaseCFG {
      *
      * @param callbackGraphs A mapping of component to its callback graph.
      */
-    private void addLifecycle(Map<String, BaseCFG> callbackGraphs) {
+    private void addLifecycleAndGlobalEntryPoints(Map<String, BaseCFG> callbackGraphs) {
 
         // add activity and fragment lifecycle as well as global entry point for activities
         components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activityComponent -> {
@@ -360,6 +360,73 @@ public class InterCFG extends BaseCFG {
         components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(service -> {
             addAndroidServiceLifecycle((Service) service, callbackGraphs.get(service.getName()));
         });
+
+        // add global entry point for application class
+        components.stream().filter(c -> c.getComponentType() == ComponentType.APPLICATION).forEach(applicationComponent -> {
+            Application application = (Application) applicationComponent;
+            addAndroidApplicationLifecycle(application, callbackGraphs.get(application.getName()));
+            addGlobalEntryPoint(application);
+        });
+    }
+
+    /**
+     * Adds the application class (constructor) as a global entry point.
+     *
+     * @param application The application class.
+     */
+    private void addGlobalEntryPoint(Application application) {
+        BaseCFG applicationConstructor = intraCFGs.get(application.getDefaultConstructor());
+        addEdge(getEntry(), applicationConstructor.getEntry());
+    }
+
+    /**
+     * Adds the application lifecycle. This includes the callbacks.
+     *
+     * @param application The application class.
+     * @param callbackGraph The callbacks sub graph of the application class.
+     */
+    private void addAndroidApplicationLifecycle(Application application, BaseCFG callbackGraph) {
+
+        BaseCFG constructor = intraCFGs.get(application.getDefaultConstructor());
+
+        BaseCFG nextLifecycleMethod = callbackGraph;
+
+        // the onCreate() method is optional
+        if (intraCFGs.containsKey(application.onCreateMethod())) {
+            nextLifecycleMethod = intraCFGs.get(application.onCreateMethod());
+            // add an edge from the exit of onCreate() to the callbacks sub graph
+            addEdge(nextLifecycleMethod.getExit(), callbackGraph.getEntry());
+        }
+
+        // link the constructor to either the onCreate or directly to the callbacks sub graph
+        addEdge(constructor.getExit(), nextLifecycleMethod.getEntry());
+
+        // multiple callbacks might be invoked consecutively
+        addEdge(callbackGraph.getExit(), callbackGraph.getEntry());
+
+        if (intraCFGs.containsKey(application.onLowMemoryMethod())) {
+            BaseCFG onLowMemoryCFG = intraCFGs.get(application.onLowMemoryMethod());
+            addEdge(callbackGraph.getEntry(), onLowMemoryCFG.getEntry());
+            addEdge(onLowMemoryCFG.getExit(), callbackGraph.getExit());
+        }
+
+        if (intraCFGs.containsKey(application.onTerminateMethod())) {
+            BaseCFG onTerminateCFG = intraCFGs.get(application.onTerminateMethod());
+            addEdge(callbackGraph.getEntry(), onTerminateCFG.getEntry());
+            addEdge(onTerminateCFG.getExit(), callbackGraph.getExit());
+        }
+
+        if (intraCFGs.containsKey(application.onTrimMemoryMethod())) {
+            BaseCFG onTrimMemoryCFG = intraCFGs.get(application.onTrimMemoryMethod());
+            addEdge(callbackGraph.getEntry(), onTrimMemoryCFG.getEntry());
+            addEdge(onTrimMemoryCFG.getExit(), callbackGraph.getExit());
+        }
+
+        if (intraCFGs.containsKey(application.onConfigurationChangedMethod())) {
+            BaseCFG onConfigurationChangedCFG = intraCFGs.get(application.onConfigurationChangedMethod());
+            addEdge(callbackGraph.getEntry(), onConfigurationChangedCFG.getEntry());
+            addEdge(onConfigurationChangedCFG.getExit(), callbackGraph.getExit());
+        }
     }
 
     /**
@@ -1270,6 +1337,8 @@ public class InterCFG extends BaseCFG {
                         components.add(new Service(classDef, ComponentType.SERVICE));
                     } else if (ComponentUtils.isBinder(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         binderClasses.add(classDef.toString());
+                    } else if (ComponentUtils.isApplication(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                        components.add(new Application(classDef, ComponentType.APPLICATION));
                     }
                 }
 
@@ -1320,6 +1389,8 @@ public class InterCFG extends BaseCFG {
         }
 
         LOGGER.debug("Generated CFGs: " + intraCFGs.size());
+        LOGGER.debug("List of application classes: " + components.stream()
+                .filter(c -> c.getComponentType() == ComponentType.APPLICATION).collect(Collectors.toList()));
         LOGGER.debug("List of activities: " + components.stream()
                 .filter(c -> c.getComponentType() == ComponentType.ACTIVITY).collect(Collectors.toList()));
         LOGGER.debug("List of fragments: " + components.stream()
