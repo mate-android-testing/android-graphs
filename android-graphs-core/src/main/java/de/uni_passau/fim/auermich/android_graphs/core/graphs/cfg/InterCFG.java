@@ -106,7 +106,7 @@ public class InterCFG extends BaseCFG {
         addLifecycleAndGlobalEntryPoints(callbackGraphs);
 
         // add the UI callbacks specified either through XML or directly in code
-        addUICallbacks(apk, callbackGraphs);
+        addCallbacks(apk, callbackGraphs);
 
         LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
 
@@ -821,7 +821,7 @@ public class InterCFG extends BaseCFG {
      * @param apk            The APK file describing the app.
      * @param callbackGraphs Maintains a mapping between a component and its callback graph.
      */
-    private void addUICallbacks(APK apk, Map<String, BaseCFG> callbackGraphs) {
+    private void addCallbacks(APK apk, Map<String, BaseCFG> callbackGraphs) {
 
         // retrieve callbacks declared in code and XML
         Multimap<String, BaseCFG> callbacks = lookUpCallbacks(apk);
@@ -853,6 +853,34 @@ public class InterCFG extends BaseCFG {
                     addEdge(callback.getExit(), callbackGraph.getExit());
                 });
             }
+        });
+
+        // add the defined callbacks of a custom view class to the dedicated callbacks subgraph
+        components.stream().filter(c -> c.getComponentType() == ComponentType.VIEW).forEach(view -> {
+
+            LOGGER.debug("Adding callbacks to view: " + view);
+
+            // attach the callbacks subgraph to the constructor(s)
+            BaseCFG callbackGraph = callbackGraphs.get(view.getName());
+
+            ClassUtils.getConstructors(view.getClazz()).forEach(ctr -> {
+                addEdge(intraCFGs.get(ctr).getExit(), callbackGraph.getEntry());
+            });
+
+            // multiple callbacks can be triggered
+            addEdge(callbackGraph.getExit(), callbackGraph.getEntry());
+
+            // add the defined callbacks to the subgraph
+            view.getClazz().getMethods().forEach(method -> {
+                if (View.getCallbacks().contains(MethodUtils.getMethodName(method))) {
+                    String methodSignature = MethodUtils.deriveMethodSignature(method);
+                    if (intraCFGs.containsKey(methodSignature)) {
+                        LOGGER.debug("Found callback: " + MethodUtils.getMethodName(methodSignature));
+                        addEdge(callbackGraph.getEntry(), intraCFGs.get(methodSignature).getEntry());
+                        addEdge(intraCFGs.get(methodSignature).getExit(), callbackGraph.getExit());
+                    }
+                }
+            });
         });
     }
 
@@ -1339,6 +1367,8 @@ public class InterCFG extends BaseCFG {
                         binderClasses.add(classDef.toString());
                     } else if (ComponentUtils.isApplication(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Application(classDef, ComponentType.APPLICATION));
+                    } else if (ComponentUtils.isView(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                        components.add(new View(classDef, ComponentType.VIEW));
                     }
                 }
 
@@ -1397,6 +1427,8 @@ public class InterCFG extends BaseCFG {
                 .filter(c -> c.getComponentType() == ComponentType.FRAGMENT).collect(Collectors.toList()));
         LOGGER.debug("List of services: " + components.stream()
                 .filter(c -> c.getComponentType() == ComponentType.SERVICE).collect(Collectors.toList()));
+        LOGGER.debug("List of views: " + components.stream()
+                .filter(c -> c.getComponentType() == ComponentType.VIEW).collect(Collectors.toList()));
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
     }
 

@@ -4,10 +4,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
+import org.jf.dexlib2.iface.Method;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 public class ClassUtils {
 
@@ -227,5 +230,18 @@ public class ClassUtils {
         }
          */
         return false;
+    }
+
+    /**
+     * Returns the constructors of the given class.
+     *
+     * @param classDef The class for which the constructors should be retrieved.
+     * @return Returns the constructors of the given class.
+     */
+    public static Set<String> getConstructors(ClassDef classDef) {
+        return StreamSupport.stream(classDef.getDirectMethods().spliterator(), false)
+                .filter(method -> method.getName().startsWith("<init>"))
+                .map(Method::toString)
+                .collect(Collectors.toSet());
     }
 }

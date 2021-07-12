@@ -136,6 +136,16 @@ public class MethodUtils {
     }
 
     /**
+     * Returns solely the method name from a fully qualified method name.
+     *
+     * @param method The fully qualified method name.
+     * @return Returns the method name from the fully qualified method name.
+     */
+    public static String getMethodName(final Method method) {
+        return method.toString().split(";->")[1];
+    }
+
+    /**
      * Checks whether the given class refers to a static initializer.
      *
      * @param method The method to be checked.
