@@ -105,7 +105,7 @@ public class InterCFG extends BaseCFG {
         // add lifecycle of components + global entry points
         addLifecycleAndGlobalEntryPoints(callbackGraphs);
 
-        // add the UI callbacks specified either through XML or directly in code
+        // add the callbacks specified either through XML or directly in code
         addCallbacks(apk, callbackGraphs);
 
         LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
@@ -855,30 +855,52 @@ public class InterCFG extends BaseCFG {
             }
         });
 
-        // add the defined callbacks of a custom view class to the dedicated callbacks subgraph
-        components.stream().filter(c -> c.getComponentType() == ComponentType.VIEW).forEach(view -> {
+        /*
+        * Any class might declare Android-specific callbacks, e.g. onPreferenceChanged().
+        * Since callbacks are mostly implemented through inner classes, it's not sufficient to only
+        * traverse the detected components.
+         */
+        LOGGER.debug("Adding callbacks to individual classes!");
+        apk.getDexFiles().forEach(dexFile -> {
+            dexFile.getClasses().forEach(classDef -> {
+                String className = ClassUtils.dottedClassName(classDef.toString());
 
-            LOGGER.debug("Adding callbacks to view: " + view);
+                // only inspect classes belonging to the AUT
+                if (properties.resolveOnlyAUTClasses && className.startsWith(apk.getManifest().getPackageName())) {
 
-            // attach the callbacks subgraph to the constructor(s)
-            BaseCFG callbackGraph = callbackGraphs.get(view.getName());
+                    classDef.getMethods().forEach(method -> {
 
-            ClassUtils.getConstructors(view.getClazz()).forEach(ctr -> {
-                addEdge(intraCFGs.get(ctr).getExit(), callbackGraph.getEntry());
-            });
+                        if (AndroidCallbacks.getCallbacks().contains(MethodUtils.getMethodName(method))) {
+                            String methodSignature = MethodUtils.deriveMethodSignature(method);
+                            if (intraCFGs.containsKey(methodSignature)) {
 
-            // multiple callbacks can be triggered
-            addEdge(callbackGraph.getExit(), callbackGraph.getEntry());
+                                LOGGER.debug("Found callback: " + methodSignature);
 
-            // add the defined callbacks to the subgraph
-            view.getClazz().getMethods().forEach(method -> {
-                if (View.getCallbacks().contains(MethodUtils.getMethodName(method))) {
-                    String methodSignature = MethodUtils.deriveMethodSignature(method);
-                    if (intraCFGs.containsKey(methodSignature)) {
-                        LOGGER.debug("Found callback: " + MethodUtils.getMethodName(methodSignature));
-                        addEdge(callbackGraph.getEntry(), intraCFGs.get(methodSignature).getEntry());
-                        addEdge(intraCFGs.get(methodSignature).getExit(), callbackGraph.getExit());
-                    }
+                                // TODO: avoid redundant creation and adding of callback graph
+                                BaseCFG callbackGraph = dummyIntraCFG("callbacks "
+                                        + MethodUtils.getClassName(methodSignature));
+                                addSubGraph(callbackGraph);
+
+                                /*
+                                * We attach the callbacks subgraph after the exit of any class constructor.
+                                * This is only true for classes that don't represent a component, e.g. activity,
+                                * since those callbacks are nested in the lifecycle of the respective component.
+                                 */
+                                if (ComponentUtils.getComponentByName(components, classDef.toString()).isEmpty()) {
+                                    ClassUtils.getConstructors(classDef).forEach(ctr -> {
+                                        addEdge(intraCFGs.get(ctr).getExit(), callbackGraph.getEntry());
+                                    });
+                                }
+
+                                // multiple callbacks can be triggered
+                                addEdge(callbackGraph.getExit(), callbackGraph.getEntry());
+
+                                // incorporate callback into callbacks subgraph
+                                addEdge(callbackGraph.getEntry(), intraCFGs.get(methodSignature).getEntry());
+                                addEdge(intraCFGs.get(methodSignature).getExit(), callbackGraph.getExit());
+                            }
+                        }
+                    });
                 }
             });
         });
@@ -1367,8 +1389,6 @@ public class InterCFG extends BaseCFG {
                         binderClasses.add(classDef.toString());
                     } else if (ComponentUtils.isApplication(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Application(classDef, ComponentType.APPLICATION));
-                    } else if (ComponentUtils.isView(Lists.newArrayList(dexFile.getClasses()), classDef)) {
-                        components.add(new View(classDef, ComponentType.VIEW));
                     }
                 }
 
@@ -1427,8 +1447,6 @@ public class InterCFG extends BaseCFG {
                 .filter(c -> c.getComponentType() == ComponentType.FRAGMENT).collect(Collectors.toList()));
         LOGGER.debug("List of services: " + components.stream()
                 .filter(c -> c.getComponentType() == ComponentType.SERVICE).collect(Collectors.toList()));
-        LOGGER.debug("List of views: " + components.stream()
-                .filter(c -> c.getComponentType() == ComponentType.VIEW).collect(Collectors.toList()));
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
     }
 

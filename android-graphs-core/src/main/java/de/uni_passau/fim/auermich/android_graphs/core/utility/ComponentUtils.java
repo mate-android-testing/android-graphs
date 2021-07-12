@@ -612,38 +612,4 @@ public class ComponentUtils {
         }
         return false;
     }
-
-    /**
-     * Checks whether the given class represents a view class by checking against the super class.
-     *
-     * @param classes      The set of classes.
-     * @param currentClass The class to be inspected.
-     * @return Returns {@code true} if the current class is a view class,
-     *              otherwise {@code false}.
-     */
-    public static boolean isView(final List<ClassDef> classes, final ClassDef currentClass) {
-
-        String superClass = currentClass.getSuperclass();
-        boolean abort = false;
-
-        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
-
-            abort = true;
-
-            // TODO: the super class android.view.View is not necessarily included in the APK -> add known sub classes
-            if (superClass.equals("Landroid/view/View;")
-                || superClass.equals("Landroid/widget/Button;")) {
-                return true;
-            } else {
-                // step up in the class hierarchy
-                for (ClassDef classDef : classes) {
-                    if (classDef.toString().equals(superClass)) {
-                        superClass = classDef.getSuperclass();
-                        abort = false;
-                    }
-                }
-            }
-        }
-        return false;
-    }
 }
