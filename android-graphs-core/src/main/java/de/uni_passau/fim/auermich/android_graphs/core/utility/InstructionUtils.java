@@ -54,20 +54,19 @@ public final class InstructionUtils {
     }
 
     /**
-     * Checks whether the given instruction refers to an parse-switch or packed-switch payload instruction.
-     * These instructions are typically located at the end of a method after the return statement, thus
-     * being isolated.
+     * Checks whether the given instruction refers to an parse-switch, a packed-switch or array payload instruction.
+     * These instructions are typically located at the end of a method after the return statement, thus being isolated.
      *
      * @param analyzedInstruction The instruction to be analyzed.
-     * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
+     * @return Returns {@code true} if the instruction is a parse-switch, packed-switch or array payload instruction,
      * otherwise {@code false} is returned.
      */
-    public static boolean isSwitchPayloadInstruction(final AnalyzedInstruction analyzedInstruction) {
+    public static boolean isPayloadInstruction(final AnalyzedInstruction analyzedInstruction) {
         // TODO: may handle the actual parse-switch and packed-switch instructions (not the payload instructions)
         // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
-        EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH_PAYLOAD, Opcode.SPARSE_SWITCH_PAYLOAD);
+        EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH_PAYLOAD, Opcode.SPARSE_SWITCH_PAYLOAD, Opcode.ARRAY_PAYLOAD);
         if (opcodes.contains(analyzedInstruction.getInstruction().getOpcode())) {
-            LOGGER.debug("Sparse/Packed-switch payload instruction at index: " + analyzedInstruction.getInstructionIndex());
+            LOGGER.debug("Sparse/Packed-switch/array payload instruction at index: " + analyzedInstruction.getInstructionIndex());
             return true;
         } else {
             return false;

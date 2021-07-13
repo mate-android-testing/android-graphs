@@ -7,7 +7,6 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.InstructionUtils;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import org.apache.logging.log4j.LogManager;
@@ -80,8 +79,8 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             // pre-create a vertex for each single instruction
             for (int index = 0; index < analyzedInstructions.size(); index++) {
 
-                // ignore parse-switch and packed-switch payload instructions
-                if (InstructionUtils.isSwitchPayloadInstruction(analyzedInstructions.get(index))) {
+                // ignore parse-switch, packed-switch and array payload instructions
+                if (InstructionUtils.isPayloadInstruction(analyzedInstructions.get(index))) {
                     continue;
                 }
 
@@ -100,8 +99,8 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             // connect vertices by inspecting successors and predecessors of instructions
             for (int index = 0; index < analyzedInstructions.size(); index++) {
 
-                // ignore parse-switch and packed-switch payload instructions
-                if (InstructionUtils.isSwitchPayloadInstruction(analyzedInstructions.get(index))) {
+                // ignore parse-switch, packed-switch and array payload instructions
+                if (InstructionUtils.isPayloadInstruction(analyzedInstructions.get(index))) {
                     continue;
                 }
 
@@ -132,16 +131,17 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 // add for each successor an outgoing edge to the current vertex + handle return/throw instructions
                 List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
 
-                // FIXME: There can be unreachable instructions after the return statement, ignoring them right now.
+                /*
+                 * An instruction without a successor is either a return, throw or one of those payload instructions.
+                 * We ignore here the latter type of instructions, see the previous check
+                 * InstructionUtils.isPayloadInstruction().
+                 */
                 if (successors.isEmpty()) {
 
                     LOGGER.debug("Terminator Instruction: " + analyzedInstruction.getOriginalInstruction().getOpcode()
                         + "(" + analyzedInstruction.getInstructionIndex() + ")");
 
-                    /*
-                    * An instruction, which does not define any successor, is either a return
-                    * or a throw statement. Thus, such an instruction signals the end of the method.
-                     */
+                    // a return or throw instruction defines an edge to the virtual exit vertex
                     addEdge(vertex, getExit());
                 } else {
                     for (AnalyzedInstruction successor : successors) {
@@ -188,7 +188,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
 
                 // ignore parse-switch and packed-switch payload instructions
-                if (InstructionUtils.isSwitchPayloadInstruction(analyzedInstruction)) {
+                if (InstructionUtils.isPayloadInstruction(analyzedInstruction)) {
                     continue;
                 }
 
