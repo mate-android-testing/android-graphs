@@ -65,6 +65,10 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/app/Activity#onCreateOptionsMenu(android.view.Menu)
         add("onCreateOptionsMenu(Landroid/view/Menu;)Z");
+
+        add("onDraw(Landroid/graphics/Canvas;)V");
+        add("onSizeChanged(IIII)V");
+        add("onPreferenceChange(Landroid/preference/Preference;Ljava/lang/Object;)Z");
     }};
 
     /**

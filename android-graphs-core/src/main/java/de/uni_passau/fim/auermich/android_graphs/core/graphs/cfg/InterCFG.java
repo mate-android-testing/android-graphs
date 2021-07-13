@@ -854,56 +854,6 @@ public class InterCFG extends BaseCFG {
                 });
             }
         });
-
-        /*
-        * Any class might declare Android-specific callbacks, e.g. onPreferenceChanged().
-        * Since callbacks are mostly implemented through inner classes, it's not sufficient to only
-        * traverse the detected components.
-         */
-        LOGGER.debug("Adding callbacks to individual classes!");
-        apk.getDexFiles().forEach(dexFile -> {
-            dexFile.getClasses().forEach(classDef -> {
-                String className = ClassUtils.dottedClassName(classDef.toString());
-
-                // only inspect classes belonging to the AUT
-                if (properties.resolveOnlyAUTClasses && className.startsWith(apk.getManifest().getPackageName())) {
-
-                    classDef.getMethods().forEach(method -> {
-
-                        if (AndroidCallbacks.getCallbacks().contains(MethodUtils.getMethodName(method))) {
-                            String methodSignature = MethodUtils.deriveMethodSignature(method);
-                            if (intraCFGs.containsKey(methodSignature)) {
-
-                                LOGGER.debug("Found callback: " + methodSignature);
-
-                                // TODO: avoid redundant creation and adding of callback graph
-                                BaseCFG callbackGraph = dummyIntraCFG("callbacks "
-                                        + MethodUtils.getClassName(methodSignature));
-                                addSubGraph(callbackGraph);
-
-                                /*
-                                * We attach the callbacks subgraph after the exit of any class constructor.
-                                * This is only true for classes that don't represent a component, e.g. activity,
-                                * since those callbacks are nested in the lifecycle of the respective component.
-                                 */
-                                if (ComponentUtils.getComponentByName(components, classDef.toString()).isEmpty()) {
-                                    ClassUtils.getConstructors(classDef).forEach(ctr -> {
-                                        addEdge(intraCFGs.get(ctr).getExit(), callbackGraph.getEntry());
-                                    });
-                                }
-
-                                // multiple callbacks can be triggered
-                                addEdge(callbackGraph.getExit(), callbackGraph.getEntry());
-
-                                // incorporate callback into callbacks subgraph
-                                addEdge(callbackGraph.getEntry(), intraCFGs.get(methodSignature).getEntry());
-                                addEdge(intraCFGs.get(methodSignature).getExit(), callbackGraph.getExit());
-                            }
-                        }
-                    });
-                }
-            });
-        });
     }
 
     /**
