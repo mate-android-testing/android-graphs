@@ -69,6 +69,21 @@ public class MethodUtils {
         add("onDraw(Landroid/graphics/Canvas;)V");
         add("onSizeChanged(IIII)V");
         add("onPreferenceChange(Landroid/preference/Preference;Ljava/lang/Object;)Z");
+
+        // https://developer.android.com/reference/android/widget/AdapterView.OnItemClickListener
+        add("onItemClick(Landroid/widget/AdapterView;Landroid/view/View;IJ)V");
+
+        // https://developer.android.com/reference/android/app/Activity#onOptionsItemSelected(android.view.MenuItem)
+        add("onOptionsItemSelected(Landroid/view/MenuItem;)Z");
+
+        // https://developer.android.com/reference/android/app/Activity#onBackPressed()
+        add("onBackPressed()V");
+
+        // https://developer.android.com/reference/android/app/Activity#dispatchTouchEvent(android.view.MotionEvent)
+        add("dispatchTouchEvent(Landroid/view/MotionEvent;)Z");
+
+        // https://developer.android.com/reference/android/widget/Adapter#getView(int,%20android.view.View,%20android.view.ViewGroup)
+        add("getView(ILandroid/view/View;Landroid/view/ViewGroup;)Landroid/view/View;");
     }};
 
     /**
