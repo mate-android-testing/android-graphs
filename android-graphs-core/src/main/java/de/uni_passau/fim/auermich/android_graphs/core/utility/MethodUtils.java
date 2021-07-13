@@ -84,6 +84,9 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/widget/Adapter#getView(int,%20android.view.View,%20android.view.ViewGroup)
         add("getView(ILandroid/view/View;Landroid/view/ViewGroup;)Landroid/view/View;");
+
+        // https://developer.android.com/reference/android/app/Activity#onActivityResult(int,%20int,%20android.content.Intent)
+        add("onActivityResult(IILandroid/content/Intent;)V");
     }};
 
     /**
