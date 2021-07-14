@@ -66,4 +66,6 @@ public class Activity extends AbstractComponent {
 
     public String onSaveInstanceStateOverloadedMethod() {
         return getName() + "->onSaveInstanceState(Landroid/os/Bundle;Landroid/os/PersistableBundle;)V"; }
+
+    public String onPostResumeMethod() { return getName() + "->onPostResume()V"; }
 }

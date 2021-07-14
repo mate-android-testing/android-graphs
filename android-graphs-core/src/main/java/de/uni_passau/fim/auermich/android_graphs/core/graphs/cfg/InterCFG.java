@@ -689,18 +689,26 @@ public class InterCFG extends BaseCFG {
             addEdge(onResumeFragmentCFG.getExit(), onResumeCFG.getExit());
         }
 
+        BaseCFG lastLifecycle = onResumeCFG;
+        String onPostResume = activity.onPostResumeMethod();
+
+        // onPostResume() is optional
+        if (intraCFGs.containsKey(onPostResume)) {
+            lastLifecycle = addLifecycle(onPostResume, onResumeCFG);
+        }
+
         /*
          * Each component may define several listeners for certain events, e.g. a button click,
          * which causes the invocation of a callback function. Those callbacks are active as
          * long as the corresponding component (activity) is in the onResume state. Thus, in our
          * graph we have an additional sub-graph 'callbacks' that is directly linked to the end
-         * of 'onResume()' and can either call one of the specified listeners or directly invoke
+         * of 'onResume()/onPostResume()' and can either call one of the specified listeners or directly invoke
          * the onPause() method (indirectly through the entry-exit edge). Each listener function
          * points back to the 'callbacks' entry node.
          */
 
-        // callbacks can be invoked after onResume() has finished
-        addEdge(onResumeCFG.getExit(), callbackGraph.getEntry());
+        // callbacks can be invoked after onResume()/onPostResume() has finished
+        addEdge(lastLifecycle.getExit(), callbackGraph.getEntry());
 
         // there can be a sequence of callbacks (loop)
         addEdge(callbackGraph.getExit(), callbackGraph.getEntry());
