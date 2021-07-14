@@ -96,6 +96,12 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/app/Activity#onTitleChanged(java.lang.CharSequence,%20int)
         add("onTitleChanged(Ljava/lang/CharSequence;I)V");
+
+        // https://developer.android.com/reference/android/webkit/WebViewClient#shouldOverrideUrlLoading(android.webkit.WebView,%20android.webkit.WebResourceRequest)
+        add("shouldOverrideUrlLoading(Landroid/webkit/WebView;Ljava/lang/String;)Z");
+
+        // https://developer.android.com/reference/android/webkit/WebViewClient#onPageFinished(android.webkit.WebView,%20java.lang.String)
+        add("onPageFinished(Landroid/webkit/WebView;Ljava/lang/String;)V");
     }};
 
     /**
