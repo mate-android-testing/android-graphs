@@ -79,16 +79,20 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             // pre-create a vertex for each single instruction
             for (int index = 0; index < analyzedInstructions.size(); index++) {
 
-                // ignore parse-switch, packed-switch and array payload instructions
-                if (InstructionUtils.isPayloadInstruction(analyzedInstructions.get(index))) {
+                AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
+
+                // ignore parse-switch, packed-switch and array payload instructions as well as nop at the end
+                if (InstructionUtils.isPayloadInstruction(analyzedInstruction)
+                    || (InstructionUtils.isNOPInstruction(analyzedInstruction)
+                        && analyzedInstruction.getSuccessors().isEmpty())) {
                     continue;
                 }
 
-                Statement stmt = new BasicStatement(getMethodName(), analyzedInstructions.get(index));
+                Statement stmt = new BasicStatement(getMethodName(), analyzedInstruction);
                 Vertex vertex = new Vertex(stmt);
 
                 // keep track of invoke vertices
-                if (InstructionUtils.isInvokeInstruction(analyzedInstructions.get(index))) {
+                if (InstructionUtils.isInvokeInstruction(analyzedInstruction)) {
                     addInvokeVertex(vertex);
                 }
 
@@ -99,13 +103,16 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             // connect vertices by inspecting successors and predecessors of instructions
             for (int index = 0; index < analyzedInstructions.size(); index++) {
 
-                // ignore parse-switch, packed-switch and array payload instructions
-                if (InstructionUtils.isPayloadInstruction(analyzedInstructions.get(index))) {
+                AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
+
+                // ignore parse-switch, packed-switch and array payload instructions as well as nop at the end
+                if (InstructionUtils.isPayloadInstruction(analyzedInstruction)
+                        || (InstructionUtils.isNOPInstruction(analyzedInstruction)
+                        && analyzedInstruction.getSuccessors().isEmpty())) {
                     continue;
                 }
 
                 Vertex vertex = vertices.get(index);
-                AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
 
                 // connect entry vertex with 'first' instruction (there might be multiple due to exceptional flow)
                 if (analyzedInstruction.isBeginningInstruction()) {
@@ -132,8 +139,9 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 List<AnalyzedInstruction> successors = analyzedInstruction.getSuccessors();
 
                 /*
-                 * An instruction without a successor is either a return, throw or one of those payload instructions.
-                 * We ignore here the latter type of instructions, see the previous check
+                 * An instruction without a successor is either a return, throw, one of those payload instructions
+                 * or a NOP instruction at the end of the method.
+                 * We ignore here the latter types of instructions, see the previous check
                  * InstructionUtils.isPayloadInstruction().
                  */
                 if (successors.isEmpty()) {
@@ -187,8 +195,10 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             for (int index = 1; index < analyzedInstructions.size(); index++) {
                 AnalyzedInstruction analyzedInstruction = analyzedInstructions.get(index);
 
-                // ignore parse-switch and packed-switch payload instructions
-                if (InstructionUtils.isPayloadInstruction(analyzedInstruction)) {
+                // ignore parse-switch, packed-switch and array payload instructions as well as nop at the end
+                if (InstructionUtils.isPayloadInstruction(analyzedInstruction)
+                        || (InstructionUtils.isNOPInstruction(analyzedInstruction)
+                        && analyzedInstruction.getSuccessors().isEmpty())) {
                     continue;
                 }
 

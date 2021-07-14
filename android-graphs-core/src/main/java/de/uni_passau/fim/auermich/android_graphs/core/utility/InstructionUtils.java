@@ -130,6 +130,17 @@ public final class InstructionUtils {
     }
 
     /**
+     * Checks whether the given instruction refers to a nop instruction.
+     *
+     * @param instruction The instruction to be inspected.
+     * @return Returns {@code true} if the given instruction is a nop instruction,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isNOPInstruction(final AnalyzedInstruction instruction) {
+        return instruction.getInstruction().getOpcode() == Opcode.NOP;
+    }
+
+    /**
      * Checks whether the given instruction refers to a return statement.
      *
      * @param analyzedInstruction The instruction to be inspected.
