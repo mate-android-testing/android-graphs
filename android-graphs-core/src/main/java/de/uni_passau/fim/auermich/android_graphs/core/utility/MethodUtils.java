@@ -87,6 +87,15 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/app/Activity#onActivityResult(int,%20int,%20android.content.Intent)
         add("onActivityResult(IILandroid/content/Intent;)V");
+
+        // https://developer.android.com/reference/android/view/GestureDetector.OnGestureListener#onFling(android.view.MotionEvent,%20android.view.MotionEvent,%20float,%20float)
+        add("onFling(Landroid/view/MotionEvent;Landroid/view/MotionEvent;FF)Z");
+
+        // https://developer.android.com/reference/android/app/Activity#onConfigurationChanged(android.content.res.Configuration)
+        add("onConfigurationChanged(Landroid/content/res/Configuration;)V");
+
+        // https://developer.android.com/reference/android/app/Activity#onTitleChanged(java.lang.CharSequence,%20int)
+        add("onTitleChanged(Ljava/lang/CharSequence;I)V");
     }};
 
     /**
@@ -323,9 +332,6 @@ public class MethodUtils {
      * otherwise {@code false}.
      */
     public static boolean isARTMethod(final String fullyQualifiedMethodName) {
-        // TODO: add further patterns, e.g.:
-        // getSupportFragmentManager()
-        // setContentView()
         String method = getMethodName(fullyQualifiedMethodName);
         return ART_METHODS.contains(method);
     }
