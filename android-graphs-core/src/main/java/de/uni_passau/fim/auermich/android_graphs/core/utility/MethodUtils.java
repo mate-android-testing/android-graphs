@@ -107,6 +107,9 @@ public class MethodUtils {
         add("setContentView(Landroid/view/View;)V");
         add("setContentView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V");
         add("getSupportFragmentManager()Landroid/support/v4/app/FragmentManager;");
+        add("addContentView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V");
+        add("getMenuInflater()Landroid/view/MenuInflater;");
+        add("invalidateOptionsMenu()V");
     }};
 
     private MethodUtils() {
