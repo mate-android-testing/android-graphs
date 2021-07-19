@@ -146,8 +146,8 @@ public final class Utility {
 
             // we need to resolve the layout ID of the given View object parameter
 
-        } else if (methodReference.equals("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z")) {
-            LOGGER.debug("Inspecting inflate() of class: " + classDef);
+        } else if (methodReference.equals("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z)Landroid/view/View;")
+            || methodReference.equals("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;)Landroid/view/View;")) {
 
             /*
              * A typical call of inflate(int resource,ViewGroup root, boolean attachToRoot) looks as follows:
@@ -185,13 +185,10 @@ public final class Utility {
                     predecessor = predecessor.getPredecessors().first();
                 }
             }
-        } else if (methodReference.equals("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;")) {
-            LOGGER.warn("Couldn't derive resource ID for class " + classDef);
         } else if (methodReference.equals("Landroid/view/LayoutInflater;->" +
-                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;")) {
-            LOGGER.warn("Couldn't derive resource ID for class " + classDef);
-        } else if (methodReference.equals("Landroid/view/LayoutInflater;->" +
-                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;Z")) {
+                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;Z)Landroid/view/View;")
+            || methodReference.equals("Landroid/view/LayoutInflater;->" +
+                "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup)Landroid/view/View;")) {
             LOGGER.warn("Couldn't derive resource ID for class " + classDef);
         }
         return null;
