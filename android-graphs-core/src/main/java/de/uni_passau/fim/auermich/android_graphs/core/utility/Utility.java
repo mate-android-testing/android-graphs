@@ -93,17 +93,13 @@ public final class Utility {
         Instruction35c invokeVirtual = (Instruction35c) analyzedInstruction.getInstruction();
         String methodReference = invokeVirtual.getReference().toString();
 
-        if (methodReference.endsWith("setContentView(I)V")
-                // ensure that setContentView() refers to the given class
-                && classDef.toString().equals(MethodUtils.getClassName(methodReference))) {
-            // TODO: there are multiple overloaded setContentView() implementations
-            // we assume here only setContentView(int layoutResID)
-            // link: https://developer.android.com/reference/android/app/Activity.html#setContentView(int)
+        if (methodReference.endsWith("setContentView(I)V")) {
 
             /*
              * We need to find the resource id located in one of the registers. A typical call to
              * setContentView(int layoutResID) looks as follows:
              *     invoke-virtual {p0, v0}, Lcom/zola/bmi/BMIMain;->setContentView(I)V
+             *
              * Here, v0 contains the resource id, thus we need to search backwards for the last
              * change of v0. This is typically the previous instruction and is of type 'const'.
              */
@@ -136,9 +132,7 @@ public final class Utility {
                     predecessor = predecessor.getPredecessors().first();
                 }
             }
-        } else if (methodReference.endsWith("setContentView(Landroid/view/View;)V")
-                // ensure that setContentView() refers to the given class
-                && classDef.toString().equals(MethodUtils.getClassName(methodReference))) {
+        } else if (methodReference.endsWith("setContentView(Landroid/view/View;)V")) {
 
             /*
              * A typical example of this call looks as follows:
@@ -150,23 +144,15 @@ public final class Utility {
              */
             LOGGER.warn("Couldn't derive resource ID for class " + classDef);
 
-            /*
-             * TODO: are we interested in calls to setContentView(..) that don't refer to the this object?
-             * The primary goal is to derive the layout ID of a given component (class). However, it seems
-             * like classes (components) can define the layout of other (sub) components. Are we interested
-             * in getting the layout ID of those (sub) components?
-             */
-
             // we need to resolve the layout ID of the given View object parameter
 
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z")) {
-            // TODO: there are multiple overloaded inflate() implementations
-            // see: https://developer.android.com/reference/android/view/LayoutInflater.html#inflate(org.xmlpull.v1.XmlPullParser,%20android.view.ViewGroup,%20boolean)
-            // we assume here inflate(int resource,ViewGroup root, boolean attachToRoot)
+        } else if (methodReference.equals("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z")) {
+            LOGGER.debug("Inspecting inflate() of class: " + classDef);
 
             /*
              * A typical call of inflate(int resource,ViewGroup root, boolean attachToRoot) looks as follows:
              *   invoke-virtual {p1, v0, p2, v1}, Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;Z)Landroid/view/View;
+             *
              * Here, v0 contains the resource id, thus we need to search backwards for the last change of v0.
              * This is typically the previous instruction and is of type 'const'.
              */
@@ -199,12 +185,12 @@ public final class Utility {
                     predecessor = predecessor.getPredecessors().first();
                 }
             }
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;")) {
+        } else if (methodReference.equals("Landroid/view/LayoutInflater;->inflate(ILandroid/view/ViewGroup;")) {
             LOGGER.warn("Couldn't derive resource ID for class " + classDef);
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->" +
+        } else if (methodReference.equals("Landroid/view/LayoutInflater;->" +
                 "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;")) {
             LOGGER.warn("Couldn't derive resource ID for class " + classDef);
-        } else if (methodReference.contains("Landroid/view/LayoutInflater;->" +
+        } else if (methodReference.equals("Landroid/view/LayoutInflater;->" +
                 "inflate(Lorg/xmlpull/v1/XmlPullParser;Landroid/view/ViewGroup;Z")) {
             LOGGER.warn("Couldn't derive resource ID for class " + classDef);
         }

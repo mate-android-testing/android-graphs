@@ -10,9 +10,7 @@ import org.dom4j.io.SAXReader;
 
 import java.io.File;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  * Mirrors a layout file (XML) contained in the res/layout/ folder of an APK.
@@ -39,6 +37,8 @@ public class LayoutFile {
      */
     public List<String> parseCallbacks() {
 
+        LOGGER.debug("Parsing callbacks in " + layoutFile.getName() + "!");
+
         List<String> callbacks = new ArrayList<>();
         SAXReader reader = new SAXReader();
         Document document = null;
@@ -47,19 +47,35 @@ public class LayoutFile {
             document = reader.read(layoutFile);
             Element rootElement = document.getRootElement();
 
-            Iterator<Element> itr = rootElement.elementIterator();
-            while (itr.hasNext()) {
+            Queue<Element> queue = new LinkedList<>();
+            queue.add(rootElement);
 
-                // each node is a widget, e.g. a button, textView, ...
-                // TODO: we may can exclude some sort of widgets
-                Node node = (Node) itr.next();
-                Element element = (Element) node;
+            // inspect each element
+            while (!queue.isEmpty()) {
+                Element element = queue.poll();
+                queue.addAll(element.elements());
 
-                // TODO: check if there are further callbacks than onClick, e.g. onLongClick
-                // NOTE: we need to access the attribute WITHOUT its namespace -> can't use android:onClick!
+                if (element.getName().equals("include")) {
+                    /*
+                    * We need to inspect the sub layout file(s) as well.
+                     */
+                    String attribute = element.attributeValue("layout");
+                    if (attribute != null) {
+                        String filePath = layoutFile.getParent() + File.separator + attribute.split("@layout/")[1] + ".xml";
+                        LayoutFile subLayoutFile = new LayoutFile(new File(filePath));
+                        callbacks.addAll(subLayoutFile.parseCallbacks());
+                    }
+                }
+
+                // TODO: check for further callbacks
                 String onClickCallback = element.attributeValue("onClick");
                 if (onClickCallback != null) {
                     callbacks.add(onClickCallback);
+                }
+
+                String onLongClickCallback = element.attributeValue("onLongClick");
+                if (onLongClickCallback != null) {
+                    callbacks.add(onLongClickCallback);
                 }
             }
         } catch (DocumentException e) {

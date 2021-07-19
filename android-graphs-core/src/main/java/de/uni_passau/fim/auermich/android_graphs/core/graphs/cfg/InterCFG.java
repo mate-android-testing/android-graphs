@@ -1005,27 +1005,19 @@ public class InterCFG extends BaseCFG {
      */
     private Multimap<String, BaseCFG> lookUpCallbacksXML(APK apk) {
 
-        // TODO: outer/inner class relation is not further used!
-        // stores the relation between outer and inner classes
-        Multimap<String, String> classRelations = TreeMultimap.create();
-
         // stores for each component its resource id in hexadecimal representation
         Map<String, String> componentResourceID = new HashMap<>();
+
+        Set<ClassDef> viewComponents = components.stream()
+                .filter(c -> c.getComponentType() == ComponentType.ACTIVITY || c.getComponentType() == ComponentType.FRAGMENT)
+                .map(Component::getClazz)
+                .collect(Collectors.toSet());
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
-                String className = ClassUtils.dottedClassName(classDef.toString());
-
-                if (className.startsWith(apk.getManifest().getPackageName())
-                        && (ComponentUtils.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)
-                        || ComponentUtils.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef))) {
+                if (viewComponents.contains(classDef)) {
                     // only activities and fragments of the application can define callbacks in XML
-
-                    // track outer/inner class relations
-                    if (ClassUtils.isInnerClass(classDef.toString())) {
-                        classRelations.put(ClassUtils.getOuterClass(classDef.toString()), classDef.toString());
-                    }
 
                     for (Method method : classDef.getMethods()) {
 
@@ -1036,18 +1028,13 @@ public class InterCFG extends BaseCFG {
                                 // this assumes that only these two methods declare the layout via setContentView()/inflate()!
                                 && method.getName().contains("onCreate")) {
 
-                            MethodAnalyzer analyzer = new MethodAnalyzer(new ClassPath(Lists.newArrayList(new DexClassProvider(dexFile)),
-                                    true, ClassPath.NOT_ART), method,
-                                    null, false);
-
-                            for (AnalyzedInstruction analyzedInstruction : analyzer.getAnalyzedInstructions()) {
+                            for (AnalyzedInstruction analyzedInstruction : MethodUtils.getAnalyzedInstructions(dexFile, method)) {
 
                                 Instruction instruction = analyzedInstruction.getInstruction();
 
                                 /*
                                  * We need to search for calls to setContentView(..) and inflate(..).
                                  * Both of them are of type invoke-virtual.
-                                 * TODO: check if there are cases where invoke-virtual/range is used
                                  */
                                 if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
                                     String resourceID = Utility.getLayoutResourceID(classDef, analyzedInstruction);
@@ -1063,7 +1050,6 @@ public class InterCFG extends BaseCFG {
             }
         }
 
-        LOGGER.debug("Outer/Inner Class Relations: " + classRelations);
         LOGGER.debug("Component-to-Resource-ID-mapping: " + componentResourceID);
 
         /*
