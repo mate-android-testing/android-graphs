@@ -8,6 +8,8 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.ClassUtils;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Format;
 import org.jf.dexlib2.Opcode;
@@ -34,6 +36,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class BaseGraphBuilderTest {
+
+    private static final Logger LOGGER = LogManager.getLogger(BaseGraphBuilderTest.class);
 
     public static final Opcodes API_OPCODE = Opcodes.forApi(28);
 
@@ -1355,5 +1359,26 @@ public class BaseGraphBuilderTest {
         // mark given method in graph
         String criterion = "Lcom/zola/bmi/BMIMain$PlaceholderFragment;";
         interCFG.drawGraph(resourceDirectory.toFile(), criterion);
+    }
+
+    /**
+     * Prints the isolated sub graphs (methods).
+     *
+     * @throws IOException Should never happen.
+     */
+    @Test
+    public void testIsolatedMethods() throws IOException {
+
+        Path resourceDirectory = getResourceDirectory();
+        File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
+
+        BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
+        for (Vertex vertex : interCFG.getVertices()) {
+            if (interCFG.getShortestDistance(interCFG.getEntry(), vertex) == -1) {
+                if (vertex.isEntryVertex()) {
+                    LOGGER.debug("Isolated method: " + vertex.getMethod());
+                }
+            }
+        }
     }
 }

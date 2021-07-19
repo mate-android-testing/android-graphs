@@ -7,6 +7,8 @@ import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.MainCommand;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -216,6 +218,10 @@ public final class Main {
                         }
 
                         BaseGraph baseGraph = builder.build();
+
+                        if (mainCmd.isDebug()) {
+                            ((InterCFG) baseGraph).printIsolatedSubGraphs();
+                        }
 
                         LOGGER.debug("Size of graph: " + baseGraph.size());
 

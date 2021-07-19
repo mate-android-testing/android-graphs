@@ -1643,4 +1643,18 @@ public class InterCFG extends BaseCFG {
 
         throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
     }
+
+    /**
+     * Prints the isolated sub graphs (methods). Solely for debugging.
+     */
+    @SuppressWarnings("debug")
+    public void printIsolatedSubGraphs() {
+        for (Vertex vertex : getVertices()) {
+            if (getShortestDistance(getEntry(), vertex) == -1) {
+                if (vertex.isEntryVertex()) {
+                    LOGGER.debug("Isolated method: " + vertex.getMethod());
+                }
+            }
+        }
+    }
 }
