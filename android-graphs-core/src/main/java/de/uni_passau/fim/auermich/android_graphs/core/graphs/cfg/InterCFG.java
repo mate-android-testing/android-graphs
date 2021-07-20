@@ -302,9 +302,9 @@ public class InterCFG extends BaseCFG {
                     LOGGER.debug("Dialog invocation detected: " + overriddenMethod);
 
                     /*
-                    * When any showDialog() method is invoked, the respective onCreateDialog() method
-                    * is called. We need to check the activity class itself and super classes for the
-                    * implementation of onCreateDialog().
+                     * When any showDialog() method is invoked, the respective onCreateDialog() method
+                     * is called. We need to check the activity class itself and super classes for the
+                     * implementation of onCreateDialog().
                      */
                     final String onCreateDialogMethod = DialogUtils.getOnCreateDialogMethod(overriddenMethod);
                     String onCreateDialog = MethodUtils.getClassName(overriddenMethod) + "->" + onCreateDialogMethod;
@@ -321,6 +321,54 @@ public class InterCFG extends BaseCFG {
                         LOGGER.warn("OnCreateDialog() not defined by any class for invocation: " + overriddenMethod);
                         targetCFGs.add(dummyCFG(overriddenMethod));
                     }
+                } else if (AsyncTaskUtils.isAsyncTaskInvocation(overriddenMethod)) {
+                    LOGGER.debug("AsyncTask invocation detected: " + overriddenMethod);
+
+                    /*
+                    * When an AsyncTask is started by calling the execute() method, the four methods
+                    * onPreExecute(), doInBackground(), onProgressUpdate() and onPostExecute() are invoked.
+                    * The parameters to these methods depends on the specified generic type attributes.
+                    * However, at the bytecode-level so-called bridge methods are inserted, which simplifies
+                    * the construction here. In particular, the parameters are fixed and are of type 'Object'.
+                    * Only the doInBackground() method is mandatory.
+                     */
+                    String className = MethodUtils.getClassName(overriddenMethod);
+                    BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
+
+                    Vertex last = asyncTaskCFG.getEntry();
+
+                    // optional
+                    String onPreExecuteMethod = AsyncTaskUtils.getOnPreExecuteMethod(className);
+                    if (intraCFGs.containsKey(onPreExecuteMethod)) {
+                        BaseCFG onPreExecuteCFG = intraCFGs.get(onPreExecuteMethod);
+                        addEdge(asyncTaskCFG.getEntry(), onPreExecuteCFG.getEntry());
+                        last = onPreExecuteCFG.getExit();
+                    }
+
+                    // mandatory
+                    String doInBackgroundMethod = AsyncTaskUtils.getDoInBackgroundMethod(className);
+                    BaseCFG doInBackgroundCFG = intraCFGs.get(doInBackgroundMethod);
+                    addEdge(last, doInBackgroundCFG.getEntry());
+                    last = doInBackgroundCFG.getExit();
+
+                    // optional
+                    String onProgressUpdateMethod = AsyncTaskUtils.getOnProgressUpdateMethod(className);
+                    if (intraCFGs.containsKey(onProgressUpdateMethod)) {
+                        BaseCFG onProgressUpdateCFG = intraCFGs.get(onProgressUpdateMethod);
+                        addEdge(last, onProgressUpdateCFG.getEntry());
+                        last = onProgressUpdateCFG.getExit();
+                    }
+
+                    // optional
+                    String onPostExecuteMethod = AsyncTaskUtils.getOnPostExecuteMethod(className);
+                    if (intraCFGs.containsKey(onPostExecuteMethod)) {
+                        BaseCFG onPostExecuteCFG = intraCFGs.get(onPostExecuteMethod);
+                        addEdge(last, onPostExecuteCFG.getEntry());
+                        last = onPostExecuteCFG.getExit();
+                    }
+
+                    addEdge(last, asyncTaskCFG.getExit());
+                    targetCFGs.add(asyncTaskCFG);
                 } else {
                     /*
                      * There are some Android specific classes, e.g. android/view/View, which are
@@ -1430,7 +1478,6 @@ public class InterCFG extends BaseCFG {
      * @return Returns a simplified CFG.
      */
     private BaseCFG dummyIntraCFG(Method targetMethod) {
-
         BaseCFG cfg = new DummyCFG(MethodUtils.deriveMethodSignature(targetMethod));
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
         return cfg;
@@ -1444,9 +1491,22 @@ public class InterCFG extends BaseCFG {
      * @return Returns a simplified CFG.
      */
     private BaseCFG dummyIntraCFG(String targetMethod) {
-
         BaseCFG cfg = new DummyCFG(targetMethod);
         cfg.addEdge(cfg.getEntry(), cfg.getExit());
+        return cfg;
+    }
+
+    /**
+     * Constructs a CFG solely consisting of entry and exit vertex.
+     * As a side effect, the CFG is added to the inter CFG.
+     *
+     * @param descriptor The name of the CFG.
+     * @return Returns the created CFG.
+     */
+    private BaseCFG emptyCFG(String descriptor) {
+        BaseCFG cfg = new DummyCFG(descriptor);
+        intraCFGs.put(descriptor, cfg);
+        addSubGraph(cfg);
         return cfg;
     }
 
