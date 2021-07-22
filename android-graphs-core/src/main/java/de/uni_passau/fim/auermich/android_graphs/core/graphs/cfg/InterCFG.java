@@ -332,36 +332,45 @@ public class InterCFG extends BaseCFG {
                     * the construction here. In particular, the parameters are fixed and are of type 'Object'.
                     * Only the doInBackground() method is mandatory.
                      */
+
                     String className = MethodUtils.getClassName(overriddenMethod);
                     BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
-
                     Vertex last = asyncTaskCFG.getEntry();
 
                     // optional
-                    String onPreExecuteMethod = AsyncTaskUtils.getOnPreExecuteMethod(className);
-                    if (intraCFGs.containsKey(onPreExecuteMethod)) {
+                    String onPreExecuteMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPreExecuteMethod(className));
+                    if (onPreExecuteMethod != null && intraCFGs.containsKey(onPreExecuteMethod)) {
                         BaseCFG onPreExecuteCFG = intraCFGs.get(onPreExecuteMethod);
                         addEdge(asyncTaskCFG.getEntry(), onPreExecuteCFG.getEntry());
                         last = onPreExecuteCFG.getExit();
                     }
 
                     // mandatory
-                    String doInBackgroundMethod = AsyncTaskUtils.getDoInBackgroundMethod(className);
+                    String doInBackgroundMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getDoInBackgroundMethod(className));
                     BaseCFG doInBackgroundCFG = intraCFGs.get(doInBackgroundMethod);
+
+                    if (doInBackgroundCFG == null || !intraCFGs.containsKey(doInBackgroundMethod)) {
+                        throw new IllegalStateException("AsyncTask without doInBackgroundTask() method: " + overriddenMethod);
+                    }
+
                     addEdge(last, doInBackgroundCFG.getEntry());
                     last = doInBackgroundCFG.getExit();
 
                     // optional
-                    String onProgressUpdateMethod = AsyncTaskUtils.getOnProgressUpdateMethod(className);
-                    if (intraCFGs.containsKey(onProgressUpdateMethod)) {
+                    String onProgressUpdateMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnProgressUpdateMethod(className));
+                    if (onProgressUpdateMethod != null && intraCFGs.containsKey(onProgressUpdateMethod)) {
                         BaseCFG onProgressUpdateCFG = intraCFGs.get(onProgressUpdateMethod);
                         addEdge(last, onProgressUpdateCFG.getEntry());
                         last = onProgressUpdateCFG.getExit();
                     }
 
                     // optional
-                    String onPostExecuteMethod = AsyncTaskUtils.getOnPostExecuteMethod(className);
-                    if (intraCFGs.containsKey(onPostExecuteMethod)) {
+                    String onPostExecuteMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPostExecuteMethod(className));
+                    if (onPostExecuteMethod != null && intraCFGs.containsKey(onPostExecuteMethod)) {
                         BaseCFG onPostExecuteCFG = intraCFGs.get(onPostExecuteMethod);
                         addEdge(last, onPostExecuteCFG.getEntry());
                         last = onPostExecuteCFG.getExit();

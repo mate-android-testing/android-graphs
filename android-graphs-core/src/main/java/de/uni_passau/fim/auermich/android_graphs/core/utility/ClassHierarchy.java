@@ -145,10 +145,12 @@ public class ClassHierarchy {
     }
 
     /**
-     * Traverses the class hierarchy to get potential invocations of the given method in any
-     * super or sub class. First, we check any super class. If any of those define the method,
-     * this method is returned. If the method is overridden by any sub class, we return all
-     * those methods including the method of the current class itself.
+     * Traverses the class hierarchy to get potential invocations of the given method in the current class or
+     * any super or sub class. First, we check whether the method is defined in the current class.
+     * If this is not the case, any super class is inspected. If any of those define the method,
+     * the method signature of the respective super class is returned. If the method is defined in the current class,
+     * we also need to check sub classes that could potentially overwrite the method. We return all overridden
+     * methods including the method of the current class itself.
      *
      * @param method The given method.
      * @param apk The APK file.
