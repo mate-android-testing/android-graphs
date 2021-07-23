@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.AccessFlags;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.analysis.ClassPath;
 import org.jf.dexlib2.analysis.DexClassProvider;
@@ -14,10 +15,7 @@ import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.util.MethodUtil;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 public class MethodUtils {
 
@@ -143,6 +141,20 @@ public class MethodUtils {
     public static boolean isConstructorCall(String methodSignature) {
         String method = MethodUtils.getMethodName(methodSignature);
         return method.startsWith("<init>(") && method.endsWith(")V");
+    }
+
+    /**
+     * Checks whether the given method represents a private constructor.
+     *
+     * @param method The method to be checked.
+     * @return Returns {@code true} if the method is a private constructor,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isPrivateConstructor(Method method) {
+        int accessFlags = method.getAccessFlags();
+        AccessFlags[] flags = AccessFlags.getAccessFlagsForMethod(accessFlags);
+        return Arrays.stream(flags).anyMatch(flag -> flag == AccessFlags.CONSTRUCTOR)
+                && Arrays.stream(flags).anyMatch(flag -> flag == AccessFlags.PRIVATE);
     }
 
     /**

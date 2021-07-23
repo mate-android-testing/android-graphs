@@ -15,15 +15,12 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.analysis.ClassPath;
-import org.jf.dexlib2.analysis.DexClassProvider;
-import org.jf.dexlib2.analysis.MethodAnalyzer;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
@@ -1407,16 +1404,23 @@ public class InterCFG extends BaseCFG {
                         }
                     } else {
                         LOGGER.debug("Method: " + methodSignature);
-                        BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
-                        addSubGraph(intraCFG);
-                        addInvokeVertices(intraCFG.getInvokeVertices());
-                        // only hold a reference to the entry and exit vertex
-                        intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
 
-                        // add static initializers to dedicated sub graph
-                        if (MethodUtils.isStaticInitializer(methodSignature)) {
-                            addEdge(staticInitializersCFG.getEntry(), intraCFG.getEntry());
-                            addEdge(intraCFG.getExit(), staticInitializersCFG.getExit());
+                        if (MethodUtils.isPrivateConstructor(method) && UsageSearch.findMethodUsages(apk, method).isEmpty()) {
+                            // ignore utility constructors since they are never invoked
+                            LOGGER.debug("Ignoring utility constructor!");
+                        } else {
+
+                            BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
+                            addSubGraph(intraCFG);
+                            addInvokeVertices(intraCFG.getInvokeVertices());
+                            // only hold a reference to the entry and exit vertex
+                            intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
+
+                            // add static initializers to dedicated sub graph
+                            if (MethodUtils.isStaticInitializer(methodSignature)) {
+                                addEdge(staticInitializersCFG.getEntry(), intraCFG.getEntry());
+                                addEdge(intraCFG.getExit(), staticInitializersCFG.getExit());
+                            }
                         }
                     }
                 }
