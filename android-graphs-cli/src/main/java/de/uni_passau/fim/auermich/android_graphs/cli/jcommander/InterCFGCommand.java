@@ -18,6 +18,9 @@ public class InterCFGCommand {
     @Parameter(names = { "-b", "-basic-blocks" }, description = "Whether to use basic blocks or not.")
     private boolean useBasicBlocks = false;
 
+    @Parameter(names = {"-pim", "print-isolated-methods"}, description = "Whether to print isolated methods.")
+    private boolean printIsolatedMethods = false;
+
     public boolean resolveOnlyAUTClasses() {
         return resolveOnlyAUTClasses;
     }
@@ -32,5 +35,9 @@ public class InterCFGCommand {
 
     public GraphType getGraphType() {
         return graphType;
+    }
+
+    public boolean printIsolatedMethods() {
+        return printIsolatedMethods;
     }
 }

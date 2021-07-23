@@ -71,6 +71,7 @@ public final class Main {
      *             The switch -b specifies whether basic blocks should be used. (optional)
      *             The switch -art specifies whether ART classes should be resolved. (optional)
      *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
+     *             The switch -pim specifies whether isolated methods should be printed. (optional)
      *
      * @throws IOException Should never happen.
      */
@@ -219,7 +220,7 @@ public final class Main {
 
                         BaseGraph baseGraph = builder.build();
 
-                        if (mainCmd.isDebug()) {
+                        if (interCFGCmd.printIsolatedMethods()) {
                             ((InterCFG) baseGraph).printIsolatedSubGraphs();
                         }
 
