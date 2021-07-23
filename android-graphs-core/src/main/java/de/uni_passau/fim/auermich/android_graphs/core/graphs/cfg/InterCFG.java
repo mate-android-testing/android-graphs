@@ -240,10 +240,10 @@ public class InterCFG extends BaseCFG {
      * As a side effect, component invocation, e.g. calls to startActivity(), are replaced
      * by the invoked component's constructor.
      *
-     * @param apk The APK file.
+     * @param apk        The APK file.
      * @param invokeStmt The invoke statement defining the target.
      * @return Returns the CFGs matching the given invoke target. If no CFG could be derived,
-     *          a {@link IllegalStateException} is thrown.
+     * a {@link IllegalStateException} is thrown.
      */
     private Set<BaseCFG> lookupTargetCFGs(final APK apk, final BasicStatement invokeStmt) {
 
@@ -255,9 +255,9 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("Lookup target CFGs for " + targetMethod);
 
         /*
-        * We can't distinguish whether the given method is invoked or any method
-        * that overrides the given method. Thus, we need to over-approximate in this case
-        * and connect the invoke with each overridden method (CFG) as well.
+         * We can't distinguish whether the given method is invoked or any method
+         * that overrides the given method. Thus, we need to over-approximate in this case
+         * and connect the invoke with each overridden method (CFG) as well.
          */
         Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(targetMethod, apk, properties);
 
@@ -322,12 +322,12 @@ public class InterCFG extends BaseCFG {
                     LOGGER.debug("AsyncTask invocation detected: " + overriddenMethod);
 
                     /*
-                    * When an AsyncTask is started by calling the execute() method, the four methods
-                    * onPreExecute(), doInBackground(), onProgressUpdate() and onPostExecute() are invoked.
-                    * The parameters to these methods depends on the specified generic type attributes.
-                    * However, at the bytecode-level so-called bridge methods are inserted, which simplifies
-                    * the construction here. In particular, the parameters are fixed and are of type 'Object'.
-                    * Only the doInBackground() method is mandatory.
+                     * When an AsyncTask is started by calling the execute() method, the four methods
+                     * onPreExecute(), doInBackground(), onProgressUpdate() and onPostExecute() are invoked.
+                     * The parameters to these methods depends on the specified generic type attributes.
+                     * However, at the bytecode-level so-called bridge methods are inserted, which simplifies
+                     * the construction here. In particular, the parameters are fixed and are of type 'Object'.
+                     * Only the doInBackground() method is mandatory.
                      */
 
                     String className = MethodUtils.getClassName(overriddenMethod);
@@ -436,7 +436,7 @@ public class InterCFG extends BaseCFG {
     /**
      * Adds the application lifecycle. This includes the callbacks.
      *
-     * @param application The application class.
+     * @param application   The application class.
      * @param callbackGraph The callbacks sub graph of the application class.
      */
     private void addAndroidApplicationLifecycle(Application application, BaseCFG callbackGraph) {
@@ -663,8 +663,8 @@ public class InterCFG extends BaseCFG {
             BaseCFG onCreateFragmentCFG = addLifecycle(onCreateFragment, onAttachFragmentCFG);
 
             /*
-            * If the fragment is a DialogFragment, it may override onCreateDialog(), see:
-            * https://developer.android.com/reference/android/app/DialogFragment#onCreateDialog(android.os.Bundle)
+             * If the fragment is a DialogFragment, it may override onCreateDialog(), see:
+             * https://developer.android.com/reference/android/app/DialogFragment#onCreateDialog(android.os.Bundle)
              */
             BaseCFG lastFragmentLifecycleCFG = onCreateFragmentCFG;
             String onCreateDialogFragment = fragment.onCreateDialogMethod();
@@ -782,12 +782,12 @@ public class InterCFG extends BaseCFG {
         }
 
         /*
-        * According to https://developer.android.com/reference/android/app/Activity#onSaveInstanceState(android.os.Bundle)
-        * the onSaveInstanceState() method is called either prior or after onStop() depending on the API version.
-        * Prior to API 28, onSaveInstanceState() is called before onStop() and starting with API 28 it is called
-        * afterwards. We stick here to the first choice. Moreover, as also mentioned in above reference,
-        * onSaveInstanceState() is not always called, thus we directly add an additional edge from onPause()
-        * to onStop().
+         * According to https://developer.android.com/reference/android/app/Activity#onSaveInstanceState(android.os.Bundle)
+         * the onSaveInstanceState() method is called either prior or after onStop() depending on the API version.
+         * Prior to API 28, onSaveInstanceState() is called before onStop() and starting with API 28 it is called
+         * afterwards. We stick here to the first choice. Moreover, as also mentioned in above reference,
+         * onSaveInstanceState() is not always called, thus we directly add an additional edge from onPause()
+         * to onStop().
          */
         String onSaveInstanceState = activity.onSaveInstanceStateOverloadedMethod();
 
@@ -904,7 +904,7 @@ public class InterCFG extends BaseCFG {
             });
 
             // callbacks declared in hosted fragments
-            Set<Fragment> fragments = ((Activity ) activity).getHostingFragments();
+            Set<Fragment> fragments = ((Activity) activity).getHostingFragments();
             for (Fragment fragment : fragments) {
                 callbacks.get(fragment.getName()).forEach(callback -> {
                     addEdge(callbackGraph.getEntry(), callback.getEntry());
@@ -950,19 +950,19 @@ public class InterCFG extends BaseCFG {
                     && MethodUtils.isCallback(methodSignature)) {
 
                 /*
-                * We need to check where the callback is declared. There are two options here:
-                *
-                * (1)
-                * If the class containing the callback represents an inner class, then the callback might belong
-                * to the outer class, e.g. an activity defines the OnClickListener (onClick() callback) as inner class.
-                * But, the outer class might be just a wrapper class containing multiple widgets and its callbacks.
-                * In this case, we have to backtrack the usages of the (outer) class to the respective component,
-                * i.e. the activity or fragment.
-                *
-                * (2)
-                * If the class represents a top-level class, it might be either an activity/fragment implementing
-                * a listener or a (wrapper) class representing a top-level listener. In the latter case, we need to
-                * backtrack the usages to the respective component.
+                 * We need to check where the callback is declared. There are two options here:
+                 *
+                 * (1)
+                 * If the class containing the callback represents an inner class, then the callback might belong
+                 * to the outer class, e.g. an activity defines the OnClickListener (onClick() callback) as inner class.
+                 * But, the outer class might be just a wrapper class containing multiple widgets and its callbacks.
+                 * In this case, we have to backtrack the usages of the (outer) class to the respective component,
+                 * i.e. the activity or fragment.
+                 *
+                 * (2)
+                 * If the class represents a top-level class, it might be either an activity/fragment implementing
+                 * a listener or a (wrapper) class representing a top-level listener. In the latter case, we need to
+                 * backtrack the usages to the respective component.
                  */
                 if (ClassUtils.isInnerClass(className)) {
 
@@ -994,8 +994,8 @@ public class InterCFG extends BaseCFG {
 
                             if (uiComponent.isPresent()) {
                                 /*
-                                * The class that makes use of the wrapper class represents a component, thus
-                                * the callback should be assigned to this class.
+                                 * The class that makes use of the wrapper class represents a component, thus
+                                 * the callback should be assigned to this class.
                                  */
                                 callbacks.put(clazzName, intraCFG.getValue());
                             }
@@ -1227,20 +1227,20 @@ public class InterCFG extends BaseCFG {
                     }
                 } else if (Utility.isReflectionCall(targetMethod)) {
                     /*
-                    * If we deal with a reflective call, i.e. newInstance(), the target method
-                    * should be replaced with the constructor. Here particular, the virtual return statement
-                    * should also reflect this change.
+                     * If we deal with a reflective call, i.e. newInstance(), the target method
+                     * should be replaced with the constructor. Here particular, the virtual return statement
+                     * should also reflect this change.
                      */
                     // TODO: replace target method with corresponding constructor
                     LOGGER.debug("Reflection call detected!");
                 }
 
                 /*
-                * TODO: combine virtual return statements for overridden methods
-                * Since we need to over-approximate method calls, i.e. we add for each
-                * method that overrides the given method an edge, we would have actually
-                * multiple virtual return statements, but this would require here a redundant
-                * lookup of the overridden methods, which we ignore right now.
+                 * TODO: combine virtual return statements for overridden methods
+                 * Since we need to over-approximate method calls, i.e. we add for each
+                 * method that overrides the given method an edge, we would have actually
+                 * multiple virtual return statements, but this would require here a redundant
+                 * lookup of the overridden methods, which we ignore right now.
                  */
 
                 // add return statement to next block
@@ -1405,22 +1405,16 @@ public class InterCFG extends BaseCFG {
                     } else {
                         LOGGER.debug("Method: " + methodSignature);
 
-                        if (MethodUtils.isPrivateConstructor(method) && UsageSearch.findMethodUsages(apk, method).isEmpty()) {
-                            // ignore utility constructors since they are never invoked
-                            LOGGER.debug("Ignoring utility constructor!");
-                        } else {
+                        BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
+                        addSubGraph(intraCFG);
+                        addInvokeVertices(intraCFG.getInvokeVertices());
+                        // only hold a reference to the entry and exit vertex
+                        intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
 
-                            BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
-                            addSubGraph(intraCFG);
-                            addInvokeVertices(intraCFG.getInvokeVertices());
-                            // only hold a reference to the entry and exit vertex
-                            intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
-
-                            // add static initializers to dedicated sub graph
-                            if (MethodUtils.isStaticInitializer(methodSignature)) {
-                                addEdge(staticInitializersCFG.getEntry(), intraCFG.getEntry());
-                                addEdge(intraCFG.getExit(), staticInitializersCFG.getExit());
-                            }
+                        // add static initializers to dedicated sub graph
+                        if (MethodUtils.isStaticInitializer(methodSignature)) {
+                            addEdge(staticInitializersCFG.getEntry(), intraCFG.getEntry());
+                            addEdge(intraCFG.getExit(), staticInitializersCFG.getExit());
                         }
                     }
                 }
@@ -1459,7 +1453,7 @@ public class InterCFG extends BaseCFG {
      * Updates the class hierarchy map with information of the given class and its super class
      * and interfaces, respectively.
      *
-     * @param dexFile The dex file containing the current class.
+     * @param dexFile  The dex file containing the current class.
      * @param classDef The given class.
      */
     private void updateClassHierarchy(final DexFile dexFile, final ClassDef classDef) {
@@ -1571,14 +1565,14 @@ public class InterCFG extends BaseCFG {
     public Vertex lookUpVertex(String trace) {
 
         /*
-        * A trace has the following form:
-        *   className -> methodName -> ([entry|exit|if|return])? -> (index)?
-        *
-        * The first two components are always fixed, while the instruction type and the instruction index
-        * are optional, but not both at the same time:
-        *
-        * Making the instruction type optional allows to search (by index) for a custom instruction, e.g. a branch.
-        * Making the index optional allows to look up virtual entry and exit vertices.
+         * A trace has the following form:
+         *   className -> methodName -> ([entry|exit|if|return])? -> (index)?
+         *
+         * The first two components are always fixed, while the instruction type and the instruction index
+         * are optional, but not both at the same time:
+         *
+         * Making the instruction type optional allows to search (by index) for a custom instruction, e.g. a branch.
+         * Making the index optional allows to look up virtual entry and exit vertices.
          */
         String[] tokens = trace.split("->");
 
@@ -1618,12 +1612,12 @@ public class InterCFG extends BaseCFG {
     /**
      * Looks up a vertex in the graph.
      *
-     * @param method The method the vertex belongs to.
+     * @param method           The method the vertex belongs to.
      * @param instructionIndex The instruction index.
-     * @param entry The entry vertex of the given method (bound for the look up).
-     * @param exit The exit vertex of the given method (bound for the look up).
+     * @param entry            The entry vertex of the given method (bound for the look up).
+     * @param exit             The exit vertex of the given method (bound for the look up).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     *          a {@link IllegalArgumentException} is thrown.
+     * a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
     private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry, Vertex exit) {
@@ -1643,9 +1637,9 @@ public class InterCFG extends BaseCFG {
         AllDirectedPaths<Vertex, Edge> allDirectedPaths = new AllDirectedPaths<>(graph);
 
         /*
-        * In general this algorithm is really fast, however, when dealing with cycles in the graph, the algorithm
-        * fails to find the desired vertex. If we adjust the 'simplePathsOnly' parameter to handle cycles the
-        * algorithm can be really slow.
+         * In general this algorithm is really fast, however, when dealing with cycles in the graph, the algorithm
+         * fails to find the desired vertex. If we adjust the 'simplePathsOnly' parameter to handle cycles the
+         * algorithm can be really slow.
          */
         List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
 
@@ -1673,11 +1667,11 @@ public class InterCFG extends BaseCFG {
     /**
      * Performs a depth first search for looking up the vertex.
      *
-     * @param method The method describing the vertex.
+     * @param method           The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry The entry vertex of the method (limits the search).
+     * @param entry            The entry vertex of the method (limits the search).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     *          a {@link IllegalArgumentException} is thrown.
+     * a {@link IllegalArgumentException} is thrown.
      */
     private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry) {
 
@@ -1696,11 +1690,11 @@ public class InterCFG extends BaseCFG {
     /**
      * Performs a breadth first search for looking up the vertex.
      *
-     * @param method The method describing the vertex.
+     * @param method           The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry The entry vertex of the method (limits the search).
+     * @param entry            The entry vertex of the method (limits the search).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     *          a {@link IllegalArgumentException} is thrown.
+     * a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
     private Vertex lookUpVertexBFS(String method, int instructionIndex, Vertex entry) {

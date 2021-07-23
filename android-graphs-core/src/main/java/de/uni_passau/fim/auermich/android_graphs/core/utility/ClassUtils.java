@@ -2,10 +2,12 @@ package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.AccessFlags;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -243,5 +245,16 @@ public class ClassUtils {
                 .filter(method -> method.getName().startsWith("<init>"))
                 .map(Method::toString)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Checks whether the given class is a final class.
+     *
+     * @param classDef The class to be checked.
+     * @return Returns {@code true} if the class is final, otherwise {@code false} is returned.
+     */
+    public static boolean isFinalClass(ClassDef classDef) {
+        int accessFlags = classDef.getAccessFlags();
+        return Arrays.stream(AccessFlags.getAccessFlagsForClass(accessFlags)).anyMatch(flag -> flag == AccessFlags.FINAL);
     }
 }
