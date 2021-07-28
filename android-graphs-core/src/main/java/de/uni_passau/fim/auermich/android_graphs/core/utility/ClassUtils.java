@@ -83,9 +83,11 @@ public class ClassUtils {
         Set<ClassDef> interfaces = new HashSet<>();
         List<String> interfaceNames = clazz.getInterfaces();
 
-        for (ClassDef classDef : dexFile.getClasses()) {
-            if (interfaceNames.contains(classDef.toString())) {
-                interfaces.add(classDef);
+        if (!interfaceNames.isEmpty()) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+                if (interfaceNames.contains(classDef.toString())) {
+                    interfaces.add(classDef);
+                }
             }
         }
 
