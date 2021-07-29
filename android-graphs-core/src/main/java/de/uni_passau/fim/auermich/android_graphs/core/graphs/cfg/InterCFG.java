@@ -1189,23 +1189,24 @@ public class InterCFG extends BaseCFG {
                 String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
                 String className = ClassUtils.dottedClassName(MethodUtils.getClassName(targetMethod));
 
-                // don't resolve non AUT classes if requested
-                if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
-                        // we have to resolve component invocations in any case, see the code below
-                        && !ComponentUtils.isComponentInvocation(components, targetMethod)
-                        // we need to resolve calls using reflection in any case
-                        && !Utility.isReflectionCall(targetMethod)) {
-                    continue;
-                }
-
-                // don't resolve certain classes/methods, e.g. ART methods
-                if ((exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                /*
+                 * We don't want to resolve every invocation. In particular, we don't resolve
+                 * most invocations outside of the application package as well as ART methods.
+                 * However, we need to resolve component invocation, reflection calls, and
+                 * overridden methods in any case.
+                 */
+                if (((properties.resolveOnlyAUTClasses && !className.startsWith(packageName))
                         || ClassUtils.isArrayType(className)
-                        || MethodUtils.isARTMethod(targetMethod) && properties.excludeARTClasses)
+                        || (MethodUtils.isARTMethod(targetMethod) && properties.excludeARTClasses)
+                        || MethodUtils.isJavaObjectMethod(targetMethod)
+                        || (exclusionPattern != null && exclusionPattern.matcher(className).matches()))
                         // we have to resolve component invocations in any case, see the code below
                         && !ComponentUtils.isComponentInvocation(components, targetMethod)
                         // we need to resolve calls using reflection in any case
-                        && !Utility.isReflectionCall(targetMethod)) {
+                        && !Utility.isReflectionCall(targetMethod)
+                        // we need to resolve overridden methods in any case
+                        // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).isEmpty()) {
+                ) {
                     continue;
                 }
 
@@ -1403,18 +1404,21 @@ public class InterCFG extends BaseCFG {
                             intraCFGs.put(methodSignature, intraCFG);
                         }
                     } else {
-                        LOGGER.debug("Method: " + methodSignature);
+                        // exclude methods from java.lang.Object, e.g. notify()
+                        if (!MethodUtils.isJavaObjectMethod(methodSignature)) {
+                            LOGGER.debug("Method: " + methodSignature);
 
-                        BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
-                        addSubGraph(intraCFG);
-                        addInvokeVertices(intraCFG.getInvokeVertices());
-                        // only hold a reference to the entry and exit vertex
-                        intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
+                            BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
+                            addSubGraph(intraCFG);
+                            addInvokeVertices(intraCFG.getInvokeVertices());
+                            // only hold a reference to the entry and exit vertex
+                            intraCFGs.put(methodSignature, new DummyCFG(intraCFG));
 
-                        // add static initializers to dedicated sub graph
-                        if (MethodUtils.isStaticInitializer(methodSignature)) {
-                            addEdge(staticInitializersCFG.getEntry(), intraCFG.getEntry());
-                            addEdge(intraCFG.getExit(), staticInitializersCFG.getExit());
+                            // add static initializers to dedicated sub graph
+                            if (MethodUtils.isStaticInitializer(methodSignature)) {
+                                addEdge(staticInitializersCFG.getEntry(), intraCFG.getEntry());
+                                addEdge(intraCFG.getExit(), staticInitializersCFG.getExit());
+                            }
                         }
                     }
                 }
@@ -1460,7 +1464,6 @@ public class InterCFG extends BaseCFG {
 
         ClassDef superClass = ClassUtils.getSuperClass(dexFile, classDef);
         Set<ClassDef> interfaces = ClassUtils.getInterfaces(dexFile, classDef);
-        // TODO: remove non-application classes?
         classHierarchy.addClass(classDef, superClass, interfaces);
     }
 

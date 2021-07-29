@@ -116,6 +116,23 @@ public class MethodUtils {
         add("invalidateOptionsMenu()V");
     }};
 
+    /**
+     * The methods contained in the java.lang.Object class.
+     */
+    private static final Set<String> JAVA_OBJECT_METHODS = new HashSet<>() {{
+        add("hashCode()I;");
+        add("equals(Ljava/lang/Object;)Z");
+        add("getClass()Ljava/lang/Class;");
+        add("clone()Ljava/lang/Object;");
+        add("toString()Ljava/lang/String;");
+        add("notify()V");
+        add("notifyAll()V");
+        add("wait(J)V");
+        add("wait(JI)V");
+        add("wait()V");
+        add("finalize()V");
+    }};
+
     private MethodUtils() {
         throw new UnsupportedOperationException("utility class");
     }
@@ -355,6 +372,18 @@ public class MethodUtils {
     public static boolean isARTMethod(final String fullyQualifiedMethodName) {
         String method = getMethodName(fullyQualifiedMethodName);
         return ART_METHODS.contains(method);
+    }
+
+    /**
+     * Checks whether the given method is an inherited method from the java.lang.Object class.
+     *
+     * @param fullyQualifiedMethodName The method signature.
+     * @return Returns {@code true} if the given method is a java.lang.Object method,
+     * otherwise {@code false}.
+     */
+    public static boolean isJavaObjectMethod(final String fullyQualifiedMethodName) {
+        String method = getMethodName(fullyQualifiedMethodName);
+        return JAVA_OBJECT_METHODS.contains(method);
     }
 
     /**
