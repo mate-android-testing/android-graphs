@@ -26,18 +26,49 @@ public class ClassHierarchy {
     private class Class {
 
         private final ClassDef clazz;
+        private final String className;
+
         private ClassDef superClass;
-        private Set<ClassDef> interfaces;
+        private final String superClassName;
+
+        private final Set<ClassDef> interfaces;
+        private final Set<String> interfaceNames;
+
         private Set<ClassDef> subClasses;
 
+        /**
+         * Constructs a new class instance.
+         *
+         * @param clazz The underlying class.
+         */
         public Class(ClassDef clazz) {
             this.clazz = clazz;
+            this.className = clazz.toString();
+            this.superClass = null;
+            this.superClassName = clazz.getSuperclass();
             this.subClasses = new HashSet<>();
             this.interfaces = new HashSet<>();
+            this.interfaceNames = new HashSet<>(clazz.getInterfaces());
+        }
+
+        /**
+         * Constructs a new class instance. Only used
+         * for classes that are not contained in the dex files.
+         *
+         * @param clazz The underlying class name.
+         */
+        public Class(String clazz) {
+            this.clazz = null;
+            this.className = clazz;
+            this.superClass = null;
+            this.superClassName = null;
+            this.subClasses = new HashSet<>();
+            this.interfaces = new HashSet<>();
+            this.interfaceNames = new HashSet<>();
         }
 
         public void addInterfaces(Set<ClassDef> interfaces) {
-            interfaces.addAll(interfaces);
+            this.interfaces.addAll(interfaces);
         }
 
         public void addSubClass(ClassDef classDef) {
@@ -71,12 +102,12 @@ public class ClassHierarchy {
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
-            builder.append(clazz);
+            builder.append(className);
             builder.append(" {super class: ");
-            builder.append(superClass);
+            builder.append(superClassName);
             builder.append(" | ");
             builder.append("interfaces: ");
-            builder.append(interfaces);
+            builder.append(interfaceNames);
             builder.append(" | ");
             builder.append("sub classes: ");
             builder.append(subClasses);
@@ -133,15 +164,66 @@ public class ClassHierarchy {
             classHierarchy.putIfAbsent(superClass.toString(), new Class(superClass));
             Class superClazz = classHierarchy.get(superClass.toString());
             superClazz.addSubClass(clazz.getClazz());
+        } else {
+            // the super class is not contained in the dex file, e.g. Ljava/lang/Object;
+            String superClassName = clazz.superClassName;
+            if (superClassName != null) {
+                classHierarchy.putIfAbsent(superClassName, new Class(superClassName));
+                Class superClazz = classHierarchy.get(superClassName);
+                superClazz.addSubClass(clazz.getClazz());
+            }
         }
 
         if (interfaces != null) {
+
             for (ClassDef interfaceClass : interfaces) {
                 classHierarchy.putIfAbsent(interfaceClass.toString(), new Class(interfaceClass));
                 Class interfaceClazz = classHierarchy.get(interfaceClass.toString());
                 interfaceClazz.addSubClass(clazz.getClazz());
             }
+
+            // add a dummy class for interfaces that are not contained in the dex file
+            for (String interfaceName : clazz.getClazz().getInterfaces()) {
+                classHierarchy.putIfAbsent(interfaceName, new Class(interfaceName));
+                Class interfaceClazz = classHierarchy.get(interfaceName);
+                interfaceClazz.addSubClass(clazz.getClazz());
+            }
         }
+    }
+
+    /**
+     * Checks each subclass that potentially overwrites the given method. Returns
+     * the methods that actually overwrite the given method.
+     *
+     * @param method The given method.
+     * @return Returns the methods that overwrite the given method.
+     */
+    @SuppressWarnings("unused")
+    public Set<String> getOverriddenMethods(final String method) {
+
+        Set<String> overriddenMethods = new HashSet<>();
+
+        String methodName = MethodUtils.getMethodName(method);
+        String className = MethodUtils.getClassName(method);
+        Class clazz = getClassByName(className);
+
+        if (clazz != null) {
+            if (!MethodUtils.isConstructorCall(method)) {
+
+                // check each subclass that could potentially overwrite the method
+                for (ClassDef subClass : clazz.getSubClasses()) {
+                    Class subClazz = getClass(subClass);
+                    if (subClazz != null) {
+                        overriddenMethods.addAll(getOverriddenMethodsRecursive(subClazz, methodName));
+                    } else {
+                        LOGGER.warn("No entry for sub class: " + subClass);
+                    }
+                }
+            }
+        }
+
+        LOGGER.debug("Overridden methods for method " + method + ": " + overriddenMethods);
+        return overriddenMethods;
     }
 
     /**
@@ -150,14 +232,14 @@ public class ClassHierarchy {
      * If this is not the case, any super class is inspected. If any of those define the method,
      * the method signature of the respective super class is returned. If the method is defined in the current class,
      * we also need to check sub classes that could potentially overwrite the method. We return all overridden
-     * methods including the method of the current class itself.
+     * methods including the method of the current class itself, but only if the current class is available.
      *
      * @param method The given method.
-     * @param apk The APK file.
+     * @param packageName The application package name.
      * @param properties The global properties.
      * @return Returns the overridden method(s) in the super or sub classes.
      */
-    public Set<String> getOverriddenMethods(String method, APK apk, Properties properties) {
+    public Set<String> getOverriddenMethods(final String method, final String packageName, final Properties properties) {
 
         Set<String> overriddenMethods = new HashSet<>();
 
@@ -175,14 +257,16 @@ public class ClassHierarchy {
              */
             boolean currentClassDefinesMethod = false;
 
-            for (Method m : clazz.getClazz().getMethods()) {
-                if (m.toString().equals(method)) {
-                    currentClassDefinesMethod = true;
-                    break;
+            if (clazz.getClazz() != null) {
+                for (Method m : clazz.getClazz().getMethods()) {
+                    if (m.toString().equals(method)) {
+                        currentClassDefinesMethod = true;
+                        break;
+                    }
                 }
             }
 
-            if (!currentClassDefinesMethod) {
+            if (!currentClassDefinesMethod && clazz.getClazz() != null) {
                 // check super classes
                 String superMethod = invokesSuperMethod(getClass(clazz.superClass), methodName);
 
@@ -190,7 +274,7 @@ public class ClassHierarchy {
 
                     if (properties.resolveOnlyAUTClasses) {
                         String dottedClassName = ClassUtils.dottedClassName(MethodUtils.getClassName(superMethod));
-                        if (!dottedClassName.startsWith(apk.getManifest().getPackageName())) {
+                        if (!dottedClassName.startsWith(packageName)) {
                             LOGGER.debug("Super class method " + superMethod + " that shouldn't be resolved!");
                             /*
                             * This can be a super class method that is actually contained in the dex file,
@@ -293,9 +377,11 @@ public class ClassHierarchy {
         Set<String> subClassMethods = new HashSet<>();
 
         // check whether the current class overrides the given method
-        for (Method method : clazz.getClazz().getMethods()) {
-            if (MethodUtils.getMethodName(method.toString()).equals(methodName)) {
-                subClassMethods.add(method.toString());
+        if (clazz.getClazz() != null) {
+            for (Method method : clazz.getClazz().getMethods()) {
+                if (MethodUtils.getMethodName(method.toString()).equals(methodName)) {
+                    subClassMethods.add(method.toString());
+                }
             }
         }
 

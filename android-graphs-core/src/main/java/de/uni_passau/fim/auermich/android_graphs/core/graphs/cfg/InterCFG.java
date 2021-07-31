@@ -259,7 +259,8 @@ public class InterCFG extends BaseCFG {
          * that overrides the given method. Thus, we need to over-approximate in this case
          * and connect the invoke with each overridden method (CFG) as well.
          */
-        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(targetMethod, apk, properties);
+        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(targetMethod,
+                apk.getManifest().getPackageName(), properties);
 
         for (String overriddenMethod : overriddenMethods) {
             if (intraCFGs.containsKey(overriddenMethod)) {
