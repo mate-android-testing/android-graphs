@@ -114,6 +114,7 @@ public class MethodUtils {
         add("addContentView(Landroid/view/View;Landroid/view/ViewGroup$LayoutParams;)V");
         add("getMenuInflater()Landroid/view/MenuInflater;");
         add("invalidateOptionsMenu()V");
+        add("writeToParcel(Landroid/os/Parcel;I)V");
     }};
 
     /**
