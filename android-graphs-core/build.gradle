@@ -31,7 +31,7 @@ dependencies {
     implementation group: 'org.dom4j', name: 'dom4j', version: '2.1.3'
 
     // https://mvnrepository.com/artifact/org.apktool/apktool-lib
-    // implementation group: 'org.apktool', name: 'apktool-lib', version: '2.5.1-dev', ext: 'pom'
+    // implementation group: 'org.apktool', name: 'apktool-lib', version: '2.6.0'
 
     // https://stackoverflow.com/questions/61195038/excluding-dependency-from-implementation-files
     implementation files('libs/apktool-cli-all.jar')
