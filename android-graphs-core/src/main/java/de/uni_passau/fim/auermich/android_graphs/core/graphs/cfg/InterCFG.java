@@ -943,11 +943,8 @@ public class InterCFG extends BaseCFG {
             String methodSignature = intraCFG.getKey();
             String className = MethodUtils.getClassName(methodSignature);
 
-            // check for method representing a callback
+            // check if method represents a callback
             if (exclusionPattern != null && !exclusionPattern.matcher(ClassUtils.dottedClassName(className)).matches()
-                    // TODO: add missing callbacks for each event listener
-                    // see: https://developer.android.com/guide/topics/ui/ui-events
-                    // TODO: check whether there can be other custom event listeners
                     && MethodUtils.isCallback(methodSignature)) {
 
                 /*
@@ -1000,6 +997,21 @@ public class InterCFG extends BaseCFG {
                                  */
                                 callbacks.put(clazzName, intraCFG.getValue());
                             }
+
+                            /*
+                             * The usage may point to an inner class, e.g. an anonymous class representing
+                             * a callback. However, the ui component is typically the outer class. Thus,
+                             * we have to check whether the outer class represents a ui component.
+                             */
+                            if (ClassUtils.isInnerClass(clazzName)) {
+
+                                String outerClassName = ClassUtils.getOuterClass(clazzName);
+                                uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
+
+                                if (uiComponent.isPresent()) {
+                                    callbacks.put(outerClassName, intraCFG.getValue());
+                                }
+                            }
                         }
                     }
                 } else {
@@ -1037,6 +1049,21 @@ public class InterCFG extends BaseCFG {
                                  * component, thus the callback should be assigned to this class.
                                  */
                                 callbacks.put(clazzName, intraCFG.getValue());
+                            }
+
+                            /*
+                             * The usage may point to an inner class, e.g. an anonymous class representing
+                             * a callback. However, the ui component is typically the outer class. Thus,
+                             * we have to check whether the outer class represents a ui component.
+                             */
+                            if (ClassUtils.isInnerClass(clazzName)) {
+
+                                String outerClassName = ClassUtils.getOuterClass(clazzName);
+                                uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
+
+                                if (uiComponent.isPresent()) {
+                                    callbacks.put(outerClassName, intraCFG.getValue());
+                                }
                             }
                         }
                     }
