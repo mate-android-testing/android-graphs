@@ -68,7 +68,9 @@ public class InterCFG extends BaseCFG {
      * Maintains a reference to the individual intra CFGs.
      * NOTE: Only a reference to the entry and exit vertex is hold!
      */
-    Map<String, BaseCFG> intraCFGs = new HashMap<>();
+    private final Map<String, BaseCFG> intraCFGs = new HashMap<>();
+
+    private APK apk = null;
 
     // necessary for the copy constructor
     public InterCFG(String graphName) {
@@ -79,6 +81,7 @@ public class InterCFG extends BaseCFG {
                     boolean excludeARTClasses, boolean resolveOnlyAUTClasses) {
         super(graphName);
         this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+        this.apk = apk;
         constructCFG(apk);
     }
 
