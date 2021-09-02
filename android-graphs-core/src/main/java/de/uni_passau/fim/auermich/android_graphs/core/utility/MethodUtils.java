@@ -121,7 +121,7 @@ public class MethodUtils {
      * The methods contained in the java.lang.Object class.
      */
     private static final Set<String> JAVA_OBJECT_METHODS = new HashSet<>() {{
-        add("hashCode()I;");
+        add("hashCode()I");
         add("equals(Ljava/lang/Object;)Z");
         add("getClass()Ljava/lang/Class;");
         add("clone()Ljava/lang/Object;");

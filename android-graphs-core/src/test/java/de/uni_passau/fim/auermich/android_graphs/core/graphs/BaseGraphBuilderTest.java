@@ -20,6 +20,7 @@ import org.jf.dexlib2.iface.MultiDexContainer;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
@@ -1380,5 +1381,15 @@ public class BaseGraphBuilderTest {
                 }
             }
         }
+    }
+
+    /**
+     * Tests whether a given method is inherited from java.lang.Object, e.g. hashCode().
+     */
+    @Test
+    public void testJavaObjectMethod() {
+        String methodSignature = "Lde/retujo/bierverkostung/tasting/OpticalAppearanceBuilder" +
+                "$ImmutableOpticalAppearance;->hashCode()I";
+        Assertions.assertTrue(MethodUtils.isJavaObjectMethod(methodSignature));
     }
 }
