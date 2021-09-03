@@ -267,7 +267,36 @@ public class InterCFG extends BaseCFG {
 
         for (String overriddenMethod : overriddenMethods) {
             if (intraCFGs.containsKey(overriddenMethod)) {
-                targetCFGs.add(intraCFGs.get(overriddenMethod));
+
+                if (MethodUtils.isLambdaClassConstructorCall(overriddenMethod)) {
+
+                    /*
+                    * Invocations of lambda constructs and method references are awkwardly handled
+                    * at the bytecode level. In particular, the method representing the lambda construct
+                    * or method reference is not directly called. Thus, we have to manually link those
+                    * methods in the graph. Each lambda class defines next to the constructor exactly
+                    * one public method, which defines the actual logic. We link this method to the exit
+                    * vertex of the constructor. For more details, see Issue #37.
+                    * NOTE: We only consider methods that don't represent Android callbacks, e.g. onClick().
+                    * Those callbacks are directly integrated in the callbacks subgraph by another procedure.
+                     */
+                    ClassDef classDef = classHierarchy.getClass(MethodUtils.getClassName(overriddenMethod));
+                    assert Lists.newArrayList(classDef.getVirtualMethods()).size() == 1;
+                    String method = MethodUtils.deriveMethodSignature(classDef.getVirtualMethods().iterator().next());
+
+                    if (!MethodUtils.isCallback(method)) {
+                        LOGGER.debug("Lambda method: " + method);
+                        BaseCFG lambdaConstructor = intraCFGs.get(overriddenMethod);
+                        BaseCFG lambdaMethod = intraCFGs.get(method);
+                        addEdge(lambdaConstructor.getExit(), lambdaMethod.getEntry());
+                        targetCFGs.add(lambdaMethod);
+                    } else {
+                        // Android callbacks are handled separately
+                        targetCFGs.add(intraCFGs.get(overriddenMethod));
+                    }
+                } else {
+                    targetCFGs.add(intraCFGs.get(overriddenMethod));
+                }
             } else {
                 /*
                  * If there is a component invocation, e.g. a call to startActivity(), we

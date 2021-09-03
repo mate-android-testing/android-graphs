@@ -150,6 +150,18 @@ public class MethodUtils {
     }
 
     /**
+     * Checks whether the given method represents a constructor call of a lambda class.
+     *
+     * @param methodSignature The given method.
+     * @return Returns {@code true} if the method is a constructor call of a lambda class,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isLambdaClassConstructorCall(String methodSignature) {
+        String className = MethodUtils.getClassName(methodSignature);
+        return className.contains("$Lambda$") && isConstructorCall(methodSignature);
+    }
+
+    /**
      * Checks whether the given method represents a constructor call.
      *
      * @param methodSignature The given method.

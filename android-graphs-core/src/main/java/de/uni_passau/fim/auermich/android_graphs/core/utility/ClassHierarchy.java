@@ -129,6 +129,17 @@ public class ClassHierarchy {
         return classDef == null ? null : classHierarchy.get(classDef.toString());
     }
 
+    /**
+     * Returns the class corresponding to the given class name.
+     *
+     * @param className The class name.
+     * @return Returns the class or {@code null} if the class is not present.
+     */
+    public ClassDef getClass(String className) {
+        Class clazz = classHierarchy.get(className);
+        return clazz != null ? clazz.getClazz() : null;
+    }
+
     public void addClass(ClassDef classDef) {
         Class clazz = new Class(classDef);
         classHierarchy.put(clazz.getName(), clazz);
