@@ -186,16 +186,6 @@ public class MethodUtils {
     }
 
     /**
-     * Returns the defining class of the given method signature.
-     *
-     * @param fullyQualifiedMethodName The given method signature.
-     * @return Returns the defining class of the given method.
-     */
-    public static String getDefiningClass(String fullyQualifiedMethodName) {
-        return fullyQualifiedMethodName.split("->")[0];
-    }
-
-    /**
      * Returns solely the method name from a fully qualified method name.
      *
      * @param fullyQualifiedMethodName The fully qualified method name.

@@ -500,7 +500,7 @@ public class ComponentUtils {
                                 String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
 
                                 // check defining class (called class)
-                                String definingClass = MethodUtils.getDefiningClass(invokeCall);
+                                String definingClass = MethodUtils.getClassName(invokeCall);
                                 if (ClassUtils.dottedClassName(definingClass).startsWith(applicationPackage)) {
                                     if (!className.equals(definingClass)) {
                                         // don't track self references
