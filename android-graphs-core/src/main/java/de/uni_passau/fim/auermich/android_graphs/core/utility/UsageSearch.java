@@ -157,7 +157,44 @@ public final class UsageSearch {
     }
 
     /**
-     * Finds specific usages of a given class in the application package, where a usage is given when:
+     * Finds direct and indirect usages of a given class in the application package, where indirect or transitive
+     * usages are discovered up to the specified maximal level.
+     *
+     * @param apk The APK file containing the dex classes.
+     * @param clazz The class for which we should find its usages.
+     * @param maxLevel The maximal level that controls the lookup of transitive usages.
+     * @return Returns a set of classes that make use of the given class.
+     */
+    @SuppressWarnings("unused")
+    public static Set<Usage> findClassUsages(final APK apk, final String clazz, int maxLevel) {
+
+        LOGGER.debug("Find direct and indirect usages of class: " + clazz);
+        Set<Usage> totalUsages = new HashSet<>();
+
+        Set<String> classes = new HashSet<>();
+        classes.add(clazz);
+
+        for (int level = 0; level < maxLevel; level++) {
+
+            Set<String> newClasses = new HashSet<>();
+
+            for (String className : classes) {
+                Set<Usage> usages = findClassUsages(apk, className);
+                totalUsages.addAll(usages);
+                // search for transitive usages in subsequent iterations
+                usages.forEach(usage -> newClasses.add(usage.clazz.toString()));
+            }
+
+            classes.clear();
+            classes.addAll(newClasses);
+        }
+
+        totalUsages.forEach(LOGGER::debug);
+        return totalUsages;
+    }
+
+    /**
+     * Finds direct usages of a given class in the application package, where a usage is given when:
      *
      * (1) Another class holds an instance variable of the given class.
      * (2) A method of another class has a method parameter of the given class.
