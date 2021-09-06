@@ -1,6 +1,5 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
-import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.ClassDef;

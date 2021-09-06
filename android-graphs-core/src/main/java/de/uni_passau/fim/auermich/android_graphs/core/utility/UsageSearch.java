@@ -7,10 +7,8 @@ import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Enables to search for usages of a class or method, respectively.
@@ -194,6 +192,30 @@ public final class UsageSearch {
     }
 
     /**
+     * Checks whether the class annotations describe a usage of the given class.
+     *
+     * @param annotations The class annotations.
+     * @param clazz The usage class.
+     * @return Returns {@code true} if the class annotations describe a usage of the given class,
+     *          otherwise {@code false} is returned.
+     */
+    private static boolean checkAnnotationsForUsage(Set<? extends Annotation> annotations, final String clazz) {
+
+        AtomicBoolean containsUsage = new AtomicBoolean(false);
+
+        annotations.forEach(annotation -> {
+            annotation.getElements().forEach(annotationElement -> {
+                // TODO: check that the match refers to the generic declaration, i.e. is within '<>'
+                if (annotationElement.getValue().toString().contains(clazz)) {
+                    containsUsage.set(true);
+                }
+            });
+        });
+
+        return containsUsage.get();
+    }
+
+    /**
      * Finds direct usages of a given class in the application package, where a usage is given when:
      *
      * (1) Another class holds an instance variable of the given class.
@@ -206,7 +228,7 @@ public final class UsageSearch {
      */
     public static Set<Usage> findClassUsages(final APK apk, final String clazz) {
 
-        LOGGER.debug("Find usages of class: " + clazz);
+        LOGGER.debug("Find direct usages of class: " + clazz);
         Set<Usage> usages = new HashSet<>();
         String applicationPackage = apk.getManifest().getPackageName();
 
@@ -221,6 +243,11 @@ public final class UsageSearch {
                     continue;
                 }
 
+                if (ClassUtils.isResourceClass(classDef) || ClassUtils.isBuildConfigClass(classDef)) {
+                    // don't consider resource classes or the build config class
+                    continue;
+                }
+
                 if (className.equals(clazz)) {
                     // the class itself is not relevant
                     continue;
@@ -231,6 +258,46 @@ public final class UsageSearch {
                         // any inner class of the given class is also not relevant
                         continue;
                     }
+                }
+
+                /*
+                * Checks whether a 'usage' is defined through the 'extends' clause, i.e. inspecting
+                * the super class and its annotations, e.g. generics. Assume we check for the usages
+                * of class B and we are currently inspecting class A. In the following cases we say that
+                * A is a usage of B or equivalently that the usages of B contain A:
+                *
+                * (1) A extends B
+                * (2) A extends C<B> (Here A is also a usage of C)
+                *
+                 */
+                if ((classDef.getSuperclass() != null && classDef.getSuperclass().equals(clazz))
+                        || checkAnnotationsForUsage(classDef.getAnnotations(), clazz)) {
+                    LOGGER.debug("Found super class / annotation usage: " + classDef);
+                    usages.add(new Usage(classDef));
+                    foundUsage = true;
+                }
+
+                if (foundUsage) {
+                    break;
+                }
+
+                /*
+                * Checks whether a 'usage' is defined through the 'implements' clause, i.e.
+                * inspecting the interface classes. The same conditions holds as for the 'extends' clause.
+                * NOTE: We only need to inspect the interface names, the annotations have been checked
+                * previously.
+                 */
+                for (String interfaceClass : classDef.getInterfaces()) {
+                    if (interfaceClass.equals(clazz)) {
+                        LOGGER.debug("Found interface class usage: " + classDef);
+                        usages.add(new Usage(classDef));
+                        foundUsage = true;
+                        break;
+                    }
+                }
+
+                if (foundUsage) {
+                    break;
                 }
 
                 // first check whether the class is hold as an instance variable
