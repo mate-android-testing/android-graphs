@@ -967,7 +967,6 @@ public class InterCFG extends BaseCFG {
 
         Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
         final Pattern exclusionPattern = properties.exclusionPattern;
-        Map<String, Set<UsageSearch.Usage>> cachedUsagesPerClass = new HashMap<>();
 
         // iterate over all methods in graph
         for (Map.Entry<String, BaseCFG> intraCFG : intraCFGs.entrySet()) {
@@ -1006,15 +1005,7 @@ public class InterCFG extends BaseCFG {
                         // callback is declared by some wrapper class
 
                         // check which application classes make use of the wrapper class
-                        Set<UsageSearch.Usage> usages;
-
-                        // avoid redundant usage lookups of same class
-                        if (cachedUsagesPerClass.containsKey(outerClass)) {
-                            usages = cachedUsagesPerClass.get(outerClass);
-                        } else {
-                            usages = UsageSearch.findClassUsages(apk, outerClass);
-                            cachedUsagesPerClass.put(outerClass, usages);
-                        }
+                        Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, outerClass);
 
                         // check whether any found class represents a (ui) component
                         for (UsageSearch.Usage usage : usages) {
@@ -1058,16 +1049,7 @@ public class InterCFG extends BaseCFG {
                     } else {
                         // callback is declared by some top-level listener or wrapper class
 
-                        // check which application classes make use of the top level class
-                        Set<UsageSearch.Usage> usages;
-
-                        // avoid redundant usage lookups of same class
-                        if (cachedUsagesPerClass.containsKey(className)) {
-                            usages = cachedUsagesPerClass.get(className);
-                        } else {
-                            usages = UsageSearch.findClassUsages(apk, className);
-                            cachedUsagesPerClass.put(className, usages);
-                        }
+                        Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, className);;
 
                         // check whether any found class represents a (ui) component
                         for (UsageSearch.Usage usage : usages) {

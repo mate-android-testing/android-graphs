@@ -17,6 +17,9 @@ public final class UsageSearch {
 
     private static final Logger LOGGER = LogManager.getLogger(UsageSearch.class);
 
+    // caches requested class usages
+    private static final Map<String, Set<Usage>> CACHE = new HashMap<>();
+
     private UsageSearch() {
         throw new UnsupportedOperationException("utility class!");
     }
@@ -122,6 +125,7 @@ public final class UsageSearch {
      * @param targetMethod The method whose usages should be found.
      * @return Returns a set of usages of the given method.
      */
+    @SuppressWarnings("unused")
     public static Set<Usage> findMethodUsages(APK apk, Method targetMethod) {
 
         LOGGER.debug("Find usages of method: " + targetMethod);
@@ -167,8 +171,12 @@ public final class UsageSearch {
     public static Set<Usage> findClassUsages(final APK apk, final String clazz, int maxLevel) {
 
         LOGGER.debug("Find direct and indirect usages of class: " + clazz);
-        Set<Usage> totalUsages = new HashSet<>();
 
+        if (CACHE.containsKey(clazz)) {
+            return CACHE.get(clazz);
+        }
+
+        Set<Usage> totalUsages = new HashSet<>();
         Set<String> classes = new HashSet<>();
         classes.add(clazz);
 
@@ -230,6 +238,11 @@ public final class UsageSearch {
     public static Set<Usage> findClassUsages(final APK apk, final String clazz) {
 
         LOGGER.debug("Find direct usages of class: " + clazz);
+
+        if (CACHE.containsKey(clazz)) {
+            return CACHE.get(clazz);
+        }
+
         Set<Usage> usages = new HashSet<>();
         String applicationPackage = apk.getManifest().getPackageName();
 
@@ -352,6 +365,7 @@ public final class UsageSearch {
             }
         }
         usages.forEach(LOGGER::debug);
+        CACHE.put(clazz, usages);
         return usages;
     }
 }
