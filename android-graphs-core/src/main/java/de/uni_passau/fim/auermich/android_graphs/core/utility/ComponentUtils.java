@@ -63,6 +63,8 @@ public class ComponentUtils {
     private static final Set<String> COMPONENT_INVOCATIONS = new HashSet<>() {{
         add("startActivity(Landroid/content/Intent;)V");
         add("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V");
+        add("startActivityForResult(Landroid/content/Intent;I)V");
+        add("startActivityForResult(Landroid/content/Intent;ILandroid/os/Bundle;)V");
         add("startService(Landroid/content/Intent;)Landroid/content/ComponentName;");
         add("bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z");
     }};
@@ -111,9 +113,11 @@ public class ComponentUtils {
             String method = MethodUtils.getMethodName(invokeTarget);
 
             if (method.equals("startActivity(Landroid/content/Intent;)V")
-                    || method.equals("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")) {
+                    || method.equals("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")
+                    || method.equals("startActivityForResult(Landroid/content/Intent;I)V")
+                    || method.equals("startActivityForResult(Landroid/content/Intent;ILandroid/os/Bundle;)V")) {
 
-                LOGGER.debug("Backtracking startActivity() invocation!");
+                LOGGER.debug("Backtracking startActivity()/startActivityForResult() invocation!");
 
                 if (analyzedInstruction.getPredecessors().isEmpty()) {
                     // there is no predecessor -> target activity name might be defined somewhere else or external
@@ -125,7 +129,6 @@ public class ComponentUtils {
 
                 // TODO: check that we don't miss activities, go back recursively if there are several predecessors
                 // upper bound to avoid resolving external activities or activities defined in a different method
-
                 while (pred.getInstructionIndex() != -1) {
                     Instruction predecessor = pred.getInstruction();
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
