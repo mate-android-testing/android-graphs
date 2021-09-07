@@ -218,9 +218,10 @@ public final class UsageSearch {
     /**
      * Finds direct usages of a given class in the application package, where a usage is given when:
      *
-     * (1) Another class holds an instance variable of the given class.
-     * (2) A method of another class has a method parameter of the given class.
-     * (3) A method of another class invokes a method of the given class.
+     * (1) Another class makes use of the given clause in the 'extends' or 'implements' clause.
+     * (2) Another class holds an instance variable of the given class.
+     * (3) A method of another class has a method parameter of the given class.
+     * (4) A method of another class invokes a method of the given class.
      *
      * @param apk   The APK file containing the dex classes.
      * @param clazz The class for which we should find its usages.
@@ -278,7 +279,7 @@ public final class UsageSearch {
                 }
 
                 if (foundUsage) {
-                    break;
+                    continue;
                 }
 
                 /*
@@ -297,10 +298,10 @@ public final class UsageSearch {
                 }
 
                 if (foundUsage) {
-                    break;
+                    continue;
                 }
 
-                // first check whether the class is hold as an instance variable
+                // second check whether the class is hold as an instance variable
                 for (Field instanceField : classDef.getInstanceFields()) {
                     if (clazz.equals(instanceField.getType())) {
                         usages.add(new Usage(classDef));
@@ -310,12 +311,12 @@ public final class UsageSearch {
                 }
 
                 if (foundUsage) {
-                    break;
+                    continue;
                 }
 
                 for (Method method : classDef.getMethods()) {
 
-                    // second check whether method parameters refer to class
+                    // third check whether method parameters refer to class
                     for (MethodParameter parameter : method.getParameters()) {
                         if (clazz.equals(parameter.getType())) {
                             usages.add(new Usage(classDef, method));
@@ -328,7 +329,7 @@ public final class UsageSearch {
                         break;
                     }
 
-                    // third check whether any method of the class is invoked
+                    // fourth check whether any method of the class is invoked
                     MethodImplementation implementation = method.getImplementation();
                     if (implementation != null) {
                         List<AnalyzedInstruction> instructions = MethodUtils.getAnalyzedInstructions(dexFile, method);
