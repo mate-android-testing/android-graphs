@@ -72,6 +72,9 @@ public class InterCFG extends BaseCFG {
 
     private APK apk = null;
 
+    // the set of discovered Android callbacks
+    private final Set<String> callbacks = new HashSet<>();
+
     // necessary for the copy constructor
     public InterCFG(String graphName) {
         super(graphName);
@@ -271,14 +274,14 @@ public class InterCFG extends BaseCFG {
                 if (MethodUtils.isLambdaClassConstructorCall(overriddenMethod)) {
 
                     /*
-                    * Invocations of lambda constructs and method references are awkwardly handled
-                    * at the bytecode level. In particular, the method representing the lambda construct
-                    * or method reference is not directly called. Thus, we have to manually link those
-                    * methods in the graph. Each lambda class defines next to the constructor exactly
-                    * one public method, which defines the actual logic. We link this method to the exit
-                    * vertex of the constructor. For more details, see Issue #37.
-                    * NOTE: We only consider methods that don't represent Android callbacks, e.g. onClick().
-                    * Those callbacks are directly integrated in the callbacks subgraph by another procedure.
+                     * Invocations of lambda constructs and method references are awkwardly handled
+                     * at the bytecode level. In particular, the method representing the lambda construct
+                     * or method reference is not directly called. Thus, we have to manually link those
+                     * methods in the graph. Each lambda class defines next to the constructor exactly
+                     * one public method, which defines the actual logic. We link this method to the exit
+                     * vertex of the constructor. For more details, see Issue #37.
+                     * NOTE: We only consider methods that don't represent Android callbacks, e.g. onClick().
+                     * Those callbacks are directly integrated in the callbacks subgraph by another procedure.
                      */
                     ClassDef classDef = classHierarchy.getClass(MethodUtils.getClassName(overriddenMethod));
                     assert Lists.newArrayList(classDef.getVirtualMethods()).size() == 1;
@@ -965,128 +968,134 @@ public class InterCFG extends BaseCFG {
          * Only if the callback is not directly declared in an activity or fragment, we look up it usages.
          */
 
-        Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
-        final Pattern exclusionPattern = properties.exclusionPattern;
+        Multimap<String, BaseCFG> classToCallbacksMapping = TreeMultimap.create();
 
-        // iterate over all methods in graph
-        for (Map.Entry<String, BaseCFG> intraCFG : intraCFGs.entrySet()) {
+        for (String callback : callbacks) {
 
-            String methodSignature = intraCFG.getKey();
-            String className = MethodUtils.getClassName(methodSignature);
+            boolean assignedCallbackToClass = false;
 
-            // check if method represents a callback
-            if (exclusionPattern != null && !exclusionPattern.matcher(ClassUtils.dottedClassName(className)).matches()
-                    && MethodUtils.isCallback(methodSignature)) {
+            BaseCFG callbackGraph = intraCFGs.get(callback);
+            String className = MethodUtils.getClassName(callback);
 
-                /*
-                 * We need to check where the callback is declared. There are two options here:
-                 *
-                 * (1)
-                 * If the class containing the callback represents an inner class, then the callback might belong
-                 * to the outer class, e.g. an activity defines the OnClickListener (onClick() callback) as inner class.
-                 * But, the outer class might be just a wrapper class containing multiple widgets and its callbacks.
-                 * In this case, we have to backtrack the usages of the (outer) class to the respective component,
-                 * i.e. the activity or fragment.
-                 *
-                 * (2)
-                 * If the class represents a top-level class, it might be either an activity/fragment implementing
-                 * a listener or a (wrapper) class representing a top-level listener. In the latter case, we need to
-                 * backtrack the usages to the respective component.
-                 */
-                if (ClassUtils.isInnerClass(className)) {
+            /*
+             * We need to check where the callback is declared. There are two options here:
+             *
+             * (1)
+             * If the class containing the callback represents an inner class, then the callback might belong
+             * to the outer class, e.g. an activity defines the OnClickListener (onClick() callback) as inner class.
+             * But, the outer class might be just a wrapper class containing multiple widgets and its callbacks.
+             * In this case, we have to backtrack the usages of the (outer) class to the respective component,
+             * i.e. the activity or fragment.
+             *
+             * (2)
+             * If the class represents a top-level class, it might be either an activity/fragment implementing
+             * a listener or a (wrapper) class representing a top-level listener. In the latter case, we need to
+             * backtrack the usages to the respective component.
+             */
+            if (ClassUtils.isInnerClass(className)) {
 
-                    String outerClass = ClassUtils.getOuterClass(className);
-                    Optional<Component> component = ComponentUtils.getComponentByName(components, outerClass);
+                String outerClass = ClassUtils.getOuterClass(className);
+                Optional<Component> component = ComponentUtils.getComponentByName(components, outerClass);
 
-                    if (component.isPresent()) {
-                        // component declares directly callback
-                        callbacks.put(outerClass, intraCFG.getValue());
-                    } else {
-                        // callback is declared by some wrapper class
+                if (component.isPresent()) {
+                    // component declares directly callback
+                    classToCallbacksMapping.put(outerClass, callbackGraph);
+                    assignedCallbackToClass = true;
+                } else {
+                    // callback is declared by some wrapper class
 
-                        // check which application classes make use of the wrapper class
-                        Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, outerClass);
+                    // check which application classes make use of the wrapper class
+                    Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, outerClass);
 
-                        // check whether any found class represents a (ui) component
-                        for (UsageSearch.Usage usage : usages) {
+                    // check whether any found class represents a (ui) component
+                    for (UsageSearch.Usage usage : usages) {
 
-                            String clazzName = usage.getClazz().toString();
-                            Optional<Component> uiComponent = ComponentUtils.getComponentByName(components, clazzName);
+                        String clazzName = usage.getClazz().toString();
+                        Optional<Component> uiComponent = ComponentUtils.getComponentByName(components, clazzName);
+
+                        if (uiComponent.isPresent()) {
+                            /*
+                             * The class that makes use of the wrapper class represents a component, thus
+                             * the callback should be assigned to this class.
+                             */
+                            classToCallbacksMapping.put(clazzName, callbackGraph);
+                            assignedCallbackToClass = true;
+                        }
+
+                        /*
+                         * The usage may point to an inner class, e.g. an anonymous class representing
+                         * a callback. However, the ui component is typically the outer class. Thus,
+                         * we have to check whether the outer class represents a ui component.
+                         */
+                        if (ClassUtils.isInnerClass(clazzName)) {
+
+                            String outerClassName = ClassUtils.getOuterClass(clazzName);
+                            uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
 
                             if (uiComponent.isPresent()) {
-                                /*
-                                 * The class that makes use of the wrapper class represents a component, thus
-                                 * the callback should be assigned to this class.
-                                 */
-                                callbacks.put(clazzName, intraCFG.getValue());
-                            }
-
-                            /*
-                             * The usage may point to an inner class, e.g. an anonymous class representing
-                             * a callback. However, the ui component is typically the outer class. Thus,
-                             * we have to check whether the outer class represents a ui component.
-                             */
-                            if (ClassUtils.isInnerClass(clazzName)) {
-
-                                String outerClassName = ClassUtils.getOuterClass(clazzName);
-                                uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
-
-                                if (uiComponent.isPresent()) {
-                                    callbacks.put(outerClassName, intraCFG.getValue());
-                                }
+                                classToCallbacksMapping.put(outerClassName, callbackGraph);
+                                assignedCallbackToClass = true;
                             }
                         }
                     }
+                }
+            } else {
+                // top-level class
+
+                // an activity/fragment might implement a listener interface
+                Optional<Component> component = ComponentUtils.getComponentByName(components, className);
+
+                if (component.isPresent()) {
+                    // component declares directly callback
+                    classToCallbacksMapping.put(className, callbackGraph);
+                    assignedCallbackToClass = true;
                 } else {
-                    // top-level class
+                    // callback is declared by some top-level listener or wrapper class
 
-                    // an activity/fragment might implement a listener interface
-                    Optional<Component> component = ComponentUtils.getComponentByName(components, className);
+                    Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, className);
 
-                    if (component.isPresent()) {
-                        // component declares directly callback
-                        callbacks.put(className, intraCFG.getValue());
-                    } else {
-                        // callback is declared by some top-level listener or wrapper class
+                    // check whether any found class represents a (ui) component
+                    for (UsageSearch.Usage usage : usages) {
 
-                        Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, className);;
+                        String clazzName = usage.getClazz().toString();
+                        Optional<Component> uiComponent = ComponentUtils.getComponentByName(components, clazzName);
 
-                        // check whether any found class represents a (ui) component
-                        for (UsageSearch.Usage usage : usages) {
+                        if (uiComponent.isPresent()) {
+                            /*
+                             * The class that makes use of the top-level listener (wrapper) class represents a
+                             * component, thus the callback should be assigned to this class.
+                             */
+                            classToCallbacksMapping.put(clazzName, callbackGraph);
+                            assignedCallbackToClass = true;
+                        }
 
-                            String clazzName = usage.getClazz().toString();
-                            Optional<Component> uiComponent = ComponentUtils.getComponentByName(components, clazzName);
+                        /*
+                         * The usage may point to an inner class, e.g. an anonymous class representing
+                         * a callback. However, the ui component is typically the outer class. Thus,
+                         * we have to check whether the outer class represents a ui component.
+                         */
+                        if (ClassUtils.isInnerClass(clazzName)) {
+
+                            String outerClassName = ClassUtils.getOuterClass(clazzName);
+                            uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
 
                             if (uiComponent.isPresent()) {
-                                /*
-                                 * The class that makes use of the top-level listener (wrapper) class represents a
-                                 * component, thus the callback should be assigned to this class.
-                                 */
-                                callbacks.put(clazzName, intraCFG.getValue());
-                            }
-
-                            /*
-                             * The usage may point to an inner class, e.g. an anonymous class representing
-                             * a callback. However, the ui component is typically the outer class. Thus,
-                             * we have to check whether the outer class represents a ui component.
-                             */
-                            if (ClassUtils.isInnerClass(clazzName)) {
-
-                                String outerClassName = ClassUtils.getOuterClass(clazzName);
-                                uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
-
-                                if (uiComponent.isPresent()) {
-                                    callbacks.put(outerClassName, intraCFG.getValue());
-                                }
+                                classToCallbacksMapping.put(outerClassName, callbackGraph);
+                                assignedCallbackToClass = true;
                             }
                         }
                     }
                 }
             }
+
+            if (!assignedCallbackToClass) {
+                LOGGER.debug("Couldn't assign callback to class: " + callback);
+            }
         }
+
         LOGGER.debug("Callbacks declared via Code: ");
-        callbacks.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
-        return callbacks;
+        classToCallbacksMapping.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
+        return classToCallbacksMapping;
     }
 
     /**
@@ -1436,6 +1445,11 @@ public class InterCFG extends BaseCFG {
                 for (Method method : classDef.getMethods()) {
 
                     String methodSignature = MethodUtils.deriveMethodSignature(method);
+
+                    // track the Android callbacks
+                    if (MethodUtils.isCallback(methodSignature)) {
+                        callbacks.add(methodSignature);
+                    }
 
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
                             || MethodUtils.isARTMethod(methodSignature)) {
