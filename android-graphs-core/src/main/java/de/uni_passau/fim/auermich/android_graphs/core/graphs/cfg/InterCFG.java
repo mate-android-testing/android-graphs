@@ -289,7 +289,7 @@ public class InterCFG extends BaseCFG {
                         BaseCFG lambdaConstructor = intraCFGs.get(overriddenMethod);
                         BaseCFG lambdaMethod = intraCFGs.get(method);
                         addEdge(lambdaConstructor.getExit(), lambdaMethod.getEntry());
-                        targetCFGs.add(lambdaMethod);
+                        targetCFGs.add(lambdaConstructor);
                     } else {
                         // Android callbacks are handled separately
                         targetCFGs.add(intraCFGs.get(overriddenMethod));
