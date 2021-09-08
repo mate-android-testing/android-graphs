@@ -318,7 +318,7 @@ public class InterCFG extends BaseCFG {
                         LOGGER.warn("Couldn't derive component constructor for method: " + overriddenMethod);
                         targetCFGs.add(dummyCFG(overriddenMethod));
                     }
-                } else if (Utility.isReflectionCall(overriddenMethod)) {
+                } else if (MethodUtils.isReflectionCall(overriddenMethod)) {
                     // replace the reflection call with the internally invoked class constructor
                     String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
                     if (clazz != null) {
@@ -1254,9 +1254,12 @@ public class InterCFG extends BaseCFG {
                         // we have to resolve component invocations in any case, see the code below
                         && !ComponentUtils.isComponentInvocation(components, targetMethod)
                         // we need to resolve calls using reflection in any case
-                        && !Utility.isReflectionCall(targetMethod)
-                        // we need to resolve overridden methods in any case
-                        // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).isEmpty()) {
+                        && !MethodUtils.isReflectionCall(targetMethod)
+                        // we need to resolve calls of run() in any case
+                        && !MethodUtils.isRunMethod(targetMethod)
+                    // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
+                    // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
+                    // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
                 ) {
                     continue;
                 }
@@ -1277,7 +1280,7 @@ public class InterCFG extends BaseCFG {
                     if (componentConstructor != null && intraCFGs.containsKey(componentConstructor)) {
                         targetMethod = componentConstructor;
                     }
-                } else if (Utility.isReflectionCall(targetMethod)) {
+                } else if (MethodUtils.isReflectionCall(targetMethod)) {
                     /*
                      * If we deal with a reflective call, i.e. newInstance(), the target method
                      * should be replaced with the constructor. Here particular, the virtual return statement
@@ -1339,7 +1342,7 @@ public class InterCFG extends BaseCFG {
                     // we have to resolve component invocations in any case, see the code below
                     && !ComponentUtils.isComponentInvocation(components, targetMethod)
                     // we have to resolve reflection calls in any case
-                    && !Utility.isReflectionCall(targetMethod)) {
+                    && !MethodUtils.isReflectionCall(targetMethod)) {
                 continue;
             }
 
@@ -1350,7 +1353,7 @@ public class InterCFG extends BaseCFG {
                     // we have to resolve component invocations in any case
                     && !ComponentUtils.isComponentInvocation(components, targetMethod)
                     // we have to resolve reflection calls in any case
-                    && !Utility.isReflectionCall(targetMethod)) {
+                    && !MethodUtils.isReflectionCall(targetMethod)) {
                 continue;
             }
 

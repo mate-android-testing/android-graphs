@@ -419,4 +419,26 @@ public class MethodUtils {
     public static String getClassName(final String methodSignature) {
         return methodSignature.split("->")[0];
     }
+
+    /**
+     * Checks whether the given method represents a reflection call.
+     *
+     * @param methodSignature The method to be checked.
+     * @return Returns {@code true} if the method refers to a reflection call,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isReflectionCall(String methodSignature) {
+        return methodSignature.equals("Ljava/lang/Class;->newInstance()Ljava/lang/Object;");
+    }
+
+    /**
+     * Checks whether the given method represents the run method of the Runnable class.
+     *
+     * @param methodSignature The method to be checked.
+     * @return Returns {@code true} if the method refers to the run method,
+     * otherwise {@code false} is returned.
+     */
+    public static boolean isRunMethod(String methodSignature) {
+        return methodSignature.equals("Ljava/lang/Runnable;->run()V");
+    }
 }
