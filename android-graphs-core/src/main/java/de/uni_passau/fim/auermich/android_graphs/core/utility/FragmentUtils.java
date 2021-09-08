@@ -10,6 +10,7 @@ import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
+import org.jf.dexlib2.iface.instruction.formats.Instruction11x;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 
@@ -144,6 +145,25 @@ public class FragmentUtils {
             if (constructor.getRegisterC() == fragmentRegisterID) {
                 String constructorInvocation = constructor.getReference().toString();
                 String fragment = MethodUtils.getClassName(constructorInvocation);
+                fragments.add(fragment);
+                return fragments;
+            }
+        } else if (predecessor.getInstruction().getOpcode() == Opcode.MOVE_RESULT_OBJECT) {
+            /*
+            * In addition to above possibilities, a fragment can be also created through a
+            * regular method. For instance, consider the following example:
+            *
+            *   invoke-static {p1}, Lde/retujo/bierverkostung/beer/SelectBeerFragment;
+            *       ->newInstance(Landroid/view/View$OnClickListener;)Lde/retujo/bierverkostung/beer/SelectBeerFragment;
+            *   move-result-object p1
+            *
+            * We first check whether the result has been saved in the relevant register. Then we
+            * look at the direct predecessor and check the return type of the invocation.
+             */
+            Instruction11x moveResultObject = (Instruction11x) predecessor.getInstruction();
+            if (moveResultObject.getRegisterA() == fragmentRegisterID) {
+                Instruction35c invokeInstruction = (Instruction35c) predecessor.getPredecessors().first().getInstruction();
+                String fragment = MethodUtils.getReturnType(invokeInstruction.getReference().toString());
                 fragments.add(fragment);
                 return fragments;
             }
