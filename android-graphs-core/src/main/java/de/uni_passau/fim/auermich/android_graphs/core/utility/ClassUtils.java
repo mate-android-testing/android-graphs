@@ -98,6 +98,30 @@ public class ClassUtils {
     }
 
     /**
+     * Gets the inner classes of the given class.
+     * NOTE: We assume that the inner classes are contained in the same dex file.
+     *
+     * @param dexFile The dex file potentially containing the inner classes.
+     * @param clazz The class for which we look up its inner classes.
+     * @return Returns the inner classes of the given class if any or an empty set otherwise.
+     */
+    public static Set<ClassDef> getInnerClasses(final DexFile dexFile, final ClassDef clazz) {
+
+        Set<ClassDef> innerClasses = new HashSet<>();
+
+        for (ClassDef classDef : dexFile.getClasses()) {
+            String className = classDef.toString();
+            if (ClassUtils.isInnerClass(className)) {
+                if (ClassUtils.getOuterClass(className).equals(clazz.toString())) {
+                    innerClasses.add(classDef);
+                }
+            }
+        }
+
+        return innerClasses;
+    }
+
+    /**
      * Returns the method signature of the default constructor for a given class.
      *
      * @param clazz The name of the class.

@@ -33,7 +33,9 @@ public class ClassHierarchy {
         private final Set<ClassDef> interfaces;
         private final Set<String> interfaceNames;
 
-        private Set<ClassDef> subClasses;
+        private final Set<ClassDef> subClasses;
+
+        private final Set<ClassDef> innerClasses;
 
         /**
          * Constructs a new class instance.
@@ -48,6 +50,7 @@ public class ClassHierarchy {
             this.subClasses = new HashSet<>();
             this.interfaces = new HashSet<>();
             this.interfaceNames = new HashSet<>(clazz.getInterfaces());
+            this.innerClasses = new HashSet<>();
         }
 
         /**
@@ -64,6 +67,7 @@ public class ClassHierarchy {
             this.subClasses = new HashSet<>();
             this.interfaces = new HashSet<>();
             this.interfaceNames = new HashSet<>();
+            this.innerClasses = new HashSet<>();
         }
 
         public void addInterfaces(Set<ClassDef> interfaces) {
@@ -72,6 +76,10 @@ public class ClassHierarchy {
 
         public void addSubClass(ClassDef classDef) {
             subClasses.add(classDef);
+        }
+
+        public void addInnerClasses(Set<ClassDef> innerClasses) {
+            this.innerClasses.addAll(innerClasses);
         }
 
         public void setSuperClass(ClassDef classDef) {
@@ -98,6 +106,8 @@ public class ClassHierarchy {
             return Collections.unmodifiableSet(subClasses);
         }
 
+        public Set<ClassDef> getInnerClasses() { return Collections.unmodifiableSet(innerClasses); }
+
         @Override
         public String toString() {
             StringBuilder builder = new StringBuilder();
@@ -110,6 +120,9 @@ public class ClassHierarchy {
             builder.append(" | ");
             builder.append("sub classes: ");
             builder.append(subClasses);
+            builder.append(" | ");
+            builder.append("inner classes: ");
+            builder.append(innerClasses);
             builder.append("}");
             return builder.toString();
         }
@@ -139,6 +152,17 @@ public class ClassHierarchy {
         return clazz != null ? clazz.getClazz() : null;
     }
 
+    /**
+     * Returns the inner classes of the given class.
+     *
+     * @param className The class name for which the inner classes should be looked up.
+     * @return Returns the inner classes or {@code null} if the class is not present.
+     */
+    public Set<ClassDef> getInnerClasses(String className) {
+        Class clazz = classHierarchy.get(className);
+        return clazz != null ? clazz.getInnerClasses() : null;
+    }
+
     public void addClass(ClassDef classDef) {
         Class clazz = new Class(classDef);
         classHierarchy.put(clazz.getName(), clazz);
@@ -156,6 +180,15 @@ public class ClassHierarchy {
         Class clazz = new Class(classDef);
         clazz.setSuperClass(superClass);
         clazz.addInterfaces(interfaces);
+        classHierarchy.put(clazz.getName(), clazz);
+        update(clazz, superClass, interfaces);
+    }
+
+    public void addClass(ClassDef classDef, ClassDef superClass, Set<ClassDef> interfaces, Set<ClassDef> innerClasses) {
+        Class clazz = new Class(classDef);
+        clazz.setSuperClass(superClass);
+        clazz.addInterfaces(interfaces);
+        clazz.addInnerClasses(innerClasses);
         classHierarchy.put(clazz.getName(), clazz);
         update(clazz, superClass, interfaces);
     }
