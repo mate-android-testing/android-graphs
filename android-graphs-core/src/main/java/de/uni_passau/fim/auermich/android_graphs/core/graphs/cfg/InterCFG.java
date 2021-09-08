@@ -257,6 +257,7 @@ public class InterCFG extends BaseCFG {
 
         Instruction instruction = invokeStmt.getInstruction().getInstruction();
         String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+        String callingClass = MethodUtils.getClassName(invokeStmt.getMethod());
 
         LOGGER.debug("Lookup target CFGs for " + targetMethod);
 
@@ -265,7 +266,7 @@ public class InterCFG extends BaseCFG {
          * that overrides the given method. Thus, we need to over-approximate in this case
          * and connect the invoke with each overridden method (CFG) as well.
          */
-        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(targetMethod,
+        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(callingClass, targetMethod,
                 apk.getManifest().getPackageName(), properties);
 
         for (String overriddenMethod : overriddenMethods) {
@@ -282,19 +283,20 @@ public class InterCFG extends BaseCFG {
                      * vertex of the constructor. For more details, see Issue #37.
                      * NOTE: We only consider methods that don't represent Android callbacks, e.g. onClick().
                      * Those callbacks are directly integrated in the callbacks subgraph by another procedure.
+                     * Likewise, we don't handle the run method of a lambda class here.
                      */
                     ClassDef classDef = classHierarchy.getClass(MethodUtils.getClassName(overriddenMethod));
                     assert Lists.newArrayList(classDef.getVirtualMethods()).size() == 1;
                     String method = MethodUtils.deriveMethodSignature(classDef.getVirtualMethods().iterator().next());
 
-                    if (!MethodUtils.isCallback(method)) {
+                    if (!MethodUtils.isCallback(method) && !MethodUtils.isRunMethod(method)) {
                         LOGGER.debug("Lambda method: " + method);
                         BaseCFG lambdaConstructor = intraCFGs.get(overriddenMethod);
                         BaseCFG lambdaMethod = intraCFGs.get(method);
                         addEdge(lambdaConstructor.getExit(), lambdaMethod.getEntry());
                         targetCFGs.add(lambdaConstructor);
                     } else {
-                        // Android callbacks are handled separately
+                        // Android callbacks and run methods are handled separately
                         targetCFGs.add(intraCFGs.get(overriddenMethod));
                     }
                 } else {
@@ -1521,9 +1523,11 @@ public class InterCFG extends BaseCFG {
      */
     private void updateClassHierarchy(final DexFile dexFile, final ClassDef classDef) {
 
+        // TODO: Speed up class hierarchy construction. At least inner classes can be derived iteratively.
         ClassDef superClass = ClassUtils.getSuperClass(dexFile, classDef);
         Set<ClassDef> interfaces = ClassUtils.getInterfaces(dexFile, classDef);
-        classHierarchy.addClass(classDef, superClass, interfaces);
+        Set<ClassDef> innerClasses = ClassUtils.getInnerClasses(dexFile, classDef);
+        classHierarchy.addClass(classDef, superClass, interfaces, innerClasses);
     }
 
     /**

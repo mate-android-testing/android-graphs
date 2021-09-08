@@ -277,12 +277,14 @@ public class ClassHierarchy {
      * we also need to check sub classes that could potentially overwrite the method. We return all overridden
      * methods including the method of the current class itself, but only if the current class is available.
      *
+     * @param callingClass The class in which the given method is called.
      * @param method The given method.
      * @param packageName The application package name.
      * @param properties The global properties.
      * @return Returns the overridden method(s) in the super or sub classes.
      */
-    public Set<String> getOverriddenMethods(final String method, final String packageName, final Properties properties) {
+    public Set<String> getOverriddenMethods(final String callingClass, final String method,
+                                            final String packageName, final Properties properties) {
 
         Set<String> overriddenMethods = new HashSet<>();
 
@@ -290,7 +292,7 @@ public class ClassHierarchy {
         String className = MethodUtils.getClassName(method);
         Class clazz = getClassByName(className);
 
-        if (clazz != null) {
+        if (clazz != null && !MethodUtils.isRunMethod(method)) {
 
             /*
             * First, check whether the current class defines the method, otherwise look up
@@ -352,14 +354,41 @@ public class ClassHierarchy {
                 }
             }
         } else {
-            LOGGER.warn("No entry for class: " + className);
-            /*
-             * This can be a call of 'Ljava/lang/Class;->newInstance()Ljava/lang/Object;' for instance.
-             * Since we always try to resolve reflection calls, this method comes up here, but the
-             * class defining the method is not contained in the APK. We need to pass the method
-             * unchanged to the next processing step.
-             */
-            overriddenMethods.add(method);
+            // class not defined in class hierarchy or run method of runnable class
+            if (MethodUtils.isRunMethod(method)) {
+                /*
+                 * Backtracking to the specific run method is rather complex, thus we stick to the following heuristic:
+                 * We assume that the class invoking the run method implements itself the run method or any inner class
+                 * of it. The procedure may find multiple run methods. If no run method could be found, we pass the
+                 * method unchanged to the next processing step.
+                 */
+                Set<ClassDef> classes = new HashSet<>();
+                classes.add(getClass(callingClass));
+                classes.addAll(getInnerClasses(callingClass));
+
+                for (ClassDef classDef : classes) {
+                    for (Method m : classDef.getMethods()) {
+                        if (MethodUtils.getMethodName(m).equals("run()V")) {
+                            overriddenMethods.add(MethodUtils.deriveMethodSignature(m));
+                        }
+                    }
+                }
+
+                if (overriddenMethods.isEmpty()) {
+                    LOGGER.debug("Couldn't find any run() method in class " + callingClass + "!");
+                    // fall back to run method of runnable class
+                    overriddenMethods.add(method);
+                }
+            } else {
+                LOGGER.warn("No entry for class: " + className);
+                /*
+                 * This can be a call of 'Ljava/lang/Class;->newInstance()Ljava/lang/Object;' for instance.
+                 * Since we always try to resolve reflection calls, this method comes up here, but the
+                 * class defining the method is not contained in the APK. We need to pass the method
+                 * unchanged to the next processing step.
+                 */
+                overriddenMethods.add(method);
+            }
         }
 
         if (overriddenMethods.isEmpty()) {
