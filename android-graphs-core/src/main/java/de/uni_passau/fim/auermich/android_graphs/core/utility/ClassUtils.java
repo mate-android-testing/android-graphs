@@ -40,6 +40,9 @@ public class ClassUtils {
         add("R$menu");
         add("R$array");
         add("R$xml");
+        add("R$plurals");
+        add("R$raw");
+        add("R$animator");
     }};
 
     private ClassUtils() {
@@ -187,6 +190,33 @@ public class ClassUtils {
     public static boolean isBuildConfigClass(final ClassDef classDef) {
         String className = dottedClassName(classDef.toString());
         return className.endsWith("BuildConfig");
+    }
+
+    /**
+     * Checks whether the given class represents the dynamically generated R class or any
+     * inner class of it.
+     *
+     * @param className The class to be checked.
+     * @return Returns {@code true} if the given class represents the R class or any
+     * inner class of it, otherwise {@code false} is returned.
+     */
+    public static boolean isResourceClass(final String className) {
+
+        String[] tokens = dottedClassName(className).split("\\.");
+
+        // check whether it is the R class itself
+        if (tokens[tokens.length - 1].equals("R")) {
+            return true;
+        }
+
+        // check for inner R classes
+        for (String resourceClass : RESOURCE_CLASSES) {
+            if (className.contains(resourceClass)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
