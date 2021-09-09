@@ -354,7 +354,7 @@ public class ClassHierarchy {
                 }
             }
         } else {
-            // class not defined in class hierarchy or run method of runnable class
+            // class not defined in class hierarchy or run method of Thread/Runnable class
             if (MethodUtils.isRunMethod(method)) {
                 /*
                  * Backtracking to the specific run method is rather complex, thus we stick to the following heuristic:
@@ -376,7 +376,7 @@ public class ClassHierarchy {
 
                 if (overriddenMethods.isEmpty()) {
                     LOGGER.debug("Couldn't find any run() method in class " + callingClass + "!");
-                    // fall back to run method of runnable class
+                    // fall back to start()/run() method of Thread/Runnable class
                     overriddenMethods.add(method);
                 }
             } else {

@@ -432,13 +432,14 @@ public class MethodUtils {
     }
 
     /**
-     * Checks whether the given method represents the run method of the Runnable class.
+     * Checks whether the given method represents the run method of the Thread/Runnable class.
      *
      * @param methodSignature The method to be checked.
      * @return Returns {@code true} if the method refers to the run method,
      * otherwise {@code false} is returned.
      */
     public static boolean isRunMethod(String methodSignature) {
-        return methodSignature.equals("Ljava/lang/Runnable;->run()V");
+        return methodSignature.equals("Ljava/lang/Runnable;->run()V")
+                || methodSignature.equals("Ljava/lang/Thread;->start()V");
     }
 }
