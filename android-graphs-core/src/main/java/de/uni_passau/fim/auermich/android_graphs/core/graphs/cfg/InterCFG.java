@@ -1782,12 +1782,49 @@ public class InterCFG extends BaseCFG {
      */
     @SuppressWarnings("debug")
     public void printIsolatedSubGraphs() {
-        for (Vertex vertex : getVertices()) {
-            if (getShortestDistance(getEntry(), vertex) == -1) {
-                if (vertex.isEntryVertex()) {
-                    LOGGER.debug("Isolated method: " + vertex.getMethod());
+
+        Set<String> isolatedSubGraphs = new HashSet<>();
+
+        int constructors = 0;
+        int callbacks = 0;
+        int resourceClassMethods = 0;
+
+        for (BaseCFG cfg : intraCFGs.values()) {
+            String className = ClassUtils.dottedClassName(MethodUtils.getClassName(cfg.getMethodName()));
+            if (getIncomingEdges(cfg.getEntry()).isEmpty() && className.startsWith(apk.getManifest().getPackageName())) {
+
+                String methodName = cfg.getMethodName();
+
+                LOGGER.debug("Isolated method: " + methodName);
+                isolatedSubGraphs.add(methodName);
+
+                if (MethodUtils.isConstructorCall(methodName)) {
+                    LOGGER.debug("Isolated constructor!");
+                    constructors++;
+                } else if (MethodUtils.isCallback(methodName)) {
+                    LOGGER.debug("Isolated callback!");
+                    callbacks++;
+                } else if (ClassUtils.isResourceClass(MethodUtils.getClassName(methodName))) {
+                    LOGGER.debug("Isolated resource class method!");
+                    resourceClassMethods++;
                 }
             }
         }
+
+        LOGGER.debug("Number of isolated sub graphs: " + isolatedSubGraphs.size());
+        LOGGER.debug("Number of isolated constructors: " + constructors);
+        LOGGER.debug("Number of isolated callbacks: " + callbacks);
+        LOGGER.debug("Number of isolated resource class methods: " + resourceClassMethods);
+
+        /*
+        * As an alternative one could print all methods that are not reachable from the global entry vertex.
+        * However, the computation is very expensive in terms of time. If you really like to have this information,
+        * the code could look as follows:
+        *
+        * for (Vertex vertex : getVertices()) {
+        *     if (getShortestDistance(getEntry(), vertex) == -1) {
+        *         if (vertex.isEntryVertex() && className.startsWith(apk.getManifest().getPackageName())) {
+        *               LOGGER.debug("Isolated method: " + methodName);
+         */
     }
 }
