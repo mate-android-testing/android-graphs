@@ -230,6 +230,9 @@ public class InterCFG extends BaseCFG {
      * @return Returns a mapping of the components and its callback entry point.
      */
     private Map<String, BaseCFG> addCallbackGraphs() {
+
+        LOGGER.debug("Adding callbacks sub graphs...");
+
         Map<String, BaseCFG> callbackGraphs = new HashMap<>();
 
         // fragments share the callback entry point with the surrounding activity
@@ -441,6 +444,8 @@ public class InterCFG extends BaseCFG {
      */
     private void addLifecycleAndGlobalEntryPoints(Map<String, BaseCFG> callbackGraphs) {
 
+        LOGGER.debug("Adding lifecycle to components...");
+
         // add activity and fragment lifecycle as well as global entry point for activities
         components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activityComponent -> {
             Activity activity = (Activity) activityComponent;
@@ -522,7 +527,19 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds the lifecycle of started and/or bound services.
+     * Adds the lifecycle of started and/or bound services. The lifecycle can be depicted as follows:
+     *
+     * Started Service:
+     * constructor -> onCreate() -> [onStartCommand()] -> [onStart()] -> callbacks -> [onDestroy()]
+     *
+     * Bound Service:
+     * constructor -> onCreate() -> callbacks -> onServiceConnected() -> [onDestroy()]
+     *
+     * We include a dummy representation of the onCreate() method if not present, although that lifecycle
+     * method is not mandatory! Moreover, since a service can be used both as a started and bound service,
+     * we don't enforce everywhere the restrictions coming with the respective service type, e.g. a bound
+     * service never calls onStartCommand(). Thus, the lifecycle so such 'dual'-used service might look
+     * strange at the first sight.
      *
      * @param service       The service for which the lifecycle should be added.
      * @param callbackGraph The callback sub graph of the service component.
@@ -601,11 +618,13 @@ public class InterCFG extends BaseCFG {
                 addEdge(onCreate.getExit(), callbackGraph.getEntry());
             }
 
-            // Every service must provide overwrite onBind() independent whether it is a started or bound service.
+            // onBind() is optional, at least for started services
             String onBindMethod = service.onBindMethod();
-            BaseCFG onBind = intraCFGs.get(onBindMethod);
-            addEdge(callbackGraph.getEntry(), onBind.getEntry());
-            addEdge(onBind.getExit(), callbackGraph.getExit());
+            if (intraCFGs.containsKey(onBindMethod)) {
+                BaseCFG onBind = intraCFGs.get(onBindMethod);
+                addEdge(callbackGraph.getEntry(), onBind.getEntry());
+                addEdge(onBind.getExit(), callbackGraph.getExit());
+            }
 
             /*
              * If we deal with a bound service, onBind() invokes directly onServiceConnected() of
@@ -635,6 +654,7 @@ public class InterCFG extends BaseCFG {
                 addEdge(onServiceDisconnected.getExit(), serviceConnectionCallbacks.getExit());
 
                 // connect onBind() with onServiceConnected()
+                BaseCFG onBind = intraCFGs.get(onBindMethod);
                 addEdge(onBind.getExit(), onServiceConnected.getEntry());
             }
 
@@ -922,6 +942,8 @@ public class InterCFG extends BaseCFG {
      * @param callbackGraphs Maintains a mapping between a component and its callback graph.
      */
     private void addCallbacks(APK apk, Map<String, BaseCFG> callbackGraphs) {
+
+        LOGGER.debug("Adding callbacks to activities...");
 
         // retrieve callbacks declared in code and XML
         Multimap<String, BaseCFG> callbacks = lookUpCallbacks(apk);
