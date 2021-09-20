@@ -12,9 +12,11 @@ import org.jf.dexlib2.iface.*;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
-import org.jf.dexlib2.iface.instruction.formats.Instruction22c;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 public class ComponentUtils {
 
@@ -154,49 +156,11 @@ public class ComponentUtils {
                         }
                     }
                 }
-            } else if (method.equals("startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
 
-                LOGGER.debug("Backtracking startService() invocation!");
+            } else if (method.equals("bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z")
+                || method.equals("startService(Landroid/content/Intent;)Landroid/content/ComponentName;")) {
 
-                // invoke-virtual {p0, p1}, Landroid/content/Context;->startService(Landroid/content/Intent;)Landroid/content/ComponentName;
-
-                if (analyzedInstruction.getPredecessors().isEmpty()) {
-                    // there is no predecessor -> target activity name might be defined somewhere else or external
-                    return null;
-                }
-
-                // go back until we find const-class instruction which holds the service name
-                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
-
-                while (pred.getInstructionIndex() != -1) {
-                    Instruction predecessor = pred.getInstruction();
-                    if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
-
-                        String serviceName = ((Instruction21c) predecessor).getReference().toString();
-
-                        // track as a side effect that the service was invoked through startService()
-                        Optional<Component> component = getComponentByName(components, serviceName);
-
-                        if (component.isPresent()) {
-                            Service service = (Service) component.get();
-                            service.setStarted(true);
-
-                            // return the full-qualified name of the constructor
-                            return service.getDefaultConstructor();
-                        }
-                    } else {
-                        if (analyzedInstruction.getPredecessors().isEmpty()) {
-                            // there is no predecessor -> target activity name might be defined somewhere else or external
-                            return null;
-                        } else {
-                            // TODO: may use recursive search over all predecessors
-                            pred = pred.getPredecessors().first();
-                        }
-                    }
-                }
-            } else if (method.equals("bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z")) {
-
-                LOGGER.debug("Backtracking bindService() invocation!");
+                LOGGER.debug("Backtracking startService()/bindService() invocation!");
 
                 /*
                  * We need to perform backtracking and extract the service name from the intent. A typical call
@@ -205,32 +169,22 @@ public class ComponentUtils {
                  * invoke-virtual {p0, v0, v1, v2}, Lcom/base/myapplication/MainActivity;
                  *                       ->bindService(Landroid/content/Intent;Landroid/content/ServiceConnection;I)Z
                  *
-                 * The intent object is the first (explicit) parameter and refers to v0 in above case. Typically,
-                 * the intent is generated locally and we are able to extract the service name by looking for the
-                 * last const-class instruction, which is handed over to the intent constructor as parameter.
-                 * In addition, we also look for the service connection object that is used. This refers to v1
-                 * in the above example. Typically, v1 is set as follows:
-                 *
-                 * iget-object v1, p0, Lcom/base/myapplication/MainActivity;
-                 *                       ->serviceConnection:Lcom/base/myapplication/MainActivity$MyServiceConnection;
-                 *
-                 * NOTE: In a typical scenario, we first encounter the iget-object instruction in order to derive the
-                 * service connection object, and afterwards the service object itself.
+                 * The intent object is hold in the register v0 for the above example. Typically, the intent is
+                 * generated locally and the service name can be extracted from the 'last' const-class instruction.
+                 * The same procedure is also applicable for startService() invocations.
                  */
 
                 if (analyzedInstruction.getPredecessors().isEmpty()) {
-                    // there is no predecessor -> all arguments of the invoke call are method parameters
+                    // service name might be hold in some parameter register
                     return null;
                 }
 
-                String serviceConnection = null;
-
-                // go back until we find const-class instruction which holds the service name
                 AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
                 while (pred.getInstructionIndex() != -1) {
                     Instruction predecessor = pred.getInstruction();
 
+                    // the const-class instruction is typically holding the service name
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
 
                         String serviceName = ((Instruction21c) predecessor).getReference().toString();
@@ -238,17 +192,8 @@ public class ComponentUtils {
 
                         if (component.isPresent()) {
                             Service service = (Service) component.get();
-                            service.setBound(true);
-
-                            if (serviceConnection != null) {
-                                service.setServiceConnection(serviceConnection);
-                            }
                             return service.getDefaultConstructor();
                         }
-                    } else if (predecessor.getOpcode() == Opcode.IGET_OBJECT) {
-                        // TODO: check that instruction sets the register declared in the invoke instruction
-                        Instruction22c serviceConnectionObject = ((Instruction22c) predecessor);
-                        serviceConnection = Utility.getObjectType(serviceConnectionObject.getReference().toString());
                     }
 
                     // consider next predecessor if available
@@ -425,6 +370,8 @@ public class ComponentUtils {
      */
     public static void checkComponentRelations(APK apk, final Set<Component> components) {
 
+        LOGGER.debug("Checking component relations...");
+
         Multimap<String, String> classUsages = ArrayListMultimap.create();
         String applicationPackage = apk.getManifest().getPackageName();
 
@@ -499,6 +446,9 @@ public class ComponentUtils {
 
                                 // check for fragment invocation
                                 FragmentUtils.checkForFragmentInvocation(components, fullyQualifiedMethodName, analyzedInstruction);
+
+                                // check for service invocation
+                                ServiceUtils.checkForServiceInvocation(components, fullyQualifiedMethodName, analyzedInstruction);
 
                                 String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
 
@@ -590,7 +540,7 @@ public class ComponentUtils {
      * @param classes      The set of classes.
      * @param currentClass The class to be inspected.
      * @return Returns {@code true} if the current class is an application class,
-     *              otherwise {@code false}.
+     * otherwise {@code false}.
      */
     public static boolean isApplication(final List<ClassDef> classes, final ClassDef currentClass) {
 
