@@ -1,14 +1,14 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
 import com.rits.cloning.Cloner;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.InstructionUtils;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
@@ -406,6 +406,8 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      */
     @Override
     public Vertex lookUpVertex(String trace) {
+
+        // TODO: adjust method to comply with lookUpVertex() of InterCFG
 
         // decompose trace into class, method  and instruction index
         String[] tokens = trace.split("->");
