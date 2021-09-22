@@ -292,7 +292,7 @@ public class InterCFG extends BaseCFG {
                     assert Lists.newArrayList(classDef.getVirtualMethods()).size() == 1;
                     String method = MethodUtils.deriveMethodSignature(classDef.getVirtualMethods().iterator().next());
 
-                    if (!MethodUtils.isCallback(method) && !MethodUtils.isRunMethod(method)) {
+                    if (!MethodUtils.isCallback(method) && !ThreadUtils.isThreadMethod(classHierarchy, method)) {
                         LOGGER.debug("Lambda method: " + method);
                         BaseCFG lambdaConstructor = intraCFGs.get(overriddenMethod);
                         BaseCFG lambdaMethod = intraCFGs.get(method);
@@ -1279,8 +1279,8 @@ public class InterCFG extends BaseCFG {
                         && !ComponentUtils.isComponentInvocation(components, targetMethod)
                         // we need to resolve calls using reflection in any case
                         && !MethodUtils.isReflectionCall(targetMethod)
-                        // we need to resolve calls of run() in any case
-                        && !MethodUtils.isRunMethod(targetMethod)
+                        // we need to resolve calls of start() or run() in any case
+                        && !ThreadUtils.isThreadMethod(classHierarchy, targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {

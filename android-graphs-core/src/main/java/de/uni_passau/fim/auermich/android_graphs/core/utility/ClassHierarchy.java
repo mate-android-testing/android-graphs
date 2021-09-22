@@ -293,7 +293,7 @@ public class ClassHierarchy {
         String className = MethodUtils.getClassName(method);
         Class clazz = getClassByName(className);
 
-        if (clazz != null && !MethodUtils.isRunMethod(method)) {
+        if (clazz != null && !ThreadUtils.isThreadMethod(this, method)) {
 
             /*
             * First, check whether the current class defines the method, otherwise look up
@@ -356,7 +356,7 @@ public class ClassHierarchy {
             }
         } else {
             // class not defined in class hierarchy or run method of Thread/Runnable class
-            if (MethodUtils.isRunMethod(method)) {
+            if (ThreadUtils.isThreadMethod(this, method)) {
                 /*
                  * Backtracking to the specific run method is rather complex, thus we stick to the following heuristic:
                  * We assume that the class invoking the run method implements itself the run method or any inner class

@@ -430,16 +430,4 @@ public class MethodUtils {
     public static boolean isReflectionCall(String methodSignature) {
         return methodSignature.equals("Ljava/lang/Class;->newInstance()Ljava/lang/Object;");
     }
-
-    /**
-     * Checks whether the given method represents the run method of the Thread/Runnable class.
-     *
-     * @param methodSignature The method to be checked.
-     * @return Returns {@code true} if the method refers to the run method,
-     * otherwise {@code false} is returned.
-     */
-    public static boolean isRunMethod(String methodSignature) {
-        return methodSignature.equals("Ljava/lang/Runnable;->run()V")
-                || methodSignature.equals("Ljava/lang/Thread;->start()V");
-    }
 }
