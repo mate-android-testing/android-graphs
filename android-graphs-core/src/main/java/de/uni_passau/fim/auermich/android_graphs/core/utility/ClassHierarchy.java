@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.Method;
 
+import javax.annotation.Nonnull;
 import java.util.*;
 
 /**
@@ -467,6 +468,41 @@ public class ClassHierarchy {
             }
         }
         return subClassMethods;
+    }
+
+    /**
+     * Returns the super classes of the given class.
+     *
+     * @param className The class for which its super classes should be looked up.
+     * @return Returns the super classes of the given class.
+     */
+    public List<String> getSuperClasses(final String className) {
+        ClassDef classDef = getClass(className);
+        if (classDef == null) {
+            LOGGER.warn("Class " + className + " not present in dex files!");
+            return new ArrayList<>();
+        } else {
+            return getSuperClasses(classDef);
+        }
+    }
+
+    /**
+     * Returns the super classes of the given class.
+     *
+     * @param classDef The class for which its super classes should be looked up.
+     * @return Returns the super classes of the given class.
+     */
+    public List<String> getSuperClasses(@Nonnull final ClassDef classDef) {
+
+        List<String> superClasses = new ArrayList<>();
+        Class clazz = getClass(classDef);
+
+        while (clazz != null) {
+            superClasses.add(clazz.superClassName);
+            clazz = getClass(clazz.superClass);
+        }
+
+        return superClasses;
     }
 
     @Override
