@@ -28,20 +28,16 @@ public class IntraCFG extends BaseCFG implements Cloneable {
     private static final Logger LOGGER = LogManager.getLogger(IntraCFG.class);
     private static final GraphType GRAPH_TYPE = GraphType.INTRACFG;
 
+    // copy constructor
     public IntraCFG(String methodName) {
         super(methodName);
     }
 
-    public IntraCFG(String methodName, DexFile dexFile, boolean useBasicBlocks) {
-        super(methodName);
-        Optional<Method> targetMethod = MethodUtils.searchForTargetMethod(dexFile, methodName);
-
-        if (!targetMethod.isPresent()) {
-            throw new IllegalStateException("Target method not present in dex files!");
-        }
+    public IntraCFG(Method method, DexFile dexFile, boolean useBasicBlocks) {
+        super(MethodUtils.deriveMethodSignature(method));
 
         // TODO: can we parallelize the construction?
-        constructCFG(dexFile, targetMethod.get(), useBasicBlocks);
+        constructCFG(dexFile, method, useBasicBlocks);
     }
 
     /**

@@ -265,7 +265,8 @@ public class MethodUtils {
      * @param methodSignature The method to be looked up.
      * @return Returns the dex file containing the method, if possible.
      */
-    public static Optional<DexFile> containsTargetMethod(final List<DexFile> dexFiles, final String methodSignature) {
+    public static Optional<Tuple<DexFile, Method>> containsTargetMethod(final List<DexFile> dexFiles,
+                                                                        final String methodSignature) {
 
         String className = methodSignature.split("->")[0];
 
@@ -274,7 +275,7 @@ public class MethodUtils {
                 if (classDef.toString().equals(className)) {
                     for (Method method : classDef.getMethods()) {
                         if (deriveMethodSignature(method).equals(methodSignature)) {
-                            return Optional.of(dexFile);
+                            return Optional.of(new Tuple<>(dexFile, method));
                         }
                     }
                     // speed up

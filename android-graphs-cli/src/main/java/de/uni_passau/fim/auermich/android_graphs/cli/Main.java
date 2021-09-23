@@ -7,9 +7,9 @@ import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.MainCommand;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.Tuple;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,6 +18,7 @@ import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.Opcodes;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
 import org.jf.dexlib2.iface.DexFile;
+import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MultiDexContainer;
 
 import java.io.IOException;
@@ -173,12 +174,14 @@ public final class Main {
             switch (graphType.get()) {
                 case INTRACFG:
                     // check that specified target method is part of some class
-                    Optional<DexFile> dexFile = MethodUtils.containsTargetMethod(dexFiles, intraCFGCmd.getTarget());
+                    Optional<Tuple<DexFile, Method>> optionalTuple
+                            = MethodUtils.containsTargetMethod(dexFiles, intraCFGCmd.getTarget());
 
-                    if (checkArguments(intraCFGCmd) && dexFile.isPresent()) {
+                    if (checkArguments(intraCFGCmd) && optionalTuple.isPresent()) {
 
-                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
-                                .withName(intraCFGCmd.getTarget());
+                        Tuple<DexFile, Method> tuple = optionalTuple.get();
+
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTRACFG, tuple.getX(), tuple.getY());
 
                         if (intraCFGCmd.isUseBasicBlocks()) {
                             builder = builder.withBasicBlocks();

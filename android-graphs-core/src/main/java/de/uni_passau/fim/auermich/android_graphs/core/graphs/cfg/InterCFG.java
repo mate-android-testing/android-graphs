@@ -1491,7 +1491,7 @@ public class InterCFG extends BaseCFG {
                         if (!MethodUtils.isJavaObjectMethod(methodSignature)) {
                             LOGGER.debug("Method: " + methodSignature);
 
-                            BaseCFG intraCFG = new IntraCFG(methodSignature, dexFile, useBasicBlocks);
+                            BaseCFG intraCFG = new IntraCFG(method, dexFile, useBasicBlocks);
                             addSubGraph(intraCFG);
                             addInvokeVertices(intraCFG.getInvokeVertices());
                             // only hold a reference to the entry and exit vertex
