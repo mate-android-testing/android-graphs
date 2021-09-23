@@ -181,8 +181,8 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
             String method = targetMethod.toString();
 
-            // save for each vertex/basic block the instruction id of the last statement
-            Map<Integer, Vertex> vertices = new HashMap<>();
+            // save for each basic block vertex the instruction id of the first and last statement
+            Map<Integer, Vertex> basicBlocks = new HashMap<>();
 
             BlockStatement basicBlock = new BlockStatement(method);
             basicBlock.addStatement(new BasicStatement(method, analyzedInstructions.get(0)));
@@ -195,6 +195,8 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 if (InstructionUtils.isPayloadInstruction(analyzedInstruction)
                         || (InstructionUtils.isNOPInstruction(analyzedInstruction)
                         && analyzedInstruction.getSuccessors().isEmpty())) {
+                    LOGGER.debug("Ignoring instruction: " + analyzedInstruction.getInstruction().getOpcode()
+                            + "(" + analyzedInstruction.getInstructionIndex() + ")");
                     continue;
                 }
 
@@ -203,7 +205,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                     basicBlock.addStatement(new BasicStatement(method, analyzedInstruction));
                 } else {
                     // end of basic block
-                    createBasicBlockVertex(basicBlock, vertices);
+                    createBasicBlockVertex(basicBlock, basicBlocks);
 
                     // reset basic block
                     basicBlock = new BlockStatement(method);
@@ -214,9 +216,10 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             }
 
             // add the last basic block separately
-            createBasicBlockVertex(basicBlock, vertices);
+            createBasicBlockVertex(basicBlock, basicBlocks);
         } else {
             // no method implementation found -> construct dummy CFG
+            LOGGER.warn("No implementation present for method: " + targetMethod + "! Using dummy CFG.");
             addEdge(getEntry(), getExit());
         }
     }
@@ -227,9 +230,9 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      * entry vertex and the basic block or the basic block and the exit vertex is inserted if necessary.
      *
      * @param basicBlock The basic block wrapping the statements.
-     * @param vertices A map storing each vertex/basic block by the instruction id of the last statement.
+     * @param basicBlocks A map storing for each basic block vertex the first and last instruction index.
      */
-    private void createBasicBlockVertex(BlockStatement basicBlock, Map<Integer, Vertex> vertices) {
+    private void createBasicBlockVertex(BlockStatement basicBlock, Map<Integer, Vertex> basicBlocks) {
 
         Vertex vertex = new Vertex(basicBlock);
         addVertex(vertex);
@@ -239,13 +242,13 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             addInvokeVertex(vertex);
         }
 
-        // save vertex/basic block by index of last statement
+        // save basic block by index of first and last statement
+        BasicStatement firstStmt = (BasicStatement) basicBlock.getFirstStatement();
         BasicStatement lastStmt = (BasicStatement) basicBlock.getLastStatement();
-        vertices.put(lastStmt.getInstructionIndex(), vertex);
+        basicBlocks.put(firstStmt.getInstructionIndex(), vertex);
+        basicBlocks.put(lastStmt.getInstructionIndex(), vertex);
 
         // check if we need an edge between entry node and the basic block
-        BasicStatement firstStmt = (BasicStatement) basicBlock.getFirstStatement();
-
         if (firstStmt.getInstruction().isBeginningInstruction()) {
             addEdge(getEntry(), vertex);
         }
@@ -257,8 +260,15 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
         // check for incoming edges of previously created basic blocks
         for (AnalyzedInstruction predecessor : firstStmt.getInstruction().getPredecessors()) {
-            if (vertices.containsKey(predecessor.getInstructionIndex())) {
-                addEdge(vertices.get(predecessor.getInstructionIndex()), vertex);
+            if (basicBlocks.containsKey(predecessor.getInstructionIndex())) {
+                addEdge(basicBlocks.get(predecessor.getInstructionIndex()), vertex);
+            }
+        }
+
+        // check for outgoing edges to previously created basic blocks
+        for (AnalyzedInstruction successor : lastStmt.getInstruction().getSuccessors()) {
+            if (basicBlocks.containsKey(successor.getInstructionIndex())) {
+                addEdge(vertex, basicBlocks.get(successor.getInstructionIndex()));
             }
         }
     }
@@ -339,7 +349,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             if (analyzedInstruction.getSuccessors().size() > 1) {
                 // any non-direct successor (exceptional flow) is a leader instruction
                 for (AnalyzedInstruction successor : analyzedInstruction.getSuccessors()) {
-                        LOGGER.debug("Exceptional flow Leader: " + successor.getInstructionIndex());
                         leaders.add(successor.getInstructionIndex());
                 }
             }
