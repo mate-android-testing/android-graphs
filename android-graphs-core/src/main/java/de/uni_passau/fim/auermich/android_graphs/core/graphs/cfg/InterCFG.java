@@ -1781,7 +1781,8 @@ public class InterCFG extends BaseCFG {
      * @return Returns the vertex described by the given method and the instruction index, otherwise
      * a {@link IllegalArgumentException} is thrown.
      */
-    private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry) {
+    @SuppressWarnings("unused")
+    private Vertex lookUpVertexDFS(String method, int instructionIndex, Vertex entry) {
 
         DepthFirstIterator<Vertex, Edge> dfs = new DepthFirstIterator<>(graph, entry);
 
@@ -1804,8 +1805,7 @@ public class InterCFG extends BaseCFG {
      * @return Returns the vertex described by the given method and the instruction index, otherwise
      * a {@link IllegalArgumentException} is thrown.
      */
-    @SuppressWarnings("unused")
-    private Vertex lookUpVertexBFS(String method, int instructionIndex, Vertex entry) {
+    private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry) {
 
         BreadthFirstIterator<Vertex, Edge> bfs = new BreadthFirstIterator<>(graph, entry);
 
