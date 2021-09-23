@@ -1231,6 +1231,25 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
+     * Checks whether the given method represents the start() or run() method of the Thread/Runnable class
+     * and if the invocation should be resolved or not.
+     *
+     * @param definingMethod The method in which the given target method is called.
+     * @param targetMethod The target method which should be checked.
+     * @return Returns {@code true} if the method should be resolved, otherwise {@code false} is returned.
+     */
+    private boolean resolveThreadMethod(final String definingMethod, final String targetMethod) {
+        /*
+         * We don't want to resolve method invocations of 'Ljava/lang/Runnable;->run()V' within the
+         * run() method of the custom thread class. Otherwise, we could introduce an unwanted cycle in
+         * our graph, since the resolving the 'Ljava/lang/Runnable;->run()V' invocation would lead to
+         * the run() itself.
+         */
+        return !ThreadUtils.isThreadMethod(classHierarchy, definingMethod)
+                && ThreadUtils.isThreadMethod(classHierarchy, targetMethod);
+    }
+
+    /**
      * Splits a block statement after each invocation and adds a virtual return statement to
      * the next block. Ignores certain invocations, e.g. ART methods.
      *
@@ -1244,6 +1263,7 @@ public class InterCFG extends BaseCFG {
         List<List<Statement>> blocks = new ArrayList<>();
         List<Statement> block = new ArrayList<>();
         List<Statement> statements = blockStatement.getStatements();
+        final String method = blockStatement.getMethod();
         final Pattern exclusionPattern = properties.exclusionPattern;
 
         for (Statement statement : statements) {
@@ -1280,7 +1300,7 @@ public class InterCFG extends BaseCFG {
                         // we need to resolve calls using reflection in any case
                         && !MethodUtils.isReflectionCall(targetMethod)
                         // we need to resolve calls of start() or run() in any case
-                        && !ThreadUtils.isThreadMethod(classHierarchy, targetMethod)
+                        && !resolveThreadMethod(method, targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
