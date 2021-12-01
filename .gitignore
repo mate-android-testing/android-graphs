@@ -15,4 +15,7 @@ out/
 build/
 
 graph.png
+graph.dot
+graph.svg
+graph.json
 app.log

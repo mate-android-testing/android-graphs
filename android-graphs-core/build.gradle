@@ -1,0 +1,59 @@
+
+plugins {
+    id 'java-conventions'
+    id 'java-library'
+}
+
+dependencies {
+
+    // https://mvnrepository.com/artifact/org.jgrapht/jgrapht
+    implementation group: 'org.jgrapht', name: 'jgrapht', version: '1.5.1', ext: 'pom'
+
+    // https://mvnrepository.com/artifact/org.jgrapht/jgrapht-core
+    implementation group: 'org.jgrapht', name: 'jgrapht-core', version: '1.5.1'
+
+    // https://mvnrepository.com/artifact/org.jgrapht/jgrapht-ext
+    implementation group: 'org.jgrapht', name: 'jgrapht-ext', version: '1.5.1'
+
+    // https://mvnrepository.com/artifact/org.jgrapht/jgrapht-io
+    implementation group: 'org.jgrapht', name: 'jgrapht-io', version: '1.5.1'
+
+    // https://mvnrepository.com/artifact/com.google.code.gson/gson
+    implementation group: 'com.google.code.gson', name: 'gson', version: '2.8.6'
+
+    // https://mvnrepository.com/artifact/com.google.guava/guava
+    implementation group: 'com.google.guava', name: 'guava', version: '30.1.1-jre'
+
+    // https://mvnrepository.com/artifact/uk.com.robust-it/cloning
+    implementation group: 'uk.com.robust-it', name: 'cloning', version: '1.9.12'
+
+    // https://mvnrepository.com/artifact/org.dom4j/dom4j
+    implementation group: 'org.dom4j', name: 'dom4j', version: '2.1.3'
+
+    // https://mvnrepository.com/artifact/org.apktool/apktool-lib
+    implementation group: 'org.apktool', name: 'apktool-lib', version: '2.6.0'
+
+    // https://mvnrepository.com/artifact/commons-io/commons-io
+    implementation group: 'commons-io', name: 'commons-io', version: '2.11.0'
+
+    // https://mvnrepository.com/artifact/org.smali/baksmali
+    implementation group: 'org.smali', name: 'baksmali', version: '2.5.2'
+
+    // https://mvnrepository.com/artifact/org.smali/smali
+    testImplementation group: 'org.smali', name: 'smali', version: '2.5.2'
+}
+
+task customFatJar(type: Jar) {
+
+    archiveName(rootProject.name + '-lib.jar')
+
+    from {
+        (configurations.compile.findAll { !it.path.endsWith(".pom") }).collect {
+            it.isDirectory() ? it : zipTree(it) }
+
+        (configurations.runtimeClasspath.findAll { !it.path.endsWith(".pom") }).collect {
+            it.isDirectory() ? it : zipTree(it) }
+    }
+
+    with jar
+}
