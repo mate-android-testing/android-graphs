@@ -115,6 +115,9 @@ public class MethodUtils {
         add("getMenuInflater()Landroid/view/MenuInflater;");
         add("invalidateOptionsMenu()V");
         add("writeToParcel(Landroid/os/Parcel;I)V");
+        add("getApplicationContext()Landroid/content/Context;");
+        add("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)Landroid/content/Intent;");
+        // TODO: added overloaded registerReceiver methods
     }};
 
     /**
