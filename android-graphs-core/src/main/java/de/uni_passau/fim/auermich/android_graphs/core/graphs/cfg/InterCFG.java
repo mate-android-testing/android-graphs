@@ -225,7 +225,7 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds for each component except fragments a callback entry point.
+     * Adds for each component except fragments and broadcast receivers a callback entry point.
      *
      * @return Returns a mapping of the components and its callback entry point.
      */
@@ -235,8 +235,12 @@ public class InterCFG extends BaseCFG {
 
         Map<String, BaseCFG> callbackGraphs = new HashMap<>();
 
-        // fragments share the callback entry point with the surrounding activity
-        components.stream().filter(c -> c.getComponentType() != ComponentType.FRAGMENT).forEach(component -> {
+        /*
+        * Fragments share the callback entry point with the surrounding activity, while broadcast receivers
+        * do not define any callbacks at all.
+         */
+        components.stream().filter(c -> c.getComponentType() != ComponentType.FRAGMENT
+                && c.getComponentType() != ComponentType.BROADCAST_RECEIVER).forEach(component -> {
             BaseCFG callbackGraph = dummyIntraCFG("callbacks " + component.getName());
             addSubGraph(callbackGraph);
             callbackGraphs.put(component.getName(), callbackGraph);
@@ -416,6 +420,39 @@ public class InterCFG extends BaseCFG {
 
                     addEdge(last, asyncTaskCFG.getExit());
                     targetCFGs.add(asyncTaskCFG);
+                } else if (ReceiverUtils.isReceiverInvocation(overriddenMethod)) {
+
+                    LOGGER.debug("BroadcastReceiver invocation detected: " + overriddenMethod);
+
+                    BroadcastReceiver receiver = ReceiverUtils.isReceiverInvocation(components, invokeStmt.getInstruction());
+
+                    if (receiver != null) {
+
+                        /*
+                         * Depending on whether the receiver is a static or dynamic receiver, the control flow differs.
+                         * In the first case, the respective constructor is called, followed by the call to the onReceive()
+                         * method, while in the latter case only the onReceive() method is called. Since we only support
+                         * static receivers so far, we always include the constructor. Note that there might be multiple
+                         * broadcast receivers invoked if we deal with an implicit intent!
+                         */
+
+                        // TODO: use unique name, otherwise all sendBroadcast() invocations are mapped to the same CFG!
+                        BaseCFG sendBroadcastCFG = emptyCFG(overriddenMethod);
+
+                        // integrate constructor of receiver
+                        BaseCFG receiverConstructor = intraCFGs.get(receiver.getDefaultConstructor());
+                        addEdge(sendBroadcastCFG.getEntry(), receiverConstructor.getEntry());
+
+                        // integrate onReceive() after constructor
+                        BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
+                        addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
+                        addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
+
+                        targetCFGs.add(sendBroadcastCFG);
+                    } else {
+                        LOGGER.warn("Couldn't resolve broadcast receiver for invocation: " + overriddenMethod);
+                        targetCFGs.add(dummyCFG(overriddenMethod));
+                    }
                 } else {
                     /*
                      * There are some Android specific classes, e.g. android/view/View, which are
@@ -1301,6 +1338,8 @@ public class InterCFG extends BaseCFG {
                         && !MethodUtils.isReflectionCall(targetMethod)
                         // we need to resolve calls of start() or run() in any case
                         && !resolveThreadMethod(method, targetMethod)
+                        // we need to resolve sendBroadcast() in any case
+                        && !ReceiverUtils.isReceiverInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
@@ -1486,6 +1525,8 @@ public class InterCFG extends BaseCFG {
                         binderClasses.add(classDef.toString());
                     } else if (ComponentUtils.isApplication(Lists.newArrayList(dexFile.getClasses()), classDef)) {
                         components.add(new Application(classDef, ComponentType.APPLICATION));
+                    } else if (ComponentUtils.isBroadcastReceiver(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                        components.add(new BroadcastReceiver(classDef, ComponentType.BROADCAST_RECEIVER));
                     }
                 }
 
@@ -1553,6 +1594,8 @@ public class InterCFG extends BaseCFG {
                 .filter(c -> c.getComponentType() == ComponentType.FRAGMENT).collect(Collectors.toList()));
         LOGGER.debug("List of services: " + components.stream()
                 .filter(c -> c.getComponentType() == ComponentType.SERVICE).collect(Collectors.toList()));
+        LOGGER.debug("List of broadcast receivers: " + components.stream()
+                .filter(c -> c.getComponentType() == ComponentType.BROADCAST_RECEIVER).collect(Collectors.toList()));
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
     }
 

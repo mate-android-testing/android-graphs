@@ -59,6 +59,12 @@ public class ComponentUtils {
         add("Landroid/os/Binder;");
     }};
 
+    // https://developer.android.com/reference/android/content/BroadcastReceiver
+    private static final Set<String> BROADCAST_RECEIVER_CLASSES = new HashSet<>() {{
+        // TODO: add further directly known sub classes
+        add("Landroid/content/BroadcastReceiver;");
+    }};
+
     /**
      * The various API methods to invoke a component, e.g. an activity.
      */
@@ -539,8 +545,7 @@ public class ComponentUtils {
      *
      * @param classes      The set of classes.
      * @param currentClass The class to be inspected.
-     * @return Returns {@code true} if the current class is an application class,
-     * otherwise {@code false}.
+     * @return Returns {@code true} if the current class is an application class, otherwise {@code false}.
      */
     public static boolean isApplication(final List<ClassDef> classes, final ClassDef currentClass) {
 
@@ -552,6 +557,37 @@ public class ComponentUtils {
             abort = true;
 
             if (superClass.equals("Landroid/app/Application;")) {
+                return true;
+            } else {
+                // step up in the class hierarchy
+                for (ClassDef classDef : classes) {
+                    if (classDef.toString().equals(superClass)) {
+                        superClass = classDef.getSuperclass();
+                        abort = false;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks whether the given class represents a broadcast receiver by checking against the super class.
+     *
+     * @param classes      The set of classes.
+     * @param currentClass The class to be inspected.
+     * @return Returns {@code true} if the current class is a broadcast receiver, otherwise {@code false}.
+     */
+    public static boolean isBroadcastReceiver(final List<ClassDef> classes, final ClassDef currentClass) {
+
+        String superClass = currentClass.getSuperclass();
+        boolean abort = false;
+
+        while (!abort && superClass != null && !superClass.equals("Ljava/lang/Object;")) {
+
+            abort = true;
+
+            if (BROADCAST_RECEIVER_CLASSES.contains(superClass)) {
                 return true;
             } else {
                 // step up in the class hierarchy
