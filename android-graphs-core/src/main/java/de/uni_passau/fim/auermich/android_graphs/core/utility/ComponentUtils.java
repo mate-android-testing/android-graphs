@@ -456,6 +456,9 @@ public class ComponentUtils {
                                 // check for service invocation
                                 ServiceUtils.checkForServiceInvocation(components, fullyQualifiedMethodName, analyzedInstruction);
 
+                                // check for dynamic broadcast receiver registration
+                                ReceiverUtils.checkForDynamicReceiverRegistration(components, analyzedInstruction);
+
                                 String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
 
                                 // check defining class (called class)

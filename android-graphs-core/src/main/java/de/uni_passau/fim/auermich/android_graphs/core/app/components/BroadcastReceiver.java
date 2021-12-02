@@ -4,10 +4,18 @@ import org.jf.dexlib2.iface.ClassDef;
 
 public class BroadcastReceiver extends AbstractComponent {
 
-    // TODO: differentiate between static and dynamic receivers
+    private boolean isDynamicReceiver;
 
     public BroadcastReceiver(ClassDef clazz, ComponentType type) {
         super(clazz, type);
+    }
+
+    public boolean isDynamicReceiver() {
+        return isDynamicReceiver;
+    }
+
+    public void setDynamicReceiver(boolean dynamicReceiver) {
+        isDynamicReceiver = dynamicReceiver;
     }
 
     public String onReceiveMethod() {

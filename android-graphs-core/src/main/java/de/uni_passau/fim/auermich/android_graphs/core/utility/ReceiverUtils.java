@@ -8,7 +8,9 @@ import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
+import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 
 import java.util.Optional;
 import java.util.Set;
@@ -24,16 +26,26 @@ public class ReceiverUtils {
         throw new UnsupportedOperationException("utility class");
     }
 
+    /**
+     * Whether the given method signature refers to the invocation of broadcast receiver, i.e. calling one of the
+     * overloaded sendBroadcast() methods.
+     *
+     * @param methodSignature The method signature to be checked.
+     * @return Returns {@code true} if the invocation constitutes a sendBroadcast() call, otherwise {@code false}.
+     */
     public static boolean isReceiverInvocation(String methodSignature) {
         String method = MethodUtils.getMethodName(methodSignature);
-        return method.equals("sendBroadcast(Landroid/content/Intent;)V");
+        return method.equals("sendBroadcast(Landroid/content/Intent;)V")
+                || method.equals("sendBroadcast(Landroid/content/Intent;Ljava/lang/String;)V");
     }
 
     /**
+     * Tries to resolve a sendBroadcast() invocation back to the concrete receiver. This is only works if the receiver
+     * was statically defined and the corresponding intent is explicit.
      *
-     * @param components
-     * @param analyzedInstruction
-     * @return
+     * @param components The set of components.
+     * @param analyzedInstruction The sendBroadcast() instruction.
+     * @return Returns the resolved broadcast receiver or {@code null} otherwise.
      */
     public static BroadcastReceiver isReceiverInvocation(Set<Component> components, AnalyzedInstruction analyzedInstruction) {
 
@@ -45,8 +57,6 @@ public class ReceiverUtils {
         AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
         while (pred.getInstructionIndex() != -1) {
-
-            LOGGER.debug("Instruction: " + pred.getInstructionIndex() + ", " + pred.getInstruction().getOpcode());
 
             Instruction predecessor = pred.getInstruction();
 
@@ -63,10 +73,8 @@ public class ReceiverUtils {
             if (predecessor.getOpcode() == Opcode.CONST_STRING || predecessor.getOpcode() == Opcode.CONST_CLASS) {
 
                 String receiverName = ((Instruction21c) predecessor).getReference().toString();
-                LOGGER.debug("Receiver name: " + receiverName);
                 Optional<Component> component = ComponentUtils.getComponentByName(components, receiverName);
                 if (component.isPresent()) {
-                    LOGGER.debug("Receiver!");
                     if (component.get().getComponentType() == ComponentType.BROADCAST_RECEIVER) {
                         return (BroadcastReceiver) component.get();
                     }
@@ -86,17 +94,79 @@ public class ReceiverUtils {
     }
 
     /**
-     * Checks whether the given instruction refers to a receiver invocation. If this is the case, the invocation
-     * is backtracked to the respective service component if possible.
+     * Checks whether the given instruction refers to a registration of a dynamic receiver. If this is the case,
+     * the invocation is backtracked to the respective receiver component if possible.
      *
      * @param components          The set of discovered components.
-     * @param method              The method in which the given instruction is located.
      * @param analyzedInstruction The instruction to be checked.
      */
-    public static void checkForReceiverInvocation(final Set<Component> components, String method,
-                                                 AnalyzedInstruction analyzedInstruction) {
+    public static void checkForDynamicReceiverRegistration(final Set<Component> components, AnalyzedInstruction analyzedInstruction) {
 
-        // TODO: resolve whether receiver is dynamic or not -> registerReceiver
+        Instruction instruction = analyzedInstruction.getInstruction();
+        String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
 
+        if (targetMethod.endsWith("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)" +
+                "Landroid/content/Intent;")
+                || targetMethod.endsWith("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;I)" +
+                "Landroid/content/Intent;")
+                || targetMethod.endsWith("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;" +
+                "Ljava/lang/String;Landroid/os/Handler;)Landroid/content/Intent;")
+                || targetMethod.endsWith("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;" +
+                "Ljava/lang/String;Landroid/os/Handler;I)Landroid/content/Intent;")) {
+
+            if (analyzedInstruction.getPredecessors().isEmpty()) {
+                // broadcast receiver name is defined outside of method context
+                return;
+            }
+
+            /*
+             * A typical registerReceiver() invocation looks as follows:
+             *
+             * Registers:       C   D   E
+             * invoke-virtual {p0, v7, v8}, Lcom/base/myapplication/MainActivity;->
+             * registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)Landroid/content/Intent;
+             *
+             * We need to backtrack the first argument in order to resolve the receiver name. In above case this is the
+             * register v7. Typically, the dynamic receiver is declared by a new-instance instruction.
+             */
+            int registerD = -1;
+
+            if (instruction instanceof Instruction35c) {
+                registerD = ((Instruction35c) instruction).getRegisterD();
+            }
+
+            AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+            while (pred.getInstructionIndex() != -1) {
+
+                Instruction predecessor = pred.getInstruction();
+
+                if (predecessor.getOpcode() == Opcode.NEW_INSTANCE) {
+
+                    Instruction21c newInstance = (Instruction21c) predecessor;
+
+                    if (newInstance.getRegisterA() == registerD) {
+
+                        String receiverName = newInstance.getReference().toString();
+                        Optional<Component> component = ComponentUtils.getComponentByName(components, receiverName);
+
+                        if (component.isPresent()
+                                && component.get().getComponentType() == ComponentType.BROADCAST_RECEIVER) {
+                            BroadcastReceiver receiver = (BroadcastReceiver) component.get();
+                            LOGGER.debug("Found dynamic receiver: " + receiver);
+                            receiver.setDynamicReceiver(true);
+                            break;
+                        }
+                    }
+                }
+
+                // consider next predecessor if available
+                if (!analyzedInstruction.getPredecessors().isEmpty()) {
+                    pred = pred.getPredecessors().first();
+                } else {
+                    break;
+                }
+            }
+        }
     }
 }
