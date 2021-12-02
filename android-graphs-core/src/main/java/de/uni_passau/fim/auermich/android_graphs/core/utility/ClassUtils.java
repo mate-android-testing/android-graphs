@@ -193,6 +193,22 @@ public class ClassUtils {
     }
 
     /**
+     * Converts a dotted class name to the internal naming scheme used by the dalvik vm. If the given class name
+     * already represents a dalvik conform class name, the name is left unchanged.
+     *
+     * @param dottedClassName The dotted class name to be converted.
+     * @return Returns the converted class name.
+     */
+    public static String convertDottedClassName(String dottedClassName) {
+        if (dottedClassName.startsWith("L") && dottedClassName.endsWith(";")) {
+            // class name is already dalvik conform -> leave unchanged
+            return dottedClassName;
+        } else {
+            return "L" + dottedClassName.replace('.', '/') + ";";
+        }
+    }
+
+    /**
      * Checks whether the given class name represents an array type, e.g. [Ljava/lang/Integer;.
      * Handles both dalvik and java based class names.
      *

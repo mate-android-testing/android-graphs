@@ -73,6 +73,13 @@ public class ReceiverUtils {
             if (predecessor.getOpcode() == Opcode.CONST_STRING || predecessor.getOpcode() == Opcode.CONST_CLASS) {
 
                 String receiverName = ((Instruction21c) predecessor).getReference().toString();
+
+                /*
+                * It can happen that the string constant represents a dotted class name, e.g. when the target component
+                * of the intent was set via setComponent(). In this case, we need to convert to a dalvik conform class name.
+                 */
+                receiverName = ClassUtils.convertDottedClassName(receiverName);
+
                 Optional<Component> component = ComponentUtils.getComponentByName(components, receiverName);
                 if (component.isPresent()) {
                     if (component.get().getComponentType() == ComponentType.BROADCAST_RECEIVER) {
