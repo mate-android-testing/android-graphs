@@ -277,6 +277,13 @@ public class InterCFG extends BaseCFG {
                 apk.getManifest().getPackageName(), properties);
 
         for (String overriddenMethod : overriddenMethods) {
+            /*
+            * FIXME: By inserting a dummy CFG for a given method, e.g. when we couldn't resolve the broadcast receiver
+            *  for the sendBroadcast() invocation, all subsequent invocations of sendBroadcast() will be mapped to the
+            *  same dummy CFG. However, we want to try to resolve the broadcast receiver also for the subsequent
+            *  invocations! This applies not only to sendBroadcast()!
+            *
+             */
             if (intraCFGs.containsKey(overriddenMethod)) {
 
                 if (MethodUtils.isLambdaClassConstructorCall(overriddenMethod)) {
@@ -375,6 +382,7 @@ public class InterCFG extends BaseCFG {
                      * Only the doInBackground() method is mandatory.
                      */
 
+                    // TODO: use unique name, otherwise all async tasks are mapped to same CFG!
                     String className = MethodUtils.getClassName(overriddenMethod);
                     BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
                     Vertex last = asyncTaskCFG.getEntry();
