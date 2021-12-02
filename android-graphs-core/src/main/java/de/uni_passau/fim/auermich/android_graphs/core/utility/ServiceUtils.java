@@ -137,7 +137,7 @@ public final class ServiceUtils {
                 }
 
                 // consider next predecessor if available
-                if (!analyzedInstruction.getPredecessors().isEmpty()) {
+                if (!pred.getPredecessors().isEmpty()) {
                     pred = pred.getPredecessors().first();
                 } else {
                     break;

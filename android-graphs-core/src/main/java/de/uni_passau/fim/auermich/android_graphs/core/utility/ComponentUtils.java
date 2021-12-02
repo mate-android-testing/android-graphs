@@ -153,7 +153,7 @@ public class ComponentUtils {
                             return null;
                         }
                     } else {
-                        if (analyzedInstruction.getPredecessors().isEmpty()) {
+                        if (pred.getPredecessors().isEmpty()) {
                             // there is no predecessor -> target activity name might be defined somewhere else or external
                             return null;
                         } else {
@@ -203,7 +203,7 @@ public class ComponentUtils {
                     }
 
                     // consider next predecessor if available
-                    if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    if (pred.getPredecessors().isEmpty()) {
                         return null;
                     } else {
                         pred = pred.getPredecessors().first();
