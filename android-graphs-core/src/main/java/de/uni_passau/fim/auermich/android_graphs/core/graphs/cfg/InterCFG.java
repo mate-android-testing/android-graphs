@@ -433,11 +433,14 @@ public class InterCFG extends BaseCFG {
                          * In the first case, the respective constructor is called, followed by the call to the onReceive()
                          * method, while in the latter case only the onReceive() method is called. Since we only support
                          * static receivers so far, we always include the constructor. Note that there might be multiple
-                         * broadcast receivers invoked if we deal with an implicit intent!
+                         * broadcast receivers invoked if we deal with an implicit intent! Furthermore, we need to choose
+                         * a unique name for the CFG, otherwise subsequent sendBroadcast() invocations are mapped to the
+                         * same CFG, which is not what we want!
                          */
-
-                        // TODO: use unique name, otherwise all sendBroadcast() invocations are mapped to the same CFG!
-                        BaseCFG sendBroadcastCFG = emptyCFG(overriddenMethod);
+                        int instructionIndex = invokeStmt.getInstructionIndex();
+                        String callingMethod = invokeStmt.getMethod();
+                        BaseCFG sendBroadcastCFG = emptyCFG(callingMethod + "->"
+                                + instructionIndex + "->sendBroadcast()");
 
                         // integrate constructor of receiver
                         BaseCFG receiverConstructor = intraCFGs.get(receiver.getDefaultConstructor());
