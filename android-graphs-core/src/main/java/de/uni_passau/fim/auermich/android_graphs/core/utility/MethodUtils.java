@@ -116,8 +116,14 @@ public class MethodUtils {
         add("invalidateOptionsMenu()V");
         add("writeToParcel(Landroid/os/Parcel;I)V");
         add("getApplicationContext()Landroid/content/Context;");
+        add("sendBroadcastAsUser(Landroid/content/Intent;Landroid/os/UserHandle;)V");
+        add("sendBroadcastAsUser(Landroid/content/Intent;Landroid/os/UserHandle;Ljava/lang/String;)V");
         add("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)Landroid/content/Intent;");
-        // TODO: added overloaded registerReceiver methods
+        add("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;I)Landroid/content/Intent;");
+        add("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;" +
+                "Ljava/lang/String;Landroid/os/Handler;)Landroid/content/Intent;");
+        add("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;" +
+                "Ljava/lang/String;Landroid/os/Handler;I)Landroid/content/Intent;");
     }};
 
     /**
