@@ -4,5 +4,6 @@ public enum ComponentType {
     APPLICATION,
     ACTIVITY,
     SERVICE,
-    FRAGMENT;
+    FRAGMENT,
+    BROADCAST_RECEIVER;
 }

@@ -53,6 +53,24 @@ public class DotConverter {
             }
         }
 
+        if (methodSignature.endsWith("sendBroadcast()")) {
+            String[] tokens = methodSignature.split("->");
+
+            String className = ClassUtils.dottedClassName(tokens[0])
+                    .replace("$", "_")
+                    .replace(".", "_");
+
+            String methodName = tokens[1].split("\\(")[0].replace("<init>", "ctr");
+            ;
+            String instructionIndex = tokens[2];
+
+            if (vertex.isEntryVertex()) {
+                return "<entry_" + className + "_" + methodName + "_" + instructionIndex + "_sendBroadcast>";
+            } else {
+                return "<exit_" + className + "_" + methodName + "_" + instructionIndex + "_sendBroadcast>";
+            }
+        }
+
         String className = ClassUtils.dottedClassName(MethodUtils.getClassName(methodSignature))
                 .replace("$", "_").replace(".", "_");
         String method = MethodUtils.getMethodName(methodSignature).split("\\(")[0];
@@ -129,6 +147,22 @@ public class DotConverter {
                 label = "entry_static_initializers";
             } else {
                 label = "exit_static_initializers";
+            }
+        } else if (methodSignature.endsWith("sendBroadcast()")) {
+            String[] tokens = methodSignature.split("->");
+
+            String className = ClassUtils.dottedClassName(tokens[0])
+                    .replace("$", "_")
+                    .replace(".", "_");
+
+            String methodName = tokens[1].split("\\(")[0].replace("<init>", "ctr");
+            ;
+            String instructionIndex = tokens[2];
+
+            if (vertex.isEntryVertex()) {
+                label = "<entry_" + className + "_" + methodName + "_" + instructionIndex + "_sendBroadcast>";
+            } else {
+                label = "<exit_" + className + "_" + methodName + "_" + instructionIndex + "_sendBroadcast>";
             }
         } else {
 
