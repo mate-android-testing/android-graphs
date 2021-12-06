@@ -236,8 +236,8 @@ public class InterCFG extends BaseCFG {
         Map<String, BaseCFG> callbackGraphs = new HashMap<>();
 
         /*
-        * Fragments share the callback entry point with the surrounding activity, while broadcast receivers
-        * do not define any callbacks at all.
+         * Fragments share the callback entry point with the surrounding activity, while broadcast receivers
+         * do not define any callbacks at all.
          */
         components.stream().filter(c -> c.getComponentType() != ComponentType.FRAGMENT
                 && c.getComponentType() != ComponentType.BROADCAST_RECEIVER).forEach(component -> {
@@ -249,14 +249,12 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Looks up the target CFG matching the invoke statement.
-     * As a side effect, component invocation, e.g. calls to startActivity(), are replaced
-     * by the invoked component's constructor.
+     * Looks up the target CFG matching the invoke statement. As a side effect, certain invocations are resolved, e.g.
+     * a call to startActivity() links the call site to the constructor of the respective activity.
      *
      * @param apk        The APK file.
      * @param invokeStmt The invoke statement defining the target.
-     * @return Returns the CFGs matching the given invoke target. If no CFG could be derived,
-     * a {@link IllegalStateException} is thrown.
+     * @return Returns the CFGs matching the given invoke target.
      */
     private Set<BaseCFG> lookupTargetCFGs(final APK apk, final BasicStatement invokeStmt) {
 
@@ -277,203 +275,191 @@ public class InterCFG extends BaseCFG {
                 apk.getManifest().getPackageName(), properties);
 
         for (String overriddenMethod : overriddenMethods) {
-            /*
-            * FIXME: By inserting a dummy CFG for a given method, e.g. when we couldn't resolve the broadcast receiver
-            *  for the sendBroadcast() invocation, all subsequent invocations of sendBroadcast() will be mapped to the
-            *  same dummy CFG. However, we want to try to resolve the broadcast receiver also for the subsequent
-            *  invocations! This applies not only to sendBroadcast()!
-            *
-             */
-            if (intraCFGs.containsKey(overriddenMethod)) {
 
-                if (MethodUtils.isLambdaClassConstructorCall(overriddenMethod)) {
+            if (MethodUtils.isLambdaClassConstructorCall(overriddenMethod)) {
 
-                    /*
-                     * Invocations of lambda constructs and method references are awkwardly handled
-                     * at the bytecode level. In particular, the method representing the lambda construct
-                     * or method reference is not directly called. Thus, we have to manually link those
-                     * methods in the graph. Each lambda class defines next to the constructor exactly
-                     * one public method, which defines the actual logic. We link this method to the exit
-                     * vertex of the constructor. For more details, see Issue #37.
-                     * NOTE: We only consider methods that don't represent Android callbacks, e.g. onClick().
-                     * Those callbacks are directly integrated in the callbacks subgraph by another procedure.
-                     * Likewise, we don't handle the run method of a lambda class here.
-                     */
-                    ClassDef classDef = classHierarchy.getClass(MethodUtils.getClassName(overriddenMethod));
-                    assert Lists.newArrayList(classDef.getVirtualMethods()).size() == 1;
-                    String method = MethodUtils.deriveMethodSignature(classDef.getVirtualMethods().iterator().next());
+                /*
+                 * Invocations of lambda constructs and method references are awkwardly handled
+                 * at the bytecode level. In particular, the method representing the lambda construct
+                 * or method reference is not directly called. Thus, we have to manually link those
+                 * methods in the graph. Each lambda class defines next to the constructor exactly
+                 * one public method, which defines the actual logic. We link this method to the exit
+                 * vertex of the constructor. For more details, see Issue #37.
+                 * NOTE: We only consider methods that don't represent Android callbacks, e.g. onClick().
+                 * Those callbacks are directly integrated in the callbacks subgraph by another procedure.
+                 * Likewise, we don't handle the run method of a lambda class here.
+                 */
+                ClassDef classDef = classHierarchy.getClass(MethodUtils.getClassName(overriddenMethod));
+                assert Lists.newArrayList(classDef.getVirtualMethods()).size() == 1;
+                String method = MethodUtils.deriveMethodSignature(classDef.getVirtualMethods().iterator().next());
 
-                    if (!MethodUtils.isCallback(method) && !ThreadUtils.isThreadMethod(classHierarchy, method)) {
-                        LOGGER.debug("Lambda method: " + method);
-                        BaseCFG lambdaConstructor = intraCFGs.get(overriddenMethod);
-                        BaseCFG lambdaMethod = intraCFGs.get(method);
-                        addEdge(lambdaConstructor.getExit(), lambdaMethod.getEntry());
-                        targetCFGs.add(lambdaConstructor);
-                    } else {
-                        // Android callbacks and run methods are handled separately
-                        targetCFGs.add(intraCFGs.get(overriddenMethod));
-                    }
+                if (!MethodUtils.isCallback(method) && !ThreadUtils.isThreadMethod(classHierarchy, method)) {
+                    LOGGER.debug("Lambda method: " + method);
+                    BaseCFG lambdaConstructor = intraCFGs.get(overriddenMethod);
+                    BaseCFG lambdaMethod = intraCFGs.get(method);
+                    addEdge(lambdaConstructor.getExit(), lambdaMethod.getEntry());
+                    targetCFGs.add(lambdaConstructor);
                 } else {
+                    // Android callbacks and run methods are handled separately
                     targetCFGs.add(intraCFGs.get(overriddenMethod));
                 }
-            } else {
+            } else if (ComponentUtils.isComponentInvocation(components, overriddenMethod)) {
                 /*
                  * If there is a component invocation, e.g. a call to startActivity(), we
                  * replace the targetCFG with the constructor of the respective component.
                  */
-                if (ComponentUtils.isComponentInvocation(components, overriddenMethod)) {
-                    String componentConstructor = ComponentUtils.isComponentInvocation(components, invokeStmt.getInstruction());
-                    if (componentConstructor != null) {
-                        if (intraCFGs.containsKey(componentConstructor)) {
-                            targetCFGs.add(intraCFGs.get(componentConstructor));
-                        } else {
-                            LOGGER.warn("Constructor " + componentConstructor + " not contained in dex files!");
-                            targetCFGs.add(dummyCFG(overriddenMethod));
-                        }
+                String componentConstructor = ComponentUtils.isComponentInvocation(components, invokeStmt.getInstruction());
+                if (componentConstructor != null) {
+                    if (intraCFGs.containsKey(componentConstructor)) {
+                        targetCFGs.add(intraCFGs.get(componentConstructor));
                     } else {
-                        LOGGER.warn("Couldn't derive component constructor for method: " + overriddenMethod);
-                        targetCFGs.add(dummyCFG(overriddenMethod));
-                    }
-                } else if (MethodUtils.isReflectionCall(overriddenMethod)) {
-                    // replace the reflection call with the internally invoked class constructor
-                    String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
-                    if (clazz != null) {
-                        LOGGER.debug("Class invoked by reflection: " + clazz);
-                        String constructor = ClassUtils.getDefaultConstructor(clazz);
-                        if (intraCFGs.containsKey(constructor)) {
-                            targetCFGs.add(intraCFGs.get(constructor));
-                        } else {
-                            LOGGER.warn("Constructor " + constructor + " not contained in dex files!");
-                            targetCFGs.add(dummyCFG(overriddenMethod));
-                        }
-                    }
-                } else if (DialogUtils.isDialogInvocation(overriddenMethod)) {
-                    LOGGER.debug("Dialog invocation detected: " + overriddenMethod);
-
-                    /*
-                     * When any showDialog() method is invoked, the respective onCreateDialog() method
-                     * is called. We need to check the activity class itself and super classes for the
-                     * implementation of onCreateDialog().
-                     */
-                    final String onCreateDialogMethod = DialogUtils.getOnCreateDialogMethod(overriddenMethod);
-                    String onCreateDialog = MethodUtils.getClassName(overriddenMethod) + "->" + onCreateDialogMethod;
-                    onCreateDialog = classHierarchy.invokedByCurrentClassOrAnySuperClass(onCreateDialog);
-
-                    if (onCreateDialog != null) {
-                        if (intraCFGs.containsKey(onCreateDialog)) {
-                            targetCFGs.add(intraCFGs.get(onCreateDialog));
-                        } else {
-                            LOGGER.warn("Method " + onCreateDialog + " not contained in dex files!");
-                            targetCFGs.add(dummyCFG(overriddenMethod));
-                        }
-                    } else {
-                        LOGGER.warn("OnCreateDialog() not defined by any class for invocation: " + overriddenMethod);
-                        targetCFGs.add(dummyCFG(overriddenMethod));
-                    }
-                } else if (AsyncTaskUtils.isAsyncTaskInvocation(overriddenMethod)) {
-                    LOGGER.debug("AsyncTask invocation detected: " + overriddenMethod);
-
-                    /*
-                     * When an AsyncTask is started by calling the execute() method, the four methods
-                     * onPreExecute(), doInBackground(), onProgressUpdate() and onPostExecute() are invoked.
-                     * The parameters to these methods depends on the specified generic type attributes.
-                     * However, at the bytecode-level so-called bridge methods are inserted, which simplifies
-                     * the construction here. In particular, the parameters are fixed and are of type 'Object'.
-                     * Only the doInBackground() method is mandatory.
-                     */
-
-                    // TODO: use unique name, otherwise all async tasks are mapped to same CFG!
-                    String className = MethodUtils.getClassName(overriddenMethod);
-                    BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
-                    Vertex last = asyncTaskCFG.getEntry();
-
-                    // optional
-                    String onPreExecuteMethod = classHierarchy
-                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPreExecuteMethod(className));
-                    if (onPreExecuteMethod != null && intraCFGs.containsKey(onPreExecuteMethod)) {
-                        BaseCFG onPreExecuteCFG = intraCFGs.get(onPreExecuteMethod);
-                        addEdge(asyncTaskCFG.getEntry(), onPreExecuteCFG.getEntry());
-                        last = onPreExecuteCFG.getExit();
-                    }
-
-                    // mandatory
-                    String doInBackgroundMethod = classHierarchy
-                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getDoInBackgroundMethod(className));
-                    BaseCFG doInBackgroundCFG = intraCFGs.get(doInBackgroundMethod);
-
-                    if (doInBackgroundCFG == null || !intraCFGs.containsKey(doInBackgroundMethod)) {
-                        throw new IllegalStateException("AsyncTask without doInBackgroundTask() method: " + overriddenMethod);
-                    }
-
-                    addEdge(last, doInBackgroundCFG.getEntry());
-                    last = doInBackgroundCFG.getExit();
-
-                    // optional
-                    String onProgressUpdateMethod = classHierarchy
-                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnProgressUpdateMethod(className));
-                    if (onProgressUpdateMethod != null && intraCFGs.containsKey(onProgressUpdateMethod)) {
-                        BaseCFG onProgressUpdateCFG = intraCFGs.get(onProgressUpdateMethod);
-                        addEdge(last, onProgressUpdateCFG.getEntry());
-                        last = onProgressUpdateCFG.getExit();
-                    }
-
-                    // optional
-                    String onPostExecuteMethod = classHierarchy
-                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPostExecuteMethod(className));
-                    if (onPostExecuteMethod != null && intraCFGs.containsKey(onPostExecuteMethod)) {
-                        BaseCFG onPostExecuteCFG = intraCFGs.get(onPostExecuteMethod);
-                        addEdge(last, onPostExecuteCFG.getEntry());
-                        last = onPostExecuteCFG.getExit();
-                    }
-
-                    addEdge(last, asyncTaskCFG.getExit());
-                    targetCFGs.add(asyncTaskCFG);
-                } else if (ReceiverUtils.isReceiverInvocation(overriddenMethod)) {
-
-                    LOGGER.debug("BroadcastReceiver invocation detected: " + overriddenMethod);
-
-                    BroadcastReceiver receiver = ReceiverUtils.isReceiverInvocation(components, invokeStmt.getInstruction());
-
-                    if (receiver != null) {
-
-                        /*
-                         * Depending on whether the receiver is a static or dynamic receiver, the control flow differs.
-                         * In the first case, the respective constructor is called, followed by the call to the onReceive()
-                         * method, while in the latter case only the onReceive() method is called. Since we only support
-                         * static receivers so far, we always include the constructor. Note that there might be multiple
-                         * broadcast receivers invoked if we deal with an implicit intent! Furthermore, we need to choose
-                         * a unique name for the CFG, otherwise subsequent sendBroadcast() invocations are mapped to the
-                         * same CFG, which is not what we want!
-                         */
-                        int instructionIndex = invokeStmt.getInstructionIndex();
-                        String callingMethod = invokeStmt.getMethod();
-                        BaseCFG sendBroadcastCFG = emptyCFG(callingMethod + "->"
-                                + instructionIndex + "->sendBroadcast()");
-
-                        // integrate constructor of receiver
-                        BaseCFG receiverConstructor = intraCFGs.get(receiver.getDefaultConstructor());
-                        addEdge(sendBroadcastCFG.getEntry(), receiverConstructor.getEntry());
-
-                        // integrate onReceive() after constructor
-                        BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
-                        addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
-                        addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
-
-                        targetCFGs.add(sendBroadcastCFG);
-                    } else {
-                        LOGGER.warn("Couldn't resolve broadcast receiver for invocation: " + overriddenMethod);
+                        LOGGER.warn("Constructor " + componentConstructor + " not contained in dex files!");
                         targetCFGs.add(dummyCFG(overriddenMethod));
                     }
                 } else {
-                    /*
-                     * There are some Android specific classes, e.g. android/view/View, which are
-                     * not included in the classes.dex file, or which we don't want to resolve.
-                     */
-                    if (!overriddenMethod.equals(targetMethod)) {
-                        LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
-                    }
+                    LOGGER.warn("Couldn't derive component constructor for method: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
+            } else if (MethodUtils.isReflectionCall(overriddenMethod)) {
+                LOGGER.debug("Reflection invocation detected: " + overriddenMethod);
+
+                // replace the reflection call with the internally invoked class constructor
+                String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
+                if (clazz != null) {
+                    LOGGER.debug("Class invoked by reflection: " + clazz);
+                    String constructor = ClassUtils.getDefaultConstructor(clazz);
+                    if (intraCFGs.containsKey(constructor)) {
+                        targetCFGs.add(intraCFGs.get(constructor));
+                    } else {
+                        LOGGER.warn("Constructor " + constructor + " not contained in dex files!");
+                        targetCFGs.add(dummyCFG(overriddenMethod));
+                    }
+                }
+            } else if (DialogUtils.isDialogInvocation(overriddenMethod)) {
+                LOGGER.debug("Dialog invocation detected: " + overriddenMethod);
+
+                /*
+                 * When any showDialog() method is invoked, the respective onCreateDialog() method
+                 * is called. We need to check the activity class itself and super classes for the
+                 * implementation of onCreateDialog().
+                 */
+                final String onCreateDialogMethod = DialogUtils.getOnCreateDialogMethod(overriddenMethod);
+                String onCreateDialog = MethodUtils.getClassName(overriddenMethod) + "->" + onCreateDialogMethod;
+                onCreateDialog = classHierarchy.invokedByCurrentClassOrAnySuperClass(onCreateDialog);
+
+                if (onCreateDialog != null) {
+                    if (intraCFGs.containsKey(onCreateDialog)) {
+                        targetCFGs.add(intraCFGs.get(onCreateDialog));
+                    } else {
+                        LOGGER.warn("Method " + onCreateDialog + " not contained in dex files!");
+                        targetCFGs.add(dummyCFG(overriddenMethod));
+                    }
+                } else {
+                    LOGGER.warn("OnCreateDialog() not defined by any class for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
+            } else if (AsyncTaskUtils.isAsyncTaskInvocation(overriddenMethod)) {
+                LOGGER.debug("AsyncTask invocation detected: " + overriddenMethod);
+
+                /*
+                 * When an AsyncTask is started by calling the execute() method, the four methods
+                 * onPreExecute(), doInBackground(), onProgressUpdate() and onPostExecute() are invoked.
+                 * The parameters to these methods depends on the specified generic type attributes.
+                 * However, at the bytecode-level so-called bridge methods are inserted, which simplifies
+                 * the construction here. In particular, the parameters are fixed and are of type 'Object'.
+                 * Only the doInBackground() method is mandatory.
+                 */
+
+                String className = MethodUtils.getClassName(overriddenMethod);
+                BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
+                Vertex last = asyncTaskCFG.getEntry();
+
+                // optional
+                String onPreExecuteMethod = classHierarchy
+                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPreExecuteMethod(className));
+                if (onPreExecuteMethod != null && intraCFGs.containsKey(onPreExecuteMethod)) {
+                    BaseCFG onPreExecuteCFG = intraCFGs.get(onPreExecuteMethod);
+                    addEdge(asyncTaskCFG.getEntry(), onPreExecuteCFG.getEntry());
+                    last = onPreExecuteCFG.getExit();
+                }
+
+                // mandatory
+                String doInBackgroundMethod = classHierarchy
+                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getDoInBackgroundMethod(className));
+                BaseCFG doInBackgroundCFG = intraCFGs.get(doInBackgroundMethod);
+
+                if (doInBackgroundCFG == null || !intraCFGs.containsKey(doInBackgroundMethod)) {
+                    throw new IllegalStateException("AsyncTask without doInBackgroundTask() method: " + overriddenMethod);
+                }
+
+                addEdge(last, doInBackgroundCFG.getEntry());
+                last = doInBackgroundCFG.getExit();
+
+                // optional
+                String onProgressUpdateMethod = classHierarchy
+                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnProgressUpdateMethod(className));
+                if (onProgressUpdateMethod != null && intraCFGs.containsKey(onProgressUpdateMethod)) {
+                    BaseCFG onProgressUpdateCFG = intraCFGs.get(onProgressUpdateMethod);
+                    addEdge(last, onProgressUpdateCFG.getEntry());
+                    last = onProgressUpdateCFG.getExit();
+                }
+
+                // optional
+                String onPostExecuteMethod = classHierarchy
+                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPostExecuteMethod(className));
+                if (onPostExecuteMethod != null && intraCFGs.containsKey(onPostExecuteMethod)) {
+                    BaseCFG onPostExecuteCFG = intraCFGs.get(onPostExecuteMethod);
+                    addEdge(last, onPostExecuteCFG.getEntry());
+                    last = onPostExecuteCFG.getExit();
+                }
+
+                addEdge(last, asyncTaskCFG.getExit());
+                targetCFGs.add(asyncTaskCFG);
+            } else if (ReceiverUtils.isReceiverInvocation(overriddenMethod)) {
+
+                LOGGER.debug("BroadcastReceiver invocation detected: " + overriddenMethod);
+
+                BroadcastReceiver receiver = ReceiverUtils.isReceiverInvocation(components, invokeStmt.getInstruction());
+
+                if (receiver != null) {
+
+                    /*
+                     * Depending on whether the receiver is a static or dynamic receiver, the control flow differs.
+                     * In the first case, the respective constructor is called, followed by the call to the onReceive()
+                     * method, while in the latter case only the onReceive() method is called. Since we only support
+                     * static receivers so far, we always include the constructor. Note that there might be multiple
+                     * broadcast receivers invoked if we deal with an implicit intent! Furthermore, we need to choose
+                     * a unique name for the CFG, otherwise subsequent sendBroadcast() invocations are mapped to the
+                     * same CFG, which is not what we want!
+                     */
+                    int instructionIndex = invokeStmt.getInstructionIndex();
+                    String callingMethod = invokeStmt.getMethod();
+                    BaseCFG sendBroadcastCFG = emptyCFG(callingMethod + "->"
+                            + instructionIndex + "->sendBroadcast()");
+
+                    // integrate constructor of receiver
+                    BaseCFG receiverConstructor = intraCFGs.get(receiver.getDefaultConstructor());
+                    addEdge(sendBroadcastCFG.getEntry(), receiverConstructor.getEntry());
+
+                    // integrate onReceive() after constructor
+                    BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
+                    addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
+                    addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
+
+                    targetCFGs.add(sendBroadcastCFG);
+                } else {
+                    LOGGER.warn("Couldn't resolve broadcast receiver for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
+            } else {
+                /*
+                 * There are some Android specific classes, e.g. android/view/View, which are
+                 * not included in the classes.dex file, or which we don't want to resolve.
+                 */
+                if (!overriddenMethod.equals(targetMethod)) {
+                    LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
+                }
+                targetCFGs.add(dummyCFG(overriddenMethod));
             }
         }
 
@@ -576,13 +562,13 @@ public class InterCFG extends BaseCFG {
 
     /**
      * Adds the lifecycle of started and/or bound services. The lifecycle can be depicted as follows:
-     *
+     * <p>
      * Started Service:
      * constructor -> onCreate() -> [onStartCommand()] -> [onStart()] -> callbacks -> [onDestroy()]
-     *
+     * <p>
      * Bound Service:
      * constructor -> onCreate() -> callbacks -> onServiceConnected() -> [onDestroy()]
-     *
+     * <p>
      * We include a dummy representation of the onCreate() method if not present, although that lifecycle
      * method is not mandatory! Moreover, since a service can be used both as a started and bound service,
      * we don't enforce everywhere the restrictions coming with the respective service type, e.g. a bound
@@ -1283,7 +1269,7 @@ public class InterCFG extends BaseCFG {
      * and if the invocation should be resolved or not.
      *
      * @param definingMethod The method in which the given target method is called.
-     * @param targetMethod The target method which should be checked.
+     * @param targetMethod   The target method which should be checked.
      * @return Returns {@code true} if the method should be resolved, otherwise {@code false} is returned.
      */
     private boolean resolveThreadMethod(final String definingMethod, final String targetMethod) {
@@ -1913,14 +1899,14 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("Number of isolated resource class methods: " + resourceClassMethods);
 
         /*
-        * As an alternative one could print all methods that are not reachable from the global entry vertex.
-        * However, the computation is very expensive in terms of time. If you really like to have this information,
-        * the code could look as follows:
-        *
-        * for (Vertex vertex : getVertices()) {
-        *     if (getShortestDistance(getEntry(), vertex) == -1) {
-        *         if (vertex.isEntryVertex() && className.startsWith(apk.getManifest().getPackageName())) {
-        *               LOGGER.debug("Isolated method: " + methodName);
+         * As an alternative one could print all methods that are not reachable from the global entry vertex.
+         * However, the computation is very expensive in terms of time. If you really like to have this information,
+         * the code could look as follows:
+         *
+         * for (Vertex vertex : getVertices()) {
+         *     if (getShortestDistance(getEntry(), vertex) == -1) {
+         *         if (vertex.isEntryVertex() && className.startsWith(apk.getManifest().getPackageName())) {
+         *               LOGGER.debug("Isolated method: " + methodName);
          */
     }
 }
