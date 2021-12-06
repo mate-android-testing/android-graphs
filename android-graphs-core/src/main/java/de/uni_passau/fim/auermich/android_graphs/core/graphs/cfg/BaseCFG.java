@@ -9,7 +9,8 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
-import de.uni_passau.fim.auermich.android_graphs.core.statements.*;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.EntryStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.DotConverter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,10 +24,9 @@ import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 import org.jgrapht.nio.Attribute;
 import org.jgrapht.nio.DefaultAttribute;
-import org.jgrapht.nio.dot.*;
+import org.jgrapht.nio.dot.DOTExporter;
 import org.jgrapht.nio.json.JSONExporter;
 import org.w3c.dom.Document;
-
 
 import javax.imageio.ImageIO;
 import javax.xml.transform.*;
@@ -34,7 +34,8 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -130,12 +131,18 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         return graph.incomingEdgesOf(vertex);
     }
 
+    /**
+     * Adds a vertex to the graph. It is not possible to add duplicate vertices to the graph. If the given vertex is
+     * already present in the graph, the graph is left unchanged.
+     *
+     * @param vertex The vertex to be added to the graph.
+     */
     public void addVertex(Vertex vertex) {
 
         boolean succeeded = graph.addVertex(vertex);
 
         if (!succeeded) {
-            LOGGER.debug("Couldn't insert vertex: " + vertex);
+            LOGGER.debug("Vertex is already present in graph: " + vertex);
         }
     }
 
