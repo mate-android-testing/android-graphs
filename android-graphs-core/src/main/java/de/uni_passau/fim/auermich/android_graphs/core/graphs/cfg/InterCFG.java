@@ -321,6 +321,8 @@ public class InterCFG extends BaseCFG {
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
             } else if (MethodUtils.isReflectionCall(overriddenMethod)) {
+                LOGGER.debug("Reflection invocation detected: " + overriddenMethod);
+
                 // replace the reflection call with the internally invoked class constructor
                 String clazz = Utility.backtrackReflectionCall(apk, invokeStmt);
                 if (clazz != null) {
