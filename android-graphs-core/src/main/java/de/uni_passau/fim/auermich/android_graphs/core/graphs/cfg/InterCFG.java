@@ -368,7 +368,6 @@ public class InterCFG extends BaseCFG {
                  * Only the doInBackground() method is mandatory.
                  */
 
-                // TODO: use unique name, otherwise all async tasks are mapped to same CFG!
                 String className = MethodUtils.getClassName(overriddenMethod);
                 BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
                 Vertex last = asyncTaskCFG.getEntry();
