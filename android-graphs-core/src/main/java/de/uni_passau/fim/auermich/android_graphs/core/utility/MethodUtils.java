@@ -124,6 +124,8 @@ public class MethodUtils {
                 "Ljava/lang/String;Landroid/os/Handler;)Landroid/content/Intent;");
         add("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;" +
                 "Ljava/lang/String;Landroid/os/Handler;I)Landroid/content/Intent;");
+        add("getPackageName()Ljava/lang/String;");
+        add("getSupportFragmentManager()Landroidx/fragment/app/FragmentManager;");
     }};
 
     /**
