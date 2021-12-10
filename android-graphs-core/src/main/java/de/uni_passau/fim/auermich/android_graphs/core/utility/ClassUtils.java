@@ -156,7 +156,19 @@ public class ClassUtils {
      */
     public static String getOuterClass(final String className) {
         assert isInnerClass(className);
-        return className.split("\\$")[0] + ";";
+        if (className.contains("-$$Lambda$")) {
+            /*
+            * Lambda classes have a rather strange class name, i.e. the sequence '-$$Lambda$' followed by the actual
+            * outer class name, which in turn is followed by '$' and a randomly generated identifier. Luckily, one
+            * can re-assemble the outer class name quite easily.
+             */
+            String[] tokens = className.split("-\\$\\$Lambda\\$");
+            String packageName = tokens[0];
+            String simpleClassName = tokens[1].split("\\$")[0];
+            return packageName + simpleClassName + ";";
+        } else {
+            return className.split("\\$")[0] + ";";
+        }
     }
 
     /**
