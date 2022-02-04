@@ -3,6 +3,7 @@ package de.uni_passau.fim.auermich.android_graphs.core.app;
 import brut.androlib.ApkDecoder;
 import brut.common.BrutException;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.DexFile;
@@ -93,6 +94,33 @@ public class APK {
 
         try {
             ApkDecoder decoder = new ApkDecoder(apkFile);
+
+            // check whether we can access the default framework dir
+            if (Utility.isLinux()) {
+
+                // check https://ibotpeaches.github.io/Apktool/documentation/ for the default location
+                File homeDir = new File(Utility.getHomeDirectory());
+                File defaultFrameworksDir = new File(homeDir, ".local/share/apktool");
+                LOGGER.debug("Default frameworks dir: " + defaultFrameworksDir);
+
+                try {
+                    if (!defaultFrameworksDir.exists() || !defaultFrameworksDir.canRead()) {
+
+                        LOGGER.warn("Can't access default frameworks dir! Using tmp dir!");
+
+                        /*
+                         * This is only necessary on a constrained environment like on our local cluster. Unfortunately,
+                         * the default framework dir location can't be used due to a permission issue. Moreover, we can't
+                         * properly delete this folder after decoding completed due to a file locking bug.
+                         */
+                        decoder.setFrameworkDir("tmp");
+                    }
+                } catch (SecurityException e) {
+                    LOGGER.warn("Can't access default frameworks dir! Using tmp dir!");
+                    LOGGER.warn(e.getMessage());
+                    decoder.setFrameworkDir("tmp");
+                }
+            }
 
             // path where we want to decode the APK (the same directory as the APK is in)
             decodingOutputPath = new File(apkFile.getParent(), DEFAULT_DECODING_DIR);

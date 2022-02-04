@@ -392,4 +392,33 @@ public final class Utility {
         return null;
     }
 
+    /**
+     * Retrieves the name of the operating system.
+     *
+     * @return Returns the name of the operating system.
+     */
+    public static String getOperatingSystem() {
+        return System.getProperty("os.name");
+    }
+
+    /**
+     * Checks whether the application is running within a linux environment.
+     *
+     * @return Returns {@code true} if the OS is some linux distro, otherwise {@code false} is returned.
+     */
+    public static boolean isLinux() {
+        final String os = getOperatingSystem();
+        LOGGER.debug("OS: " + os);
+        return os != null && os.contains("Linux");
+    }
+
+    /**
+     * Retrieves the name of the home directory.
+     *
+     * @return Returns the name o the home directory.
+     */
+    public static String getHomeDirectory() {
+        return System.getProperty("user.home");
+    }
+
 }
