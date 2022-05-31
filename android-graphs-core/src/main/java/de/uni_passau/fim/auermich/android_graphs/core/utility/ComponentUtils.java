@@ -32,6 +32,7 @@ public class ComponentUtils {
         add("Landroid/support/v7/app/ActionBarActivity;");
         add("Landroid/support/v4/app/FragmentActivity;");
         add("Landroid/preference/PreferenceActivity;");
+        add("Landroid/app/ListActivity;");
     }};
 
     /**
@@ -196,7 +197,7 @@ public class ComponentUtils {
                         String serviceName = ((Instruction21c) predecessor).getReference().toString();
                         Optional<Component> component = getComponentByName(components, serviceName);
 
-                        if (component.isPresent()) {
+                        if (component.isPresent() && component.get() instanceof Service) {
                             Service service = (Service) component.get();
                             return service.getDefaultConstructor();
                         }

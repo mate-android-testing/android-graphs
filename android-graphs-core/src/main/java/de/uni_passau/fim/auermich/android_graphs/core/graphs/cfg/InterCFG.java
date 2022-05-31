@@ -266,13 +266,16 @@ public class InterCFG extends BaseCFG {
 
         LOGGER.debug("Lookup target CFGs for " + targetMethod);
 
+        Set<Opcode> superOpCodes = Set.of(Opcode.INVOKE_SUPER, Opcode.INVOKE_SUPER_RANGE, Opcode.INVOKE_SUPER_QUICK_RANGE, Opcode.INVOKE_SUPER_QUICK);
+
         /*
          * We can't distinguish whether the given method is invoked or any method
          * that overrides the given method. Thus, we need to over-approximate in this case
          * and connect the invoke with each overridden method (CFG) as well.
          */
-        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(callingClass, targetMethod,
-                apk.getManifest().getPackageName(), properties);
+        Set<String> overriddenMethods = superOpCodes.contains(invokeStmt.getInstruction().getInstruction().getOpcode())
+                ? Set.of(targetMethod) // TODO not sure...
+                : classHierarchy.getOverriddenMethods(callingClass, targetMethod, apk.getManifest().getPackageName(), properties);
 
         for (String overriddenMethod : overriddenMethods) {
 
@@ -498,6 +501,10 @@ public class InterCFG extends BaseCFG {
             addAndroidApplicationLifecycle(application, callbackGraphs.get(application.getName()));
             addGlobalEntryPoint(application);
         });
+    }
+
+    public Activity getMainActivity() {
+        return (Activity) ComponentUtils.getComponentByName(components, ClassUtils.convertDottedClassName(apk.getManifest().getMainActivity())).orElseThrow();
     }
 
     /**

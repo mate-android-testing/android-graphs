@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 public class Vertex implements Cloneable, Comparable<Vertex> {
 
@@ -163,6 +164,18 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                 }
             default:
                 throw new UnsupportedOperationException("Statement type not supported yet!");
+        }
+    }
+
+    public boolean containsReturnStatement() {
+        return getTransitiveStatementTypes(statement).anyMatch(t -> t == Statement.StatementType.RETURN_STATEMENT);
+    }
+
+    public Stream<Statement.StatementType> getTransitiveStatementTypes(Statement statement) {
+        if (statement instanceof BlockStatement) {
+            return ((BlockStatement) statement).getStatements().stream().flatMap(this::getTransitiveStatementTypes);
+        } else {
+            return Stream.of(statement.getType());
         }
     }
 
