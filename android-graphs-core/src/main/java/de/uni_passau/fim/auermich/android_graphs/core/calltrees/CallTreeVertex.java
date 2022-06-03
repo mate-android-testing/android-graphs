@@ -1,5 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.calltrees;
 
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
+
 import java.util.Objects;
 
 public class CallTreeVertex implements Comparable<CallTreeVertex> {
@@ -7,6 +9,14 @@ public class CallTreeVertex implements Comparable<CallTreeVertex> {
 
     public CallTreeVertex(String method) {
         this.method = method;
+    }
+
+    public String getClassName() {
+        if (method.startsWith("callbacks ")) {
+            return method.split("callbacks ")[1];
+        } else {
+            return MethodUtils.getClassName(method);
+        }
     }
 
     @Override
