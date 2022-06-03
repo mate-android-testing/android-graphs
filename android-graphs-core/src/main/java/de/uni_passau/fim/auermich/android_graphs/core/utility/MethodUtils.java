@@ -100,6 +100,9 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/webkit/WebViewClient#onPageFinished(android.webkit.WebView,%20java.lang.String)
         add("onPageFinished(Landroid/webkit/WebView;Ljava/lang/String;)V");
+
+        // https://developer.android.com/reference/android/app/Activity#onContextItemSelected(android.view.MenuItem)
+        add("onContextItemSelected(Landroid/view/MenuItem;)Z");
     }};
 
     /**
