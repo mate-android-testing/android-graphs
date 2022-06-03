@@ -57,6 +57,7 @@ public class MethodUtils {
 
         // Landroid/support/v7/preference/Preference$OnPreferenceClickListener;
         add("onPreferenceClick(Landroid/support/v7/preference/Preference;)Z");
+        add("onPreferenceClick(Landroid/preference/Preference;)Z");
 
         // Landroid/content/SharedPreferences$OnSharedPreferenceChangeListener;
         add("onSharedPreferenceChanged(Landroid/content/SharedPreferences;Ljava/lang/String;)V");
