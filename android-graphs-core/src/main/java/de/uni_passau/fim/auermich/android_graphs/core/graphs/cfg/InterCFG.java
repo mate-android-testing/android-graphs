@@ -506,7 +506,11 @@ public class InterCFG extends BaseCFG {
     public Activity getMainActivity() {
         String mainActivityName = apk.getManifest().getMainActivity();
         return (Activity) ComponentUtils.getComponentByName(components, ClassUtils.convertDottedClassName(mainActivityName))
-                .or(() -> components.stream().filter(c -> c.getName().contains(mainActivityName)).findAny()) // it's possible to declare only the name
+                .or(() -> {
+                    String nameToSearch = mainActivityName.startsWith(".") ? mainActivityName.substring(1) : mainActivityName;
+
+                    return components.stream().filter(c -> c.getShortName().equals(nameToSearch)).findAny();
+                })
                 .orElseThrow();
     }
 

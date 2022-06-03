@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
+import de.uni_passau.fim.auermich.android_graphs.core.utility.ClassUtils;
 import org.jf.dexlib2.iface.ClassDef;
 
 public abstract class AbstractComponent implements Component {
@@ -22,6 +23,12 @@ public abstract class AbstractComponent implements Component {
     @Override
     public String getName() {
         return name;
+    }
+
+    @Override
+    public String getShortName() {
+        String[] parts = ClassUtils.dottedClassName(name).split("\\.");
+        return parts[parts.length - 1];
     }
 
     @Override
