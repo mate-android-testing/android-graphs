@@ -33,6 +33,7 @@ public class ComponentUtils {
         add("Landroid/support/v4/app/FragmentActivity;");
         add("Landroid/preference/PreferenceActivity;");
         add("Landroid/app/ListActivity;");
+        add("Landroid/app/TabActivity;");
     }};
 
     /**
@@ -96,9 +97,10 @@ public class ComponentUtils {
         String method = MethodUtils.getMethodName(fullyQualifiedMethodName);
 
         // component invocations require a context object, this can be the application context or a component
-        return COMPONENT_INVOCATIONS.contains(method)
+        return (COMPONENT_INVOCATIONS.contains(method)
                 && (clazz.equals("Landroid/content/Context;")
-                || components.stream().map(Component::getName).anyMatch(name -> name.equals(clazz)));
+                || components.stream().map(Component::getName).anyMatch(name -> name.equals(clazz))))
+                || fullyQualifiedMethodName.equals("Landroid/widget/TabHost$TabSpec;->setContent(Landroid/content/Intent;)Landroid/widget/TabHost$TabSpec;");
     }
 
     /**
@@ -124,7 +126,8 @@ public class ComponentUtils {
             if (method.equals("startActivity(Landroid/content/Intent;)V")
                     || method.equals("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")
                     || method.equals("startActivityForResult(Landroid/content/Intent;I)V")
-                    || method.equals("startActivityForResult(Landroid/content/Intent;ILandroid/os/Bundle;)V")) {
+                    || method.equals("startActivityForResult(Landroid/content/Intent;ILandroid/os/Bundle;)V")
+                    || invokeTarget.equals("Landroid/widget/TabHost$TabSpec;->setContent(Landroid/content/Intent;)Landroid/widget/TabHost$TabSpec;")) {
 
                 LOGGER.debug("Backtracking startActivity()/startActivityForResult() invocation!");
 
