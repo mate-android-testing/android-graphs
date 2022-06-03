@@ -3,13 +3,9 @@ package de.uni_passau.fim.auermich.android_graphs.core.calltrees;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.ClassHierarchy;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.ClassUtils;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.ReferenceType;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jgrapht.Graph;
@@ -21,12 +17,16 @@ import org.jgrapht.nio.dot.DOTExporter;
 
 import java.io.File;
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class CallTree {
-    protected final ClassHierarchy classHierarchy = new ClassHierarchy();
+    private static final Logger LOGGER = LogManager.getLogger(CallTree.class);
+
     protected final Graph<CallTreeVertex, CallTreeEdge> graph = GraphTypeBuilder
             .<CallTreeVertex, CallTreeEdge>directed()
             .allowingSelfLoops(true)
@@ -64,42 +64,6 @@ public class CallTree {
         }
     }
 
-    public CallTree(List<DexFile> dexFiles, String packageName) {
-        root = new CallTreeVertex("root");
-        graph.addVertex(root);
-
-        for (DexFile file : dexFiles) {
-            for (ClassDef classDef : file.getClasses()) {
-                ClassDef superClass = ClassUtils.getSuperClass(file, classDef);
-                Set<ClassDef> interfaces = ClassUtils.getInterfaces(file, classDef);
-                Set<ClassDef> innerClasses = ClassUtils.getInnerClasses(file, classDef);
-                classHierarchy.addClass(classDef, superClass, interfaces, innerClasses);
-
-                if (ClassUtils.dottedClassName(classDef.toString()).startsWith(packageName)) {
-                    for (Method method : classDef.getMethods()) {
-                        if (method.getImplementation() == null) {
-                            continue;
-                        }
-
-                        Set<String> calledMethods = new HashSet<>();
-
-                        for (Instruction instruction : method.getImplementation().getInstructions()) {
-                            getMethodName(instruction).ifPresent(calledMethods::add);
-                        }
-
-                        var source = new CallTreeVertex(method.toString());
-                        graph.addVertex(source);
-                        calledMethods.stream().filter(m -> ClassUtils.dottedClassName(MethodUtils.getClassName(m)).startsWith(packageName)).forEach(calledMethod -> {
-                            var target = new CallTreeVertex(calledMethod);
-                            graph.addVertex(target);
-                            graph.addEdge(source, target);
-                        });
-                    }
-                }
-            }
-        }
-    }
-
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(String target) {
         return getShortestPath(new CallTreeVertex(target));
     }
@@ -109,6 +73,11 @@ public class CallTree {
     }
 
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex source, CallTreeVertex target) {
+        Stream.of(source, target).forEach(vertex -> {
+            if (graph.addVertex(vertex)) {
+                LOGGER.warn("Graph did not contain vertex '" + vertex.toString() + "'");
+            }
+        });
         return Optional.ofNullable(BFSShortestPath.findPathBetween(graph, source, target));
     }
 
@@ -152,6 +121,32 @@ public class CallTree {
 
     public Set<CallTreeVertex> getUnreachableVertices() {
         return graph.vertexSet().stream().filter(v -> getShortestPath(v).isEmpty()).collect(Collectors.toSet());
+    }
+
+    public Set<CallTreeVertex> getMethodCallers(CallTreeVertex method, Predicate<CallTreeVertex> validCaller) {
+        return goUntilSatisfied(method, m -> graph.incomingEdgesOf(m).stream().map(CallTreeEdge::getSource), validCaller);
+    }
+
+    private <T> Set<T> goUntilSatisfied(T start, Function<T, Stream<T>> childGetter, Predicate<T> predicate) {
+        Queue<T> workQueue = new LinkedList<>();
+        workQueue.add(start);
+        Set<T> satisfied = new HashSet<>();
+        Set<T> seen = new HashSet<>();
+
+        while (!workQueue.isEmpty()) {
+            T current = workQueue.poll();
+            seen.add(current);
+
+            if (predicate.test(current)) {
+                satisfied.add(current);
+            } else {
+                childGetter.apply(current)
+                        .filter(Predicate.not(seen::contains))
+                        .forEach(workQueue::add);
+            }
+        }
+
+        return satisfied;
     }
 
     public void toDot(File output) {
