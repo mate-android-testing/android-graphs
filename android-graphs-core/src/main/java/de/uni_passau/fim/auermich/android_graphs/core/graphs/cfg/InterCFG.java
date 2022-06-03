@@ -1507,6 +1507,7 @@ public class InterCFG extends BaseCFG {
 
         // track binder classes and attach them to the corresponding service
         Set<String> binderClasses = new HashSet<>();
+        List<ClassDef> classes = apk.getDexFiles().stream().map(DexFile::getClasses).flatMap(Collection::stream).collect(Collectors.toList());
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
@@ -1530,17 +1531,17 @@ public class InterCFG extends BaseCFG {
                     // re-assemble the class hierarchy
                     updateClassHierarchy(dexFile, classDef);
 
-                    if (ComponentUtils.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    if (ComponentUtils.isActivity(classes, classDef)) {
                         components.add(new Activity(classDef, ComponentType.ACTIVITY));
-                    } else if (ComponentUtils.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isFragment(classes, classDef)) {
                         components.add(new Fragment(classDef, ComponentType.FRAGMENT));
-                    } else if (ComponentUtils.isService(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isService(classes, classDef)) {
                         components.add(new Service(classDef, ComponentType.SERVICE));
-                    } else if (ComponentUtils.isBinder(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isBinder(classes, classDef)) {
                         binderClasses.add(classDef.toString());
-                    } else if (ComponentUtils.isApplication(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isApplication(classes, classDef)) {
                         components.add(new Application(classDef, ComponentType.APPLICATION));
-                    } else if (ComponentUtils.isBroadcastReceiver(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isBroadcastReceiver(classes, classDef)) {
                         components.add(new BroadcastReceiver(classDef, ComponentType.BROADCAST_RECEIVER));
                     }
                 }
