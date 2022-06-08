@@ -11,12 +11,20 @@ import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.BFSShortestPath;
+import org.jgrapht.alg.util.Pair;
 import org.jgrapht.graph.GraphWalk;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
+import org.jgrapht.nio.AttributeType;
+import org.jgrapht.nio.DefaultAttribute;
 import org.jgrapht.nio.dot.DOTExporter;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -149,6 +157,34 @@ public class CallTree {
         return satisfied;
     }
 
+    public static Graph<CallTreeVertex, CallTreeEdge> onlyKeepVertices(Graph<CallTreeVertex, CallTreeEdge> graph, Set<CallTreeVertex> vertices) {
+        var newGraph = GraphTypeBuilder
+                .<CallTreeVertex, CallTreeEdge>directed()
+                .allowingSelfLoops(true)
+                .edgeClass(CallTreeEdge.class)
+                .edgeSupplier(CallTreeEdge::new)
+                .buildGraph();
+        graph.vertexSet().forEach(newGraph::addVertex);
+        graph.edgeSet().forEach(e -> newGraph.addEdge(e.getSource(), e.getTarget()));
+
+        Set<CallTreeVertex> verticesToUnlink = graph.vertexSet().stream().filter(v -> !vertices.contains(v)).collect(Collectors.toSet());
+
+        for (CallTreeVertex vertexToUnlink : verticesToUnlink) {
+            Set<CallTreeVertex> children = newGraph.outgoingEdgesOf(vertexToUnlink).stream().map(CallTreeEdge::getTarget).collect(Collectors.toSet());
+            Set<CallTreeVertex> parents = newGraph.incomingEdgesOf(vertexToUnlink).stream().map(CallTreeEdge::getSource).collect(Collectors.toSet());
+
+            for (CallTreeVertex parent : parents) {
+                for (CallTreeVertex child : children) {
+                    newGraph.addEdge(parent, child);
+                }
+            }
+
+            newGraph.removeVertex(vertexToUnlink);
+        }
+
+        return newGraph;
+    }
+
     public void toDot(File output) {
         Pattern pattern = Pattern.compile("^.*/(\\S+);->(\\S+)\\(.*\\).*$");
         DOTExporter<CallTreeVertex, CallTreeEdge> exporter = new DOTExporter<>(v -> {
@@ -163,5 +199,44 @@ public class CallTree {
         });
 
         exporter.exportGraph(graph, output);
+    }
+
+    public void toClassTreeDot(File output) {
+        Pattern pattern = Pattern.compile("^.*/(\\S+);->\\S+\\(.*\\).*$|^callbacks L.+/(\\S+);$");
+        Function<CallTreeVertex, String> toString = v -> {
+            Matcher matcher = pattern.matcher(v.toString());
+            return '"' + (matcher.matches()
+                    ? (matcher.group(1) == null ? matcher.group(2) : matcher.group(1)).split("\\$")[0]
+                    : v.toString()) + '"';
+        };
+
+        String verticesPreamble = graph.vertexSet().stream().map(toString).distinct().collect(Collectors.joining("\n"));
+        String graphString = graph.edgeSet().stream().map(e -> String.format("%s -> %s", toString.apply(e.getSource()), toString.apply(e.getTarget())))
+                .distinct()
+                .collect(Collectors.joining("\n"));
+
+        try {
+            Files.writeString(output.toPath(), "digraph D {\n" + verticesPreamble + "\n" + graphString + "\n}");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public void toMergedDot(File output, Set<String> classesToKeep) {
+        var activityGraph = onlyKeepVertices(graph, graph.vertexSet().stream().filter(v -> v.equals(root) || (v.toString().contains("-><init>") && classesToKeep.contains(v.getClassName()))).collect(Collectors.toSet()));
+
+        DOTExporter<CallTreeVertex, CallTreeEdge> exporter = new DOTExporter<>(v -> '"' + v.getClassName() + '"');
+        exporter.setVertexAttributeProvider(v -> {
+            if (BFSShortestPath.findPathBetween(activityGraph, root, v) != null) {
+                return Map.of(
+                        "fillcolor", new DefaultAttribute<>("red", AttributeType.STRING),
+                        "style", new DefaultAttribute<>("filled", AttributeType.STRING)
+                );
+            } else {
+                return Map.of();
+            }
+        });
+
+        exporter.exportGraph(activityGraph, output);
     }
 }
