@@ -104,6 +104,9 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/app/Activity#onContextItemSelected(android.view.MenuItem)
         add("onContextItemSelected(Landroid/view/MenuItem;)Z");
+
+        // https://developer.android.com/reference/com/google/android/material/navigation/NavigationView.OnNavigationItemSelectedListener#onNavigationItemSelected(android.view.MenuItem)
+        add("onNavigationItemSelected(Landroid/view/MenuItem;)Z");
     }};
 
     /**
