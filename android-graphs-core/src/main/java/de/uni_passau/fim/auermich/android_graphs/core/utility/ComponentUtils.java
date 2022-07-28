@@ -98,6 +98,7 @@ public class ComponentUtils {
         return (COMPONENT_INVOCATIONS.contains(method)
                 && (clazz.equals("Landroid/content/Context;")
                 || components.stream().map(Component::getName).anyMatch(name -> name.equals(clazz))))
+                || method.startsWith("startActivityForResultWithAnimation") // TODO temporary fix for com.ichi2.anki
                 || fullyQualifiedMethodName.equals("Landroid/widget/TabHost$TabSpec;->setContent(Landroid/content/Intent;)Landroid/widget/TabHost$TabSpec;");
     }
 
@@ -125,6 +126,7 @@ public class ComponentUtils {
                     || method.equals("startActivity(Landroid/content/Intent;Landroid/os/Bundle;)V")
                     || method.equals("startActivityForResult(Landroid/content/Intent;I)V")
                     || method.equals("startActivityForResult(Landroid/content/Intent;ILandroid/os/Bundle;)V")
+                    || method.startsWith("startActivityForResultWithAnimation") // TODO temporary fix for com.ichi2.anki
                     || invokeTarget.equals("Landroid/widget/TabHost$TabSpec;->setContent(Landroid/content/Intent;)Landroid/widget/TabHost$TabSpec;")) {
 
                 LOGGER.debug("Backtracking startActivity()/startActivityForResult() invocation!");
