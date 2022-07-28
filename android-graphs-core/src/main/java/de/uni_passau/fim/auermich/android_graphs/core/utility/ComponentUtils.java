@@ -13,10 +13,8 @@ import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class ComponentUtils {
 
@@ -513,6 +511,12 @@ public class ComponentUtils {
         for (Component component : components) {
 
             Set<String> componentUsages = new HashSet<>(classUsages.get(component.getName()));
+            componentUsages.addAll(componentUsages.stream()
+                    .filter(ClassUtils::isInnerClass)
+                    .filter(usage -> ClassUtils.getOuterClass(usage).equals(component.getName()))
+                    .map(classUsages::get)
+                    .flatMap(Collection::stream)
+                    .collect(Collectors.toSet()));
             LOGGER.debug("Component " + component + "has the following usages: " + componentUsages);
 
             for (String usage : componentUsages) {
