@@ -3,6 +3,7 @@ package de.uni_passau.fim.auermich.android_graphs.core.calltrees;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.ReferenceType;
@@ -11,7 +12,6 @@ import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.BFSShortestPath;
-import org.jgrapht.alg.util.Pair;
 import org.jgrapht.graph.GraphWalk;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 import org.jgrapht.nio.AttributeType;
@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -55,6 +53,7 @@ public class CallTree {
             Set<String> calledMethods = interCFG.getVertices().stream()
                     .filter(v -> v.getMethod().equals(method))
                     .flatMap(v -> interCFG.getOutgoingEdges(v).stream())
+                    .filter(e -> !ignoreEdge(e))
                     .map(Edge::getTarget)
                     .filter(v -> !v.containsReturnStatement())
                     .map(Vertex::getMethod)
@@ -72,6 +71,11 @@ public class CallTree {
         }
     }
 
+    public boolean ignoreEdge(Edge edge) {
+        return edge.getSource().getStatement() instanceof ExitStatement
+                && edge.getTarget().getStatement() instanceof ExitStatement;
+    }
+
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(String target) {
         return getShortestPath(new CallTreeVertex(target));
     }
@@ -80,13 +84,14 @@ public class CallTree {
         return getShortestPath(root, target);
     }
 
+    private final Map<String, Optional<GraphPath<CallTreeVertex, CallTreeEdge>>> cache = new HashMap<>();
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex source, CallTreeVertex target) {
         Stream.of(source, target).forEach(vertex -> {
             if (graph.addVertex(vertex)) {
                 LOGGER.warn("Graph did not contain vertex '" + vertex.toString() + "'");
             }
         });
-        return Optional.ofNullable(BFSShortestPath.findPathBetween(graph, source, target));
+        return cache.computeIfAbsent(source.getMethod() + "-->" + target.getMethod(), t -> Optional.ofNullable(BFSShortestPath.findPathBetween(graph, source, target)));
     }
 
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPathWithStops(List<CallTreeVertex> stops) {
@@ -185,7 +190,7 @@ public class CallTree {
         return newGraph;
     }
 
-    public void toDot(File output) {
+    public void toDot(File output, Map<String, String> methodsToHighlight) {
         Pattern pattern = Pattern.compile("^.*/(\\S+);->(\\S+)\\(.*\\).*$");
         DOTExporter<CallTreeVertex, CallTreeEdge> exporter = new DOTExporter<>(v -> {
             Matcher matcher = pattern.matcher(v.toString());
@@ -196,6 +201,18 @@ public class CallTree {
                             ? matcher.group(1) + "::" + matcher.group(2) + " (" + hash + ")"
                             : v.toString())
                     + '"';
+        });
+        exporter.setVertexAttributeProvider(v -> {
+            String color = methodsToHighlight.get(v.getMethod());
+
+            if (color == null) {
+                return Map.of();
+            } else {
+                return Map.of(
+                        "style", new DefaultAttribute<>("filled", AttributeType.STRING),
+                        "fillcolor", new DefaultAttribute<>(color, AttributeType.STRING)
+                );
+            }
         });
 
         exporter.exportGraph(graph, output);

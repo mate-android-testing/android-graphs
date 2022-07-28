@@ -19,6 +19,10 @@ public class CallTreeVertex implements Comparable<CallTreeVertex> {
         }
     }
 
+    public String getMethod() {
+        return method;
+    }
+
     @Override
     public String toString() {
         return method;
