@@ -46,9 +46,9 @@ public class BaseGraphBuilder {
     }
 
     // used for IntraCFG
-    public BaseGraphBuilder(GraphType type, DexFile dexFile, Method method) {
+    public BaseGraphBuilder(GraphType type, List<DexFile> dexFiles, Method method) {
         this.type = type;
-        this.dexFiles = List.of(dexFile);
+        this.dexFiles = dexFiles;
         this.method = method;
     }
 
