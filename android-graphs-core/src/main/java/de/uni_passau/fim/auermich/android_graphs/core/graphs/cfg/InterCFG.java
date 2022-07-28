@@ -39,6 +39,7 @@ import java.io.File;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents an inter procedural control flow graph.
@@ -1006,28 +1007,52 @@ public class InterCFG extends BaseCFG {
             BaseCFG callbackGraph = callbackGraphs.get(activity.getName());
 
             // callbacks directly declared in activity
-            callbacks.get(activity.getName()).forEach(callback -> {
-                addEdge(callbackGraph.getEntry(), callback.getEntry());
-                addEdge(callback.getExit(), callbackGraph.getExit());
-            });
-            callbacksXML.get(activity.getName()).forEach(callback -> {
-                addEdge(callbackGraph.getEntry(), callback.getEntry());
-                addEdge(callback.getExit(), callbackGraph.getExit());
-            });
+            attachCallbacks(callbacks.get(activity.getName()), callbacksXML.get(activity.getName()), callbackGraph);
 
             // callbacks declared in hosted fragments
             Set<Fragment> fragments = ((Activity) activity).getHostingFragments();
             for (Fragment fragment : fragments) {
-                callbacks.get(fragment.getName()).forEach(callback -> {
-                    addEdge(callbackGraph.getEntry(), callback.getEntry());
-                    addEdge(callback.getExit(), callbackGraph.getExit());
-                });
-                callbacksXML.get(fragment.getName()).forEach(callback -> {
-                    addEdge(callbackGraph.getEntry(), callback.getEntry());
-                    addEdge(callback.getExit(), callbackGraph.getExit());
-                });
+                attachCallbacks(callbacks.get(fragment.getName()), callbacksXML.get(fragment.getName()), callbackGraph);
             }
         });
+    }
+
+    private void attachCallbacks(Collection<BaseCFG> callbacks, Collection<BaseCFG> callbacksXML, BaseCFG callbackGraph) {
+        List<BaseCFG> allCallbacks = Stream.concat(callbacks.stream(), callbacksXML.stream()).collect(Collectors.toList());
+
+        allCallbacks.forEach(callback -> {
+            BaseCFG callbackRoot = getCallbackParentRecursively(callback, allCallbacks)
+                    .orElse(callbackGraph);
+
+            addEdge(callbackRoot.getEntry(), callback.getEntry());
+            addEdge(callback.getExit(), callbackRoot.getExit());
+        });
+    }
+
+    private Optional<BaseCFG> getCallbackParentRecursively(BaseCFG callback, Collection<BaseCFG> allCallbacks) {
+        String callbackClass = MethodUtils.getClassName(callback.getMethodName());
+
+        // iterate over the parent chain
+        return Stream.iterate(MethodUtils.getMethodName(callback.getMethodName()), MethodUtils.ANDROID_CALLBACK_TO_PARENT::get)
+                .skip(1) // Skip the original callback method seed
+                .takeWhile(Objects::nonNull) // reached root of parent chain
+                .map(parentMethod -> getByMethodName(callbackClass + "->" + parentMethod, allCallbacks))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
+    }
+
+    private Optional<BaseCFG> getByMethodName(String fullyQualifiedMethodName, Collection<BaseCFG> graphs) {
+        Set<BaseCFG> candidates = graphs.stream()
+                .filter(b -> b.getMethodName().equals(fullyQualifiedMethodName)).collect(Collectors.toSet());
+
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        } else if (candidates.size() > 1) {
+            throw new IllegalStateException("More than two methods match");
+        } else {
+            return candidates.stream().findAny();
+        }
     }
 
     /**

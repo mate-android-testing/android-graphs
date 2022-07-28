@@ -21,6 +21,15 @@ public class MethodUtils {
 
     private static final Logger LOGGER = LogManager.getLogger(MethodUtils.class);
 
+    public static final Map<String, String> ANDROID_CALLBACK_TO_PARENT = new HashMap<>() {{
+        // https://developer.android.com/reference/android/app/Activity#onContextItemSelected(android.view.MenuItem)
+        put("onContextItemSelected(Landroid/view/MenuItem;)Z", "onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V");
+
+        // https://developer.android.com/guide/topics/ui/menus#options-menu
+        put("onPrepareOptionsMenu(Landroid/view/Menu;)Z", "onCreateOptionsMenu(Landroid/view/Menu;)Z");
+        put("onOptionsItemSelected(Landroid/view/MenuItem;)Z", "onPrepareOptionsMenu(Landroid/view/Menu;)Z");
+    }};
+
     private static final Set<String> ANDROID_CALLBACKS = new HashSet<>() {{
         add("onClick(Landroid/view/View;)V");
         add("onLongClick(Landroid/view/View;)Z");
@@ -65,6 +74,9 @@ public class MethodUtils {
         // https://developer.android.com/reference/android/app/Activity#onCreateOptionsMenu(android.view.Menu)
         add("onCreateOptionsMenu(Landroid/view/Menu;)Z");
 
+        // https://developer.android.com/reference/android/app/Activity#onPrepareOptionsMenu(android.view.Menu)
+        add("onPrepareOptionsMenu(Landroid/view/Menu;)Z");
+
         add("onDraw(Landroid/graphics/Canvas;)V");
         add("onSizeChanged(IIII)V");
         add("onPreferenceChange(Landroid/preference/Preference;Ljava/lang/Object;)Z");
@@ -107,6 +119,11 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/com/google/android/material/navigation/NavigationView.OnNavigationItemSelectedListener#onNavigationItemSelected(android.view.MenuItem)
         add("onNavigationItemSelected(Landroid/view/MenuItem;)Z");
+
+        ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
+            add(child);
+            add(parent);
+        });
     }};
 
     /**
