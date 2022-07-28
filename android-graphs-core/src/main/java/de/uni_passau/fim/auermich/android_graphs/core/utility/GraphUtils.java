@@ -8,7 +8,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.DexFileFactory;
 import org.jf.dexlib2.dexbacked.DexBackedDexFile;
+import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
+import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MultiDexContainer;
 
 import java.io.File;
@@ -65,7 +67,7 @@ public class GraphUtils {
             }
         }
 
-        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles)
+        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTRACFG, dexFiles, findMethod(method, dexFiles))
                 .withName(method);
 
         if (useBasicBlocks) {
@@ -74,6 +76,22 @@ public class GraphUtils {
 
         BaseGraph baseGraph = builder.build();
         return (BaseCFG) baseGraph;
+    }
+
+    private static Method findMethod(String name, List<DexFile> dexFiles) {
+        String className = MethodUtils.getClassName(name);
+        for (DexFile dexFile : dexFiles) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+                if (classDef.toString().equals(className)) {
+                    for (Method method : classDef.getMethods()) {
+                        if (method.toString().equals(name)) {
+                            return method;
+                        }
+                    }
+                }
+            }
+        }
+        throw new IllegalArgumentException("Cannot find method " + name);
     }
 
     /**
