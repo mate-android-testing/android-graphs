@@ -5,11 +5,18 @@ import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Format;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.builder.BuilderInstruction;
+import org.jf.dexlib2.builder.MutableMethodImplementation;
+import org.jf.dexlib2.builder.instruction.BuilderInstruction31t;
+import org.jf.dexlib2.builder.instruction.BuilderPackedSwitchPayload;
+import org.jf.dexlib2.builder.instruction.BuilderSwitchElement;
+import org.jf.dexlib2.iface.DexFile;
+import org.jf.dexlib2.iface.Method;
+import org.jf.dexlib2.iface.instruction.*;
 
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class InstructionUtils {
 
@@ -175,5 +182,107 @@ public final class InstructionUtils {
      */
     public static boolean isInvokeInstruction(final Instruction instruction) {
         return INVOKE_OPCODES.contains(instruction.getOpcode());
+    }
+
+    /**
+     * Gets the last long value that was written to the target register
+     *
+     * @param analyzedInstruction The instruction before which to search (excluding)
+     * @param register The target register to look out for
+     * @return The last long value written to the target register
+     */
+    public static Optional<Long> getLastWriteToRegister(AnalyzedInstruction analyzedInstruction, int register) {
+        return Stream.iterate(analyzedInstruction, a -> a.getPredecessorCount() == 1, a -> a.getPredecessors().first())
+                .skip(1) // Skip seed
+                .map(a -> isWriteToRegister(a.getInstruction(), register))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
+    }
+
+    private static Optional<Long> isWriteToRegister(Instruction instruction, int register) {
+        if (instruction instanceof WideLiteralInstruction
+                && instruction instanceof OneRegisterInstruction
+                && ((OneRegisterInstruction) instruction).getRegisterA() == register) {
+            return Optional.of(((WideLiteralInstruction) instruction).getWideLiteral());
+        }
+
+        return Optional.empty();
+    }
+
+    private static List<BuilderInstruction> runBackwards(BuilderInstruction builderInstruction, Method method, DexFile dexFile) {
+        List<AnalyzedInstruction> analyzedInstructions = MethodUtils.getAnalyzedInstructions(dexFile, method);
+        MutableMethodImplementation methodImplementation = new MutableMethodImplementation(method.getImplementation());
+
+        AnalyzedInstruction target = null;
+        for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
+            if (analyzedInstruction.getInstructionIndex() == builderInstruction.getLocation().getIndex()) {
+                target = analyzedInstruction;
+            }
+        }
+
+        Objects.requireNonNull(target);
+
+        List<AnalyzedInstruction> parents = new LinkedList<>();
+
+        while (true) {
+            parents.add(target);
+
+            if (target.getPredecessorCount() == 0) {
+                return parents.stream().map(a -> methodImplementation.getInstructions().stream().filter(i -> i.getLocation().getIndex() == a.getInstructionIndex()).findFirst())
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .collect(Collectors.toList());
+            }
+            target = target.getPredecessors().first();
+        }
+    }
+
+    /**
+     * Returns the switch case key that the instruction belongs to
+     *
+     * @param builderInstruction The target instruction
+     * @param method The method containing the target instruction
+     * @param dexFile The dex file containing the method
+     * @return The switch case key that the instruction belongs to
+     */
+    public static Optional<Integer> getSwitchCaseKey(BuilderInstruction builderInstruction, Method method, DexFile dexFile) {
+        return getSwitchElementOfInstruction(builderInstruction, method, dexFile)
+                .map(SwitchElement::getKey);
+    }
+
+    private static Optional<SwitchElement> getSwitchElementOfInstruction(BuilderInstruction instruction, Method method, DexFile dexFile) {
+        List<BuilderInstruction> path = InstructionUtils.runBackwards(instruction, method, dexFile);
+
+        BuilderInstruction prev = null;
+        for (BuilderInstruction analyzedInstruction : path) {
+            var switchElements = getSwitchElements(analyzedInstruction);
+
+            if (switchElements.isPresent()) {
+                for (BuilderSwitchElement switchElement : switchElements.get()) {
+                    if (switchElement.getTarget().getLocation().getIndex() == prev.getLocation().getIndex()) {
+                        return Optional.of(switchElement);
+                    }
+                }
+
+                throw new IllegalStateException("Was not able to find switch target!");
+            }
+
+            prev = analyzedInstruction;
+        }
+
+        return Optional.empty();
+    }
+
+    private static Optional<List<? extends BuilderSwitchElement>> getSwitchElements(BuilderInstruction maybeSwitchInstruction) {
+        if (maybeSwitchInstruction.getOpcode() == Opcode.PACKED_SWITCH && maybeSwitchInstruction instanceof BuilderInstruction31t) {
+            Instruction switchPayload = ((BuilderInstruction31t) maybeSwitchInstruction).getTarget().getLocation().getInstruction();
+
+            if (switchPayload instanceof SwitchPayload) {
+                return Optional.of(((BuilderPackedSwitchPayload) switchPayload).getSwitchElements());
+            }
+        }
+
+        return Optional.empty();
     }
 }
