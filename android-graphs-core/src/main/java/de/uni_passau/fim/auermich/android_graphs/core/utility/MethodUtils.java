@@ -27,7 +27,9 @@ public class MethodUtils {
 
         // https://developer.android.com/guide/topics/ui/menus#options-menu
         put("onPrepareOptionsMenu(Landroid/view/Menu;)Z", "onCreateOptionsMenu(Landroid/view/Menu;)Z");
-        put("onOptionsItemSelected(Landroid/view/MenuItem;)Z", "onPrepareOptionsMenu(Landroid/view/Menu;)Z");
+        // https://developer.android.com/reference/android/app/Activity#onMenuOpened(int,%20android.view.Menu)
+        put("onMenuOpened(ILandroid/view/Menu;)Z", "onPrepareOptionsMenu(Landroid/view/Menu;)Z");
+        put("onOptionsItemSelected(Landroid/view/MenuItem;)Z", "onMenuOpened(ILandroid/view/Menu;)Z");
     }};
 
     private static final Set<String> ANDROID_CALLBACKS = new HashSet<>() {{
