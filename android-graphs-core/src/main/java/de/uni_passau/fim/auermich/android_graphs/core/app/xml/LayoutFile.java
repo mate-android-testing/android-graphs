@@ -1,5 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app.xml;
 
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MenuItem;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MenuUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.dom4j.Document;
@@ -11,6 +13,7 @@ import org.dom4j.io.SAXReader;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Stream;
 
 /**
  * Mirrors a layout file (XML) contained in the res/layout/ folder of an APK.
@@ -85,6 +88,34 @@ public class LayoutFile {
         return callbacks;
     }
 
+    public Stream<MenuItem> parseMenuItems() {
+        LOGGER.debug("Parsing menus in " + layoutFile.getName() + "!");
+
+        SAXReader reader = new SAXReader();
+        Document document;
+
+        try {
+            document = reader.read(layoutFile);
+        } catch (DocumentException e) {
+            LOGGER.error("Reading layout file " + layoutFile.getName() + " failed");
+            LOGGER.error(e.getMessage());
+            return Stream.empty();
+        }
+        Element rootElement = document.getRootElement();
+
+        return rootElement.elements().stream()
+                .map(element -> {
+                    if (element.getName().equals("item")) {
+                        String id = element.attributeValue("id").split("@id/")[1];
+                        String title = element.attributeValue("title").split("@string/")[1];
+
+                        return new MenuItem(id, title);
+                    } else {
+                        throw new IllegalStateException("Unknown tag for menu item: " + element.getName());
+                    }
+                });
+    }
+
     /**
      * Searches for a layout file based on a resource id. Traverses the public.xml file
      * to find a match.
@@ -95,7 +126,14 @@ public class LayoutFile {
      *          file could be found, {@code null} is returned.
      */
     public static LayoutFile findLayoutFile(File decodingOutputPath, String resourceID) {
+        return findFile(decodingOutputPath, resourceID, "layout");
+    }
 
+    public static LayoutFile findMenuFile(File decodingOutputPath, String resourceID) {
+        return findFile(decodingOutputPath, resourceID, "menu");
+    }
+
+    private static LayoutFile findFile(File decodingOutputPath, String resourceID, String type) {
         final File publicXMLPath = new File(decodingOutputPath,
                 Paths.get("res", "values", "public.xml").toString());
 
@@ -124,9 +162,9 @@ public class LayoutFile {
                 // check for match based on resource id
                 if (layoutResourceID.equals(resourceID)) {
                     // ensure that the match refers to a layout file
-                    if ("layout".equals(element.attributeValue("type"))) {
+                    if (type.equals(element.attributeValue("type"))) {
                         return new LayoutFile(new File(decodingOutputPath,
-                                Paths.get("res", "layout", layoutFile + ".xml").toString()));
+                                Paths.get("res", type, layoutFile + ".xml").toString()));
                     }
                 }
             }

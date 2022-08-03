@@ -1,18 +1,29 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MenuItem;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.TranslatedMenuItem;
 import org.jf.dexlib2.iface.ClassDef;
+import org.jf.dexlib2.iface.Method;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class Activity extends AbstractComponent {
 
     // the fragments that are hosted by the activity
     private Set<Fragment> hostingFragments = new HashSet<>();
 
+    private final Map<Method, List<TranslatedMenuItem>> menus = new HashMap<>();
+
     public Activity(ClassDef clazz, ComponentType type) {
         super(clazz, type);
+    }
+
+    public void addMenu(Method onCreateMenuMethod, List<TranslatedMenuItem> menuItems) {
+        menus.put(onCreateMenuMethod, menuItems);
+    }
+
+    public Map<Method, List<TranslatedMenuItem>> getMenus() {
+        return menus;
     }
 
     public void addHostingFragment(Fragment fragment) {

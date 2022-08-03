@@ -16,6 +16,10 @@ import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.util.MethodUtil;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MethodUtils {
 
@@ -467,5 +471,50 @@ public class MethodUtils {
      */
     public static boolean isReflectionCall(String methodSignature) {
         return methodSignature.equals("Ljava/lang/Class;->newInstance()Ljava/lang/Object;");
+    }
+
+    public static Set<String> getObjectParameters(String fullyQualifiedMethod) {
+        return getParameters(fullyQualifiedMethod)
+                .filter(p -> p.startsWith("L") && p.endsWith(";"))
+                .collect(Collectors.toSet());
+    }
+
+    public static Stream<String> getParameters(String fullyQualifiedMethod) {
+        String parameterString = fullyQualifiedMethod.split("\\(")[1].split("\\)")[0];
+
+        if (parameterString.isBlank()) {
+            return Stream.empty();
+        }
+
+        Queue<Character> characterQueue = new LinkedList<>();
+        for (Character character : parameterString.toCharArray()) {
+            characterQueue.add(character);
+        }
+
+        return Stream.iterate(takeType(characterQueue), lastType -> !characterQueue.isEmpty(), lastType -> takeType(characterQueue));
+    }
+
+    private static String takeType(Queue<Character> characters) {
+        Character typePrefix = Objects.requireNonNull(characters.poll());
+
+        if (Set.of('Z', 'B', 'S', 'C', 'I', 'J', 'F', 'D').contains(typePrefix)) {
+            return String.valueOf(typePrefix);
+        } else if (typePrefix.equals('L')) {
+            // Run until ;
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append(typePrefix);
+
+            do {
+                typePrefix = Objects.requireNonNull(characters.poll());
+                stringBuilder.append(typePrefix);
+            } while (typePrefix.equals(';'));
+
+            return stringBuilder.toString();
+        } else if (typePrefix.equals('[')) {
+            // Array
+            return "[" + takeType(characters);
+        } else {
+            throw new IllegalArgumentException("Unknown type prefix " + typePrefix);
+        }
     }
 }

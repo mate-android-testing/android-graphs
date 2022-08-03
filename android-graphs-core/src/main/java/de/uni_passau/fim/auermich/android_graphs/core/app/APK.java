@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Handler;
 
 /**
@@ -47,6 +48,8 @@ public class APK {
      */
     private Manifest manifest;
 
+    private Map<String, String> translations;
+
     /**
      * Constructs a new APK.
      *
@@ -78,6 +81,17 @@ public class APK {
             throw new IllegalStateException("Manifest was not (properly) parsed previously!");
         }
         return manifest;
+    }
+
+    public void setTranslations(Map<String, String> translations) {
+        this.translations = translations;
+    }
+
+    public Map<String, String> getTranslations() {
+        if (translations == null) {
+            throw new IllegalStateException("Translations were not parsed!");
+        }
+        return translations;
     }
 
     /**

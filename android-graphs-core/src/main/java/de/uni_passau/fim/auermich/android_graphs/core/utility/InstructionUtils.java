@@ -6,9 +6,11 @@ import org.jf.dexlib2.Format;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.builder.BuilderInstruction;
+import org.jf.dexlib2.builder.BuilderSwitchPayload;
 import org.jf.dexlib2.builder.MutableMethodImplementation;
 import org.jf.dexlib2.builder.instruction.BuilderInstruction31t;
 import org.jf.dexlib2.builder.instruction.BuilderPackedSwitchPayload;
+import org.jf.dexlib2.builder.instruction.BuilderSparseSwitchPayload;
 import org.jf.dexlib2.builder.instruction.BuilderSwitchElement;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
@@ -275,11 +277,11 @@ public final class InstructionUtils {
     }
 
     private static Optional<List<? extends BuilderSwitchElement>> getSwitchElements(BuilderInstruction maybeSwitchInstruction) {
-        if (maybeSwitchInstruction.getOpcode() == Opcode.PACKED_SWITCH && maybeSwitchInstruction instanceof BuilderInstruction31t) {
+        if ((maybeSwitchInstruction.getOpcode() == Opcode.PACKED_SWITCH || maybeSwitchInstruction.getOpcode() == Opcode.SPARSE_SWITCH) && maybeSwitchInstruction instanceof BuilderInstruction31t) {
             Instruction switchPayload = ((BuilderInstruction31t) maybeSwitchInstruction).getTarget().getLocation().getInstruction();
 
-            if (switchPayload instanceof SwitchPayload) {
-                return Optional.of(((BuilderPackedSwitchPayload) switchPayload).getSwitchElements());
+            if (switchPayload instanceof BuilderSwitchPayload) {
+                return Optional.of(((BuilderSwitchPayload) switchPayload).getSwitchElements());
             }
         }
 

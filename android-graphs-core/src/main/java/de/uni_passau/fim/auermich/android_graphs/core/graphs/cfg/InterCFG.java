@@ -97,6 +97,9 @@ public class InterCFG extends BaseCFG {
         // parse manifest
         apk.setManifest(Manifest.parse(new File(apk.getDecodingOutputPath(), "AndroidManifest.xml")));
 
+        // parse translations
+        apk.setTranslations(ResourceUtils.parseTranslations(apk.getDecodingOutputPath()));
+
         // create the individual intraCFGs and add them as sub graphs
         constructIntraCFGs(apk, properties.useBasicBlocks);
 
@@ -1578,6 +1581,21 @@ public class InterCFG extends BaseCFG {
                     // track the Android callbacks
                     if (MethodUtils.isCallback(methodSignature)) {
                         callbacks.add(methodSignature);
+                    }
+
+                    if (MenuUtils.isOnCreateMenu(methodSignature)) {
+                        List<TranslatedMenuItem> menuItems = MenuUtils.getDefinedMenuItems(apk, dexFile, method).collect(Collectors.toList());
+                        var component = ComponentUtils.getComponentByName(components, classDef.toString());
+
+                        if (component.isPresent()) {
+                            if (component.get() instanceof Activity) {
+                                ((Activity) component.get()).addMenu(method, menuItems);
+                            } else {
+                                LOGGER.warn("Found menu that belongs to " + component.get().getComponentType());
+                            }
+                        } else {
+                            LOGGER.warn("Failed to find component owning menu at " + methodSignature);
+                        }
                     }
 
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
