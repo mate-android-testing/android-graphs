@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.logging.Handler;
 
 /**
@@ -26,7 +27,7 @@ public class APK {
      * The default decoding directory. This conforms to the directory when you invoke
      * 'apktool d' without the optional parameter '-o <output-dir>'.
      */
-    private static final String DEFAULT_DECODING_DIR = "out";
+    private static final String DEFAULT_DECODING_DIR = "out-" + new Random().nextInt();
 
     /**
      * The path to the APK file itself.
