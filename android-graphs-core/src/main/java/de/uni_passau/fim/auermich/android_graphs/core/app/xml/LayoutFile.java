@@ -106,14 +106,25 @@ public class LayoutFile {
         return rootElement.elements().stream()
                 .map(element -> {
                     if (element.getName().equals("item")) {
-                        String id = element.attributeValue("id").split("@id/")[1];
-                        String title = element.attributeValue("title").split("@string/")[1];
+                        String fullId = element.attributeValue("id");
+                        String fullTitle = element.attributeValue("title");
 
-                        return new MenuItem(id, title);
+                        if (fullId == null || fullTitle == null) {
+                            LOGGER.warn("Having trouble parsing element of menu " + layoutFile.getName());
+                            return Optional.<MenuItem>empty();
+                        }
+
+                        String id = fullId.split("@id/|@android:id/")[1];
+                        String[] fullTitleParts = fullTitle.split("@string/|@android:string/");
+                        String title = fullTitleParts.length == 2 ? fullTitleParts[1] : fullTitleParts[0];
+
+                        return Optional.of(new MenuItem(id, title));
                     } else {
                         throw new IllegalStateException("Unknown tag for menu item: " + element.getName());
                     }
-                });
+                })
+                .filter(Optional::isPresent)
+                .map(Optional::get);
     }
 
     /**
