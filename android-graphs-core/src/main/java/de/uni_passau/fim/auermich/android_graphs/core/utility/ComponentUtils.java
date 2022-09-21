@@ -14,6 +14,7 @@ import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class ComponentUtils {
@@ -229,6 +230,16 @@ public class ComponentUtils {
         return components.stream().filter(c -> c.getName().equals(componentName)).findFirst();
     }
 
+    public static Optional<Activity> getActivityByName(final Set<Component> components, String componentName) {
+        return getComponentByName(components, componentName)
+                .flatMap(c -> c instanceof Activity ? Optional.of((Activity) c) : Optional.empty());
+    }
+
+    public static Optional<Fragment> getFragmentByName(final Set<Component> components, String componentName) {
+        return getComponentByName(components, componentName)
+                .flatMap(c -> c instanceof Fragment ? Optional.of((Fragment) c) : Optional.empty());
+    }
+
     /**
      * Checks whether the given class represents an activity by checking against the super class.
      *
@@ -378,12 +389,13 @@ public class ComponentUtils {
      * @param apk        The APK file.
      * @param components The set of discovered components.
      */
-    public static void checkComponentRelations(APK apk, final Set<Component> components) {
+    public static void checkComponentRelations(APK apk, final Set<Component> components, ClassHierarchy classHierarchy) {
 
         LOGGER.debug("Checking component relations...");
 
         Multimap<String, String> classUsages = ArrayListMultimap.create();
         String applicationPackage = apk.getManifest().getPackageName();
+        List<Consumer<Multimap<String, String>>> delayedAnalysis = new LinkedList<>();
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
@@ -457,6 +469,8 @@ public class ComponentUtils {
                                 // check for fragment invocation
                                 FragmentUtils.checkForFragmentInvocation(components, fullyQualifiedMethodName, analyzedInstruction);
 
+                                delayedAnalysis.add(FragmentUtils.checkForFragmentViewPager(components, fullyQualifiedMethodName, analyzedInstruction, classHierarchy));
+
                                 // check for service invocation
                                 ServiceUtils.checkForServiceInvocation(components, fullyQualifiedMethodName, analyzedInstruction);
 
@@ -508,6 +522,8 @@ public class ComponentUtils {
                 }
             }
         }
+
+        delayedAnalysis.forEach(analysis -> analysis.accept(classUsages));
 
         // derive relations between components based on the found class usages
         for (Component component : components) {

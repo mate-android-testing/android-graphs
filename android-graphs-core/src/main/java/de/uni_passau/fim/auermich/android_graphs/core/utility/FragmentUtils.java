@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.google.common.collect.Multimap;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.ComponentType;
@@ -14,9 +15,11 @@ import org.jf.dexlib2.iface.instruction.formats.Instruction11x;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.Flow;
+import java.util.concurrent.Future;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class FragmentUtils {
 
@@ -216,5 +219,36 @@ public class FragmentUtils {
                 }
             }
         }
+    }
+
+    public static Consumer<Multimap<String, String>> checkForFragmentViewPager(final Set<Component> components, String method,
+                                                                               AnalyzedInstruction analyzedInstruction,
+                                                                               ClassHierarchy classHierarchy) {
+        return usages -> {
+            Instruction instruction = analyzedInstruction.getInstruction();
+            String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+
+            Set<String> pageAdapterClasses = Set.of(
+                    "Landroid/support/v4/view/PagerAdapter;",
+                    "Landroid/support/v4/app/FragmentStatePagerAdapter;"
+            );
+            if (targetMethod.equals("Landroid/support/v4/view/ViewPager;->setAdapter(Landroid/support/v4/view/PagerAdapter;)V")) {
+                String callingClass = MethodUtils.getClassName(method);
+
+                ComponentUtils.getActivityByName(components, callingClass).ifPresent(activity -> usages.get(callingClass).stream()
+                        // Filter to get page adapters used on activity
+                        .filter(clazz -> classHierarchy.getSuperClasses(clazz).stream().anyMatch(pageAdapterClasses::contains))
+                        // Get usages of page adapters
+                        .map(usages::get)
+                        .flatMap(Collection::stream)
+                        // Map page adapter usages to fragments if possible
+                        .map(pageAdapterUsage -> ComponentUtils.getFragmentByName(components, pageAdapterUsage))
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        // Add all page adapter fra
+                        .forEach(activity::addHostingFragment)
+                );
+            }
+        };
     }
 }

@@ -126,6 +126,11 @@ public class MethodUtils {
         // https://developer.android.com/reference/com/google/android/material/navigation/NavigationView.OnNavigationItemSelectedListener#onNavigationItemSelected(android.view.MenuItem)
         add("onNavigationItemSelected(Landroid/view/MenuItem;)Z");
 
+        // https://developer.android.com/reference/androidx/viewpager/widget/ViewPager.OnPageChangeListener
+        add("onPageScrollStateChanged(I)V");
+        add("onPageScrolled(IFI)V");
+        add("onPageSelected(I)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);

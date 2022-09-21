@@ -104,7 +104,7 @@ public class InterCFG extends BaseCFG {
         constructIntraCFGs(apk, properties.useBasicBlocks);
 
         // track relations between components
-        ComponentUtils.checkComponentRelations(apk, components);
+        ComponentUtils.checkComponentRelations(apk, components, classHierarchy);
 
         // add for each component a callback graph
         Map<String, BaseCFG> callbackGraphs = addCallbackGraphs();
