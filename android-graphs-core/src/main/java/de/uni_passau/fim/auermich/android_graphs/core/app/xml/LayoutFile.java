@@ -103,28 +103,44 @@ public class LayoutFile {
         }
         Element rootElement = document.getRootElement();
 
-        return rootElement.elements().stream()
-                .map(element -> {
-                    if (element.getName().equals("item")) {
-                        String fullId = element.attributeValue("id");
-                        String fullTitle = element.attributeValue("title");
+        return parseAllMenuItems(rootElement);
+    }
 
-                        if (fullId == null || fullTitle == null) {
-                            LOGGER.warn("Having trouble parsing element of menu " + layoutFile.getName());
-                            return Optional.<MenuItem>empty();
+    private Stream<MenuItem> parseAllMenuItems(Element root) {
+        // https://developer.android.com/develop/ui/views/components/menus
+
+        if (root.elements() == null) {
+            return Stream.empty();
+        } else {
+            return root.elements().stream()
+                    .flatMap(element -> {
+                        if (element.getName().equals("item")) {
+                            return Stream.concat(parseItem(element).stream(), parseAllMenuItems(element));
+                        } else if (element.getName().equals("group")) {
+                            return parseAllMenuItems(element);
+                        } else if (element.getName().equals("menu")) {
+                            return parseAllMenuItems(element);
+                        } else {
+                            throw new IllegalStateException("Unknown tag for menu item: " + element.getName());
                         }
+                    });
+        }
+    }
 
-                        String id = fullId.split("@id/|@android:id/")[1];
-                        String[] fullTitleParts = fullTitle.split("@string/|@android:string/");
-                        String title = fullTitleParts.length == 2 ? fullTitleParts[1] : fullTitleParts[0];
+    private Optional<MenuItem> parseItem(Element element) {
+        String fullId = element.attributeValue("id");
+        String fullTitle = element.attributeValue("title");
 
-                        return Optional.of(new MenuItem(id, title));
-                    } else {
-                        throw new IllegalStateException("Unknown tag for menu item: " + element.getName());
-                    }
-                })
-                .filter(Optional::isPresent)
-                .map(Optional::get);
+        if (fullId == null || fullTitle == null) {
+            LOGGER.warn("Having trouble parsing element of menu " + layoutFile.getName());
+            return Optional.empty();
+        }
+
+        String id = fullId.split("@id/|@android:id/")[1];
+        String[] fullTitleParts = fullTitle.split("@string/|@android:string/");
+        String title = fullTitleParts.length == 2 ? fullTitleParts[1] : fullTitleParts[0];
+
+        return Optional.of(new MenuItem(id, title));
     }
 
     /**
