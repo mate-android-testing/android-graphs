@@ -99,6 +99,12 @@ public class MethodUtils {
         // https://developer.android.com/reference/android/app/Activity#dispatchTouchEvent(android.view.MotionEvent)
         add("dispatchTouchEvent(Landroid/view/MotionEvent;)Z");
 
+        // https://developer.android.com/reference/android/app/Activity#dispatchKeyEvent(android.view.KeyEvent)
+        add("dispatchKeyEvent(Landroid/view/KeyEvent;)Z");
+
+        // https://developer.android.com/reference/android/app/DatePickerDialog.OnDateSetListener#onDateSet(android.widget.DatePicker,%20int,%20int,%20int)
+        add("onDateSet(Landroid/widget/DatePicker;III)V");
+
         // https://developer.android.com/reference/android/widget/Adapter#getView(int,%20android.view.View,%20android.view.ViewGroup)
         add("getView(ILandroid/view/View;Landroid/view/ViewGroup;)Landroid/view/View;");
 
