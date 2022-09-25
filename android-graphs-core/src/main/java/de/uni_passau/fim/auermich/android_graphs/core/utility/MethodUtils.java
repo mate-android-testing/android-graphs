@@ -73,6 +73,7 @@ public class MethodUtils {
         // Landroid/support/v7/preference/Preference$OnPreferenceClickListener;
         add("onPreferenceClick(Landroid/support/v7/preference/Preference;)Z");
         add("onPreferenceClick(Landroid/preference/Preference;)Z");
+        add("onPreferenceClick(Landroidx/preference/Preference;)Z");
 
         // Landroid/content/SharedPreferences$OnSharedPreferenceChangeListener;
         add("onSharedPreferenceChanged(Landroid/content/SharedPreferences;Ljava/lang/String;)V");
@@ -136,6 +137,14 @@ public class MethodUtils {
         add("onPageScrollStateChanged(I)V");
         add("onPageScrolled(IFI)V");
         add("onPageSelected(I)V");
+
+        // https://developer.android.com/reference/android/widget/SeekBar.OnSeekBarChangeListener#onProgressChanged(android.widget.SeekBar,%20int,%20boolean)
+        add("onProgressChanged(Landroid/widget/SeekBar;IZ)V");
+
+        // https://developer.android.com/reference/android/app/ListActivity#onListItemClick(android.widget.ListView,%20android.view.View,%20int,%20long)
+        add("onListItemClick(Landroid/widget/ListView;Landroid/view/View;IJ)V");
+
+        add("handleMessage(Landroid/os/Message;)V");
 
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
@@ -256,7 +265,7 @@ public class MethodUtils {
      * @return Returns the method name from the fully qualified method name.
      */
     public static String getMethodName(final String fullyQualifiedMethodName) {
-        return fullyQualifiedMethodName.split(";->")[1];
+        return fullyQualifiedMethodName.split(";->|^\\[.->")[1];
     }
 
     /**

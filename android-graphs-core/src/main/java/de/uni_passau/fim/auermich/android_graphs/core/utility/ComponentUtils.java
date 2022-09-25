@@ -6,6 +6,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.AccessFlags;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.*;
@@ -249,6 +250,10 @@ public class ComponentUtils {
      * otherwise {@code false}.
      */
     public static boolean isActivity(final List<ClassDef> classes, final ClassDef currentClass) {
+        if (Arrays.stream(AccessFlags.getAccessFlagsForClass(currentClass.getAccessFlags())).anyMatch(flag -> flag == AccessFlags.ABSTRACT)) {
+            // TODO Ignore abstract classes for now, not sure if this is always ok
+            return false;
+        }
 
         // TODO: this approach might be quite time-consuming, may find a better solution
 

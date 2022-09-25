@@ -20,6 +20,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class FragmentUtils {
 
@@ -232,7 +233,10 @@ public class FragmentUtils {
                     "Landroid/support/v4/view/PagerAdapter;",
                     "Landroid/support/v4/app/FragmentStatePagerAdapter;"
             );
-            if (targetMethod.equals("Landroid/support/v4/view/ViewPager;->setAdapter(Landroid/support/v4/view/PagerAdapter;)V")) {
+            if (List.of(
+                    "Landroid/support/v4/view/ViewPager;->setAdapter(Landroid/support/v4/view/PagerAdapter;)V",
+                    "Landroidx/viewpager/widget/ViewPager;->setAdapter(Landroidx/viewpager/widget/PagerAdapter;)V"
+            ).contains(targetMethod)) {
                 String callingClass = MethodUtils.getClassName(method);
 
                 ComponentUtils.getActivityByName(components, callingClass).ifPresent(activity -> usages.get(callingClass).stream()

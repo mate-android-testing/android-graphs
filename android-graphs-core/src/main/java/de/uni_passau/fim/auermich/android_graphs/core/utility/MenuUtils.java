@@ -49,6 +49,10 @@ public class MenuUtils {
     }
 
     public static Stream<TranslatedMenuItem> getDefinedMenuItems(APK apk, DexFile dexFile, Method onCreateMenuMethod) {
+        if (onCreateMenuMethod.getImplementation() == null) {
+            return Stream.empty();
+        }
+
         return MethodUtils.getAnalyzedInstructions(dexFile, onCreateMenuMethod).stream()
                 .flatMap(analyzedInstruction -> {
                     Instruction instruction = analyzedInstruction.getInstruction();
