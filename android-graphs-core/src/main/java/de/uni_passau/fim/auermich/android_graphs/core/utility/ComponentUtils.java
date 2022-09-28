@@ -635,4 +635,12 @@ public class ComponentUtils {
         }
         return false;
     }
+
+    public static Set<Fragment> getFragmentsWithoutHost(Collection<Component> components) {
+        return components.stream()
+                .filter(component -> component instanceof Fragment)
+                .map(c -> (Fragment) c)
+                .filter(fragment -> components.stream().noneMatch(component -> component instanceof Activity && ((Activity) component).getHostingFragments().contains(fragment)))
+                .collect(Collectors.toSet());
+    }
 }

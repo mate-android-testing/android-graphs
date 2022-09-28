@@ -1018,6 +1018,12 @@ public class InterCFG extends BaseCFG {
                 attachCallbacks(callbacks.get(fragment.getName()), callbacksXML.get(fragment.getName()), callbackGraph);
             }
         });
+
+        Set<Fragment> fragmentsWithoutHost = ComponentUtils.getFragmentsWithoutHost(components);
+
+        if (!fragmentsWithoutHost.isEmpty()) {
+            LOGGER.warn("There are fragments without a host! Callbacks will be lost for " + fragmentsWithoutHost);
+        }
     }
 
     private void attachCallbacks(Collection<BaseCFG> callbacks, Collection<BaseCFG> callbacksXML, BaseCFG callbackGraph) {
