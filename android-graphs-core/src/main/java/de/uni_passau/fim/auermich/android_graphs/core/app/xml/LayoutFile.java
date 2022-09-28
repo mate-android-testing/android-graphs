@@ -13,6 +13,7 @@ import org.dom4j.io.SAXReader;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -86,6 +87,24 @@ public class LayoutFile {
             LOGGER.error(e.getMessage());
         }
         return callbacks;
+    }
+
+    public Set<String> parseFragments() {
+        SAXReader reader = new SAXReader();
+
+        try {
+            return parseFragmentNames(reader.read(layoutFile).getRootElement()).collect(Collectors.toSet());
+        } catch (DocumentException e) {
+            LOGGER.error("Reading layout file " + layoutFile.getName() + " failed");
+            LOGGER.error(e.getMessage());
+
+            return Set.of();
+        }
+    }
+
+    private Stream<String> parseFragmentNames(Element element) {
+        Stream<String> thisElement = element.getName().equals("fragment") ? Stream.of(element.attributeValue("name")) : Stream.empty();
+        return Stream.concat(thisElement, element.elements().stream().flatMap(this::parseFragmentNames));
     }
 
     public Stream<MenuItem> parseMenuItems() {

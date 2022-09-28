@@ -1275,6 +1275,28 @@ public class InterCFG extends BaseCFG {
 
                     if (layoutFile != null) {
                         componentCallbacks.putAll(component, layoutFile.parseCallbacks());
+
+                        Set<Fragment> hostedFragments = layoutFile.parseFragments().stream()
+                                .map(dottedFragmentName -> {
+                                    var fragment = ComponentUtils.getFragmentByName(components, ClassUtils.convertDottedClassName(dottedFragmentName));
+
+                                    if (fragment.isEmpty()) {
+                                        LOGGER.warn("Was not able to find fragment " + dottedFragmentName);
+                                    }
+                                    return fragment;
+                                })
+                                .flatMap(Optional::stream)
+                                .collect(Collectors.toSet());
+
+                        if (!hostedFragments.isEmpty()) {
+                            Optional<Activity> activity = ComponentUtils.getActivityByName(components, component);
+
+                            if (activity.isPresent()) {
+                                hostedFragments.forEach(activity.get()::addHostingFragment);
+                            } else {
+                                LOGGER.warn("Cannot attach " + hostedFragments.size() + " hosted fragments to any " + component);
+                            }
+                        }
                     }
                 });
 
