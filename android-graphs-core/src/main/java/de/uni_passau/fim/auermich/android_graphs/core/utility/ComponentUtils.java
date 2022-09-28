@@ -65,6 +65,9 @@ public class ComponentUtils {
     private static final Set<String> BROADCAST_RECEIVER_CLASSES = new HashSet<>() {{
         // TODO: add further directly known sub classes
         add("Landroid/content/BroadcastReceiver;");
+
+        // https://developer.android.com/reference/android/appwidget/AppWidgetProvider
+        add("Landroid/appwidget/AppWidgetProvider;");
     }};
 
     /**
