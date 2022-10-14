@@ -33,6 +33,7 @@ public class ComponentUtils {
         add("Landroid/support/v4/app/FragmentActivity;");
         add("Landroid/preference/PreferenceActivity;");
         add("Landroid/app/ListActivity;");
+        add("Landroid/app/TabActivity;");
     }};
 
     /**
