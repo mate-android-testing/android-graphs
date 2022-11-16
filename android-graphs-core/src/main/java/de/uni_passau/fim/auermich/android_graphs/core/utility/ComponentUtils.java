@@ -32,6 +32,8 @@ public class ComponentUtils {
         add("Landroid/support/v7/app/ActionBarActivity;");
         add("Landroid/support/v4/app/FragmentActivity;");
         add("Landroid/preference/PreferenceActivity;");
+        add("Landroid/app/ListActivity;");
+        add("Landroid/app/TabActivity;");
     }};
 
     /**
@@ -44,7 +46,15 @@ public class ComponentUtils {
         add("Landroid/app/DialogFragment;");
         add("Landroid/app/ListFragment;");
         add("Landroid/preference/PreferenceFragment;");
+        add("Landroidx/preference/PreferenceFragment;");
         add("Landroid/webkit/WebViewFragment;");
+        add("Landroidx/fragment/app/DialogFragment;");
+        add("Landroidx/fragment/app/ListFragment;");
+        add("Landroidx/preference/PreferenceFragmentCompat;");
+        add("Landroidx/appcompat/app/AppCompatDialogFragment;");
+        add("Landroidx/preference/PreferenceDialogFragmentCompat;");
+        add("Landroidx/mediarouter/app/MediaRouteChooserDialogFragment;");
+        add("Landroidx/mediarouter/app/MediaRouteControllerDialogFragment;");
     }};
 
     /**
@@ -52,6 +62,9 @@ public class ComponentUtils {
      */
     private static final Set<String> SERVICE_CLASSES = new HashSet<>() {{
         add("Landroid/app/Service;");
+        add("Landroid/app/IntentService;");
+        add("Landroid/widget/RemoteViewsService;");
+        add("Landroid/app/job/JobService;");
     }};
 
     // https://developer.android.com/reference/android/os/Binder

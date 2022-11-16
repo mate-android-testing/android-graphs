@@ -139,7 +139,7 @@ public final class Main {
 
     private static void run(JCommander commander) throws IOException {
 
-        LOGGER.debug("APK: " + mainCmd.getAPKFile().getAbsolutePath());
+        LOGGER.info("APK: " + mainCmd.getAPKFile().getAbsolutePath());
 
         if (!mainCmd.getAPKFile().exists()) {
             LOGGER.warn("No valid APK path!");
@@ -190,12 +190,12 @@ public final class Main {
                         BaseGraph baseGraph = builder.build();
 
                         if (mainCmd.isDraw()) {
-                            LOGGER.debug("Drawing graph!");
+                            LOGGER.info("Drawing graph!");
                             baseGraph.drawGraph();
                         }
 
                         if (mainCmd.lookup()) {
-                            LOGGER.debug("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
+                            LOGGER.info("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
                         }
 
                     } else {
@@ -227,15 +227,15 @@ public final class Main {
                             ((InterCFG) baseGraph).printIsolatedSubGraphs();
                         }
 
-                        LOGGER.debug("Size of graph: " + baseGraph.size());
+                        LOGGER.info("Size of graph: " + baseGraph.size());
 
                         if (mainCmd.isDraw()) {
-                            LOGGER.debug("Drawing graph!");
+                            LOGGER.info("Drawing graph!");
                             baseGraph.drawGraph();
                         }
 
                         if (mainCmd.lookup()) {
-                            LOGGER.debug("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
+                            LOGGER.info("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
                         }
                     }
                     break;
