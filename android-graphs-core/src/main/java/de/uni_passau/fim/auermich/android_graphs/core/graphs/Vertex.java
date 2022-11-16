@@ -18,11 +18,17 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
 
     private final VertexType type;
 
+    private final boolean isBranchVertex;
+
+    private final boolean isIfVertex;
+
     private Statement statement;
 
     public Vertex(Statement statement) {
         this.statement = statement;
         type = VertexType.mapType(statement);
+        isBranchVertex = computeIsBranchVertex(statement);
+        isIfVertex = computeIsIfVertex(statement);
     }
 
     @Override
@@ -99,12 +105,7 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
         }
     }
 
-    /**
-     * Checks whether a given vertex represents/contains an if statement.
-     *
-     * @return Returns whether the given vertex represents/contains an if statement.
-     */
-    public boolean isIfVertex() {
+    private static boolean computeIsIfVertex(final Statement statement) {
 
         switch (statement.getType()) {
             case ENTRY_STATEMENT:
@@ -113,7 +114,8 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                 return false;
             case BASIC_STATEMENT:
                 BasicStatement stmt = (BasicStatement) statement;
-                return InstructionUtils.isBranchingInstruction(stmt.getInstruction());
+                return InstructionUtils.isBranchingInstruction(
+                        stmt.getInstruction());
             case BLOCK_STATEMENT:
                 // Since an if instruction denotes the end of a basic block, we only need to look at the last instruction.
                 BlockStatement block = (BlockStatement) statement;
@@ -124,18 +126,12 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                     return false;
                 }
             default:
-                throw new UnsupportedOperationException("Statement type not supported yet!");
+                throw new UnsupportedOperationException(
+                        "Statement type not supported yet!");
         }
     }
 
-    /**
-     * Checks whether a given vertex represents a branch target, i.e. a successor of an if-statement.
-     * Essentially, every branch target must be a leader instruction.
-     *
-     * @return Returns whether the given vertex represents a branch target.
-     */
-    public boolean isBranchVertex() {
-
+    private static boolean computeIsBranchVertex(final Statement statement) {
         switch (statement.getType()) {
             case ENTRY_STATEMENT:
             case RETURN_STATEMENT:
@@ -144,7 +140,9 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
             case BASIC_STATEMENT:
                 // check if one of the predecessors is an if statement
                 BasicStatement stmt = (BasicStatement) statement;
-                return stmt.getInstruction().getPredecessors().stream()
+                return stmt.getInstruction()
+                        .getPredecessors()
+                        .stream()
                         .anyMatch(InstructionUtils::isBranchingInstruction);
             case BLOCK_STATEMENT:
                 // Since a branch represents a leader instruction (basic block), we only need to look at the first instruction.
@@ -162,8 +160,30 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                     return false;
                 }
             default:
-                throw new UnsupportedOperationException("Statement type not supported yet!");
+                throw new UnsupportedOperationException(
+                        "Statement type not supported yet!");
         }
+    }
+
+    /**
+     * Checks whether a given vertex represents/contains an if statement.
+     *
+     * @return Returns whether the given vertex represents/contains an if
+     * statement.
+     */
+    public boolean isIfVertex() {
+        return isIfVertex;
+    }
+
+    /**
+     * Checks whether a given vertex represents a branch target, i.e. a
+     * successor of an if-statement.
+     * Essentially, every branch target must be a leader instruction.
+     *
+     * @return Returns whether the given vertex represents a branch target.
+     */
+    public boolean isBranchVertex() {
+        return isBranchVertex;
     }
 
     /**
