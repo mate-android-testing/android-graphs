@@ -14,10 +14,10 @@ public class BaseGraphBuilder {
 
     /* REQUIRED FIELDS */
 
-    private GraphType type;
+    private final GraphType type;
 
     // may use some abstract 'source' type here
-    private List<DexFile> dexFiles;
+    private final List<DexFile> dexFiles;
 
     /* END REQUIRED FIELDS */
 
@@ -46,9 +46,9 @@ public class BaseGraphBuilder {
     }
 
     // used for IntraCFG
-    public BaseGraphBuilder(GraphType type, List<DexFile> dexFiles, Method method) {
+    public BaseGraphBuilder(GraphType type, DexFile dexFile, Method method) {
         this.type = type;
-        this.dexFiles = dexFiles;
+        this.dexFiles = List.of(dexFile);
         this.method = method;
     }
 
