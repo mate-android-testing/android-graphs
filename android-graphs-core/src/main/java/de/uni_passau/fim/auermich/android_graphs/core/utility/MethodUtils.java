@@ -16,8 +16,6 @@ import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.util.MethodUtil;
 
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -28,7 +26,6 @@ public class MethodUtils {
     public static final Map<String, String> ANDROID_CALLBACK_TO_PARENT = new HashMap<>() {{
         // https://developer.android.com/reference/android/app/Activity#onContextItemSelected(android.view.MenuItem)
         put("onContextItemSelected(Landroid/view/MenuItem;)Z", "onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V");
-
         // https://developer.android.com/guide/topics/ui/menus#options-menu
         put("onPrepareOptionsMenu(Landroid/view/Menu;)Z", "onCreateOptionsMenu(Landroid/view/Menu;)Z");
         // https://developer.android.com/reference/android/app/Activity#onMenuOpened(int,%20android.view.Menu)
@@ -204,7 +201,7 @@ public class MethodUtils {
      *
      * @param methodSignature The method to be checked.
      * @return Returns {@code true} if the method is an android callback,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isCallback(String methodSignature) {
         return ANDROID_CALLBACKS.contains(getMethodName(methodSignature));
@@ -215,7 +212,7 @@ public class MethodUtils {
      *
      * @param methodSignature The given method.
      * @return Returns {@code true} if the method is a constructor call of a lambda class,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isLambdaClassConstructorCall(String methodSignature) {
         String className = MethodUtils.getClassName(methodSignature);
@@ -227,7 +224,7 @@ public class MethodUtils {
      *
      * @param methodSignature The given method.
      * @return Returns {@code true} if the method is a constructor call,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isConstructorCall(String methodSignature) {
         String method = MethodUtils.getMethodName(methodSignature);
@@ -239,7 +236,7 @@ public class MethodUtils {
      *
      * @param method The method to be checked.
      * @return Returns {@code true} if the method is a private constructor,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isPrivateConstructor(Method method) {
         int accessFlags = method.getAccessFlags();
@@ -275,7 +272,7 @@ public class MethodUtils {
      * @return Returns the method name from the fully qualified method name.
      */
     public static String getMethodName(final Method method) {
-        return method.toString().split(";->")[1];
+        return getMethodName(method.toString());
     }
 
     /**
@@ -283,7 +280,7 @@ public class MethodUtils {
      *
      * @param method The method to be checked.
      * @return Returns {@code true} if the method represents a static initializer,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isStaticInitializer(String method) {
         return method.endsWith("<clinit>()V");
@@ -322,7 +319,7 @@ public class MethodUtils {
     /**
      * Checks whether the given method is contained in the dex files.
      *
-     * @param dexFiles        The dex files.
+     * @param dexFiles The dex files.
      * @param methodSignature The method to be looked up.
      * @return Returns the dex file containing the method, if possible.
      */
@@ -351,7 +348,7 @@ public class MethodUtils {
      * Convenient function to get the list of {@code AnalyzedInstruction} of a certain target method.
      *
      * @param dexFile The dex file containing the target method.
-     * @param method  The target method.
+     * @param method The target method.
      * @return Returns a list of {@code AnalyzedInstruction} included in the target method.
      */
     public static List<AnalyzedInstruction> getAnalyzedInstructions(final DexFile dexFile, final Method method) {
@@ -366,7 +363,7 @@ public class MethodUtils {
     /**
      * Searches for a target method in the given APK.
      *
-     * @param apk         The APK file.
+     * @param apk The APK file.
      * @param methodSignature The signature of the target method.
      * @return Returns an optional containing either the target method or not.
      */
@@ -393,7 +390,7 @@ public class MethodUtils {
     /**
      * Searches for a target method in the given {@code dexFile}.
      *
-     * @param dexFile         The dexFile to search in.
+     * @param dexFile The dexFile to search in.
      * @param methodSignature The signature of the target method.
      * @return Returns an optional containing either the target method or not.
      */
@@ -432,7 +429,7 @@ public class MethodUtils {
      *
      * @param fullyQualifiedMethodName The method signature.
      * @return Returns {@code true} if the given method is an ART method,
-     * otherwise {@code false}.
+     *         otherwise {@code false}.
      */
     public static boolean isARTMethod(final String fullyQualifiedMethodName) {
         String method = getMethodName(fullyQualifiedMethodName);
@@ -444,7 +441,7 @@ public class MethodUtils {
      *
      * @param fullyQualifiedMethodName The method signature.
      * @return Returns {@code true} if the given method is a java.lang.Object method,
-     * otherwise {@code false}.
+     *         otherwise {@code false}.
      */
     public static boolean isJavaObjectMethod(final String fullyQualifiedMethodName) {
         String method = getMethodName(fullyQualifiedMethodName);
@@ -487,54 +484,80 @@ public class MethodUtils {
      *
      * @param methodSignature The method to be checked.
      * @return Returns {@code true} if the method refers to a reflection call,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isReflectionCall(String methodSignature) {
         return methodSignature.equals("Ljava/lang/Class;->newInstance()Ljava/lang/Object;");
     }
 
+    /**
+     * Retrieves the object parameters for the given method.
+     *
+     * @param fullyQualifiedMethod The fully-qualified method name.
+     * @return Returns the set of object parameters.
+     */
+    @SuppressWarnings("unused")
     public static Set<String> getObjectParameters(String fullyQualifiedMethod) {
         return getParameters(fullyQualifiedMethod)
                 .filter(p -> p.startsWith("L") && p.endsWith(";"))
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * Retrieves the parameters for the given method.
+     *
+     * @param fullyQualifiedMethod The fully-qualified method name.
+     * @return Returns the parameters for the given method.
+     */
     public static Stream<String> getParameters(String fullyQualifiedMethod) {
+
+        // the params are enclosed in parentheses
         String parameterString = fullyQualifiedMethod.split("\\(")[1].split("\\)")[0];
 
         if (parameterString.isBlank()) {
+            // no params
             return Stream.empty();
         }
 
-        Queue<Character> characterQueue = new LinkedList<>();
+        Queue<Character> parameters = new LinkedList<>();
         for (Character character : parameterString.toCharArray()) {
-            characterQueue.add(character);
+            parameters.add(character);
         }
 
-        return Stream.iterate(takeType(characterQueue), lastType -> !characterQueue.isEmpty(), lastType -> takeType(characterQueue));
+        return Stream.iterate(nextParameter(parameters), // initial parameter
+                parameter -> !parameters.isEmpty(), // until there are remaining parameters
+                parameter -> nextParameter(parameters)); // retrieve next parameter
     }
 
-    private static String takeType(Queue<Character> characters) {
-        Character typePrefix = Objects.requireNonNull(characters.poll());
+    /**
+     * Returns the next parameter (type) from the parameter list.
+     *
+     * @param parameters The parameter list.
+     * @return Returns the next parameter from the parameter list.
+     */
+    private static String nextParameter(Queue<Character> parameters) {
 
-        if (Set.of('Z', 'B', 'S', 'C', 'I', 'J', 'F', 'D').contains(typePrefix)) {
-            return String.valueOf(typePrefix);
-        } else if (typePrefix.equals('L')) {
-            // Run until ;
-            StringBuilder stringBuilder = new StringBuilder();
-            stringBuilder.append(typePrefix);
+        Character parameterPrefix = Objects.requireNonNull(parameters.poll());
+
+        if (Set.of('Z', 'B', 'S', 'C', 'I', 'J', 'F', 'D').contains(parameterPrefix)) {
+            // primitive parameter
+            return String.valueOf(parameterPrefix);
+        } else if (parameterPrefix.equals('L')) {
+            // an object param is prefixed with a 'L' and ends with a ';'
+            final StringBuilder builder = new StringBuilder();
+            builder.append(parameterPrefix);
 
             do {
-                typePrefix = Objects.requireNonNull(characters.poll());
-                stringBuilder.append(typePrefix);
-            } while (typePrefix.equals(';'));
+                parameterPrefix = Objects.requireNonNull(parameters.poll());
+                builder.append(parameterPrefix);
+            } while (!parameterPrefix.equals(';'));
 
-            return stringBuilder.toString();
-        } else if (typePrefix.equals('[')) {
-            // Array
-            return "[" + takeType(characters);
+            return builder.toString();
+        } else if (parameterPrefix.equals('[')) {
+            // array parameter
+            return "[" + nextParameter(parameters);
         } else {
-            throw new IllegalArgumentException("Unknown type prefix " + typePrefix);
+            throw new IllegalArgumentException("Unknown type prefix: " + parameterPrefix);
         }
     }
 }
