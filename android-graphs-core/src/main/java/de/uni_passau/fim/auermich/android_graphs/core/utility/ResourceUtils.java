@@ -13,24 +13,50 @@ import java.io.File;
 import java.nio.file.Paths;
 import java.util.*;
 
+/**
+ * Parses stuff from resource files/classes.
+ */
 public class ResourceUtils {
-    public static Optional<String> lookupIdName(List<DexFile> dexFiles, long encodedId) {
-        return lookupName(dexFiles, "/R$id;", encodedId);
+
+    /**
+     * Looks up a field name in the R$id resource class.
+     *
+     * @param dexFiles The list of dex files.
+     * @param resourceId The resource id.
+     * @return Returns an optional possible containing the field name.
+     */
+    public static Optional<String> lookupIdName(List<DexFile> dexFiles, long resourceId) {
+        return lookupName(dexFiles, "/R$id;", resourceId);
     }
 
-    public static Optional<String> lookupStringIdName(List<DexFile> dexFiles, long encodedId) {
-        return lookupName(dexFiles, "/R$string;", encodedId);
+    /**
+     * Looks up a field name in the R$string resource class.
+     *
+     * @param dexFiles The list of dex files.
+     * @param resourceId The resource id.
+     * @return Returns an optional possible containing the field name.
+     */
+    public static Optional<String> lookupStringIdName(List<DexFile> dexFiles, long resourceId) {
+        return lookupName(dexFiles, "/R$string;", resourceId);
     }
 
-    private static Optional<String> lookupName(List<DexFile> dexFiles, String resourceClassSuffix, long encodedId) {
+    /**
+     * Looks up the name of a field in the given resource class by resource id.
+     *
+     * @param dexFiles The list of dex files.
+     * @param resourceClassSuffix The suffix of the resource class name.
+     * @param resourceId The resource id.
+     * @return Returns an optional possible containing the field name.
+     */
+    private static Optional<String> lookupName(List<DexFile> dexFiles, String resourceClassSuffix, long resourceId) {
         for (DexFile dexFile : dexFiles) {
             for (ClassDef classDef : dexFile.getClasses()) {
                 if (classDef.toString().endsWith(resourceClassSuffix)) {
                     for (Field field : classDef.getFields()) {
                         if (field.getType().equals("I")) {
-                            IntEncodedValue resourceId = (IntEncodedValue) field.getInitialValue();
+                            IntEncodedValue encodedResourceId = (IntEncodedValue) field.getInitialValue();
 
-                            if (resourceId.getValue() == encodedId) {
+                            if (encodedResourceId != null && encodedResourceId.getValue() == resourceId) {
                                 return Optional.of(field.getName());
                             }
                         }
@@ -41,15 +67,22 @@ public class ResourceUtils {
         return Optional.empty();
     }
 
-    public static Map<String, String> parseTranslations(File decodingOutputPath) {
-        final File publicXMLPath = new File(decodingOutputPath,
+    /**
+     * Parses the strings.xml file within the res/values folder.
+     *
+     * @param decodedAPKPath The decoded APK path.
+     * @return Returns a mapping from resource name to the actual text, e.g. 'app_name' -> 'BMI Calculator'.
+     */
+    public static Map<String, String> parseStringsXMLFile(File decodedAPKPath) {
+
+        final File stringsXMLPath = new File(decodedAPKPath,
                 Paths.get("res", "values", "strings.xml").toString());
 
         SAXReader reader = new SAXReader();
         Document document;
 
         try {
-            document = reader.read(publicXMLPath);
+            document = reader.read(stringsXMLPath);
         } catch (DocumentException e) {
             throw new IllegalStateException(e);
         }

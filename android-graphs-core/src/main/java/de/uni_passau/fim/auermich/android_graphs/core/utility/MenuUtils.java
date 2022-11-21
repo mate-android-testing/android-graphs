@@ -8,7 +8,10 @@ import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 @SuppressWarnings("unused")
@@ -83,7 +86,7 @@ public class MenuUtils {
     }
 
     private static TranslatedMenuItem translate(APK apk, MenuItem item) {
-        return new TranslatedMenuItem(item.getId(), item.getTitleId(), apk.getTranslations().get(item.getTitleId()));
+        return new TranslatedMenuItem(item.getId(), item.getTitleId(), apk.getResourceStrings().get(item.getTitleId()));
     }
 
     private static MenuItem buildMenuItem(APK apk, int menuItemId, Long menuItemTitleId) {

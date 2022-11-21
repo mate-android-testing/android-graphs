@@ -97,8 +97,8 @@ public class InterCFG extends BaseCFG {
         // parse manifest
         apk.setManifest(Manifest.parse(new File(apk.getDecodingOutputPath(), "AndroidManifest.xml")));
 
-        // parse translations
-        apk.setTranslations(ResourceUtils.parseTranslations(apk.getDecodingOutputPath()));
+        // parse the resource strings
+        apk.setResourceStrings(ResourceUtils.parseStringsXMLFile(apk.getDecodingOutputPath()));
 
         // create the individual intraCFGs and add them as sub graphs
         constructIntraCFGs(apk, properties.useBasicBlocks);

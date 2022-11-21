@@ -49,7 +49,10 @@ public class APK {
      */
     private Manifest manifest;
 
-    private Map<String, String> translations;
+    /**
+     * Defines a mapping from resource name to actual text, e.g. 'app_name' -> 'BMI Calculator'.
+     */
+    private Map<String, String> resourceStrings;
 
     /**
      * Constructs a new APK.
@@ -84,15 +87,15 @@ public class APK {
         return manifest;
     }
 
-    public void setTranslations(Map<String, String> translations) {
-        this.translations = translations;
+    public void setResourceStrings(Map<String, String> resourceStrings) {
+        this.resourceStrings = resourceStrings;
     }
 
-    public Map<String, String> getTranslations() {
-        if (translations == null) {
-            throw new IllegalStateException("Translations were not parsed!");
+    public Map<String, String> getResourceStrings() {
+        if (resourceStrings == null) {
+            throw new IllegalStateException("Resource strings were not parsed!");
         }
-        return translations;
+        return resourceStrings;
     }
 
     /**
