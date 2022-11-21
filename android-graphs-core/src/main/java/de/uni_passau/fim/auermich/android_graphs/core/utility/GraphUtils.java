@@ -42,6 +42,9 @@ public class GraphUtils {
      */
     public static BaseCFG constructIntraCFG(final File apkPath, final String method, final boolean useBasicBlocks) {
 
+        LOGGER.info("APK: " + apkPath);
+        LOGGER.info("Constructing INTRA-CFG for method: " + method);
+
         MultiDexContainer<? extends DexBackedDexFile> apk = null;
 
         try {
@@ -107,6 +110,8 @@ public class GraphUtils {
     public static BaseCFG constructInterCFG(final File apkPath, final boolean useBasicBlocks,
                                             final boolean excludeARTClasses, final boolean onlyResolveAUTClasses) {
 
+        LOGGER.info("Constructing INTER CFG for APK: " + apkPath);
+
         long start = System.currentTimeMillis();
 
         MultiDexContainer<? extends DexBackedDexFile> apk = null;
@@ -153,7 +158,7 @@ public class GraphUtils {
         BaseGraph baseGraph = builder.build();
 
         long end = System.currentTimeMillis();
-        LOGGER.debug("Graph construction took: " + ((end - start) / 1000) + " seconds");
+        LOGGER.info("Graph construction took: " + ((end - start) / 1000) + " seconds");
 
         return (BaseCFG) baseGraph;
     }
