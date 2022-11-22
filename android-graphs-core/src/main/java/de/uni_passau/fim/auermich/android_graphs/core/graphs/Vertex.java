@@ -167,13 +167,24 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
         }
     }
 
+    /**
+     * Checks whether the vertex encapsulates a return statement.
+     *
+     * @return Returns {@code true} if the vertex encapsulates a return statement, otherwise {@code false} is returned.
+     */
     public boolean containsReturnStatement() {
-        return getTransitiveStatementTypes(statement).anyMatch(t -> t == Statement.StatementType.RETURN_STATEMENT);
+        return getStatementTypes(statement).anyMatch(t -> t == Statement.StatementType.RETURN_STATEMENT);
     }
 
-    public Stream<Statement.StatementType> getTransitiveStatementTypes(Statement statement) {
+    /**
+     * Retrieves the statement type(s) of the underlying statement.
+     *
+     * @param statement The given statement.
+     * @return Returns the statement type(s) of the given statement.
+     */
+    private Stream<Statement.StatementType> getStatementTypes(final Statement statement) {
         if (statement instanceof BlockStatement) {
-            return ((BlockStatement) statement).getStatements().stream().flatMap(this::getTransitiveStatementTypes);
+            return ((BlockStatement) statement).getStatements().stream().flatMap(this::getStatementTypes);
         } else {
             return Stream.of(statement.getType());
         }
