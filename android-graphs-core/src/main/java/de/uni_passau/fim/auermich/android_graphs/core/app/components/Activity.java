@@ -9,8 +9,9 @@ import java.util.*;
 public class Activity extends AbstractComponent {
 
     // the fragments that are hosted by the activity
-    private Set<Fragment> hostingFragments = new HashSet<>();
+    private final Set<Fragment> hostingFragments = new HashSet<>();
 
+    // the menus that are displayed by the activity
     private final Map<Method, List<MenuItemWithResolvedTitle>> menus = new HashMap<>();
 
     public Activity(ClassDef clazz, ComponentType type) {
