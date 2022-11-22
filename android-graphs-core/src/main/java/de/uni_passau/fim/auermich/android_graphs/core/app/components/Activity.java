@@ -1,7 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
-import de.uni_passau.fim.auermich.android_graphs.core.utility.MenuItem;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.TranslatedMenuItem;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.MenuItemWithResolvedTitle;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.Method;
 
@@ -12,17 +11,17 @@ public class Activity extends AbstractComponent {
     // the fragments that are hosted by the activity
     private Set<Fragment> hostingFragments = new HashSet<>();
 
-    private final Map<Method, List<TranslatedMenuItem>> menus = new HashMap<>();
+    private final Map<Method, List<MenuItemWithResolvedTitle>> menus = new HashMap<>();
 
     public Activity(ClassDef clazz, ComponentType type) {
         super(clazz, type);
     }
 
-    public void addMenu(Method onCreateMenuMethod, List<TranslatedMenuItem> menuItems) {
+    public void addMenu(Method onCreateMenuMethod, List<MenuItemWithResolvedTitle> menuItems) {
         menus.put(onCreateMenuMethod, menuItems);
     }
 
-    public Map<Method, List<TranslatedMenuItem>> getMenus() {
+    public Map<Method, List<MenuItemWithResolvedTitle>> getMenus() {
         return menus;
     }
 

@@ -480,6 +480,16 @@ public class MethodUtils {
     }
 
     /**
+     * Retrieves the class name of the method's defining class.
+     *
+     * @param method The given method.
+     * @return Returns the class name.
+     */
+    public static String getClassName(final Method method) {
+        return getClassName(method.toString());
+    }
+
+    /**
      * Checks whether the given method represents a reflection call.
      *
      * @param methodSignature The method to be checked.

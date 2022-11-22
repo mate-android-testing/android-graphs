@@ -7,18 +7,14 @@ import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.builder.BuilderInstruction;
 import org.jf.dexlib2.builder.BuilderSwitchPayload;
-import org.jf.dexlib2.builder.MutableMethodImplementation;
 import org.jf.dexlib2.builder.instruction.BuilderInstruction31t;
-import org.jf.dexlib2.builder.instruction.BuilderPackedSwitchPayload;
-import org.jf.dexlib2.builder.instruction.BuilderSparseSwitchPayload;
 import org.jf.dexlib2.builder.instruction.BuilderSwitchElement;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.instruction.*;
+import org.jf.dexlib2.iface.instruction.Instruction;
 
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public final class InstructionUtils {
 
@@ -55,8 +51,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to an if or goto instruction.
      *
      * @param analyzedInstruction The instruction to be analyzed.
-     * @return Returns {@code true} if the instruction is a branch or goto instruction,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the instruction is a branch or goto instruction, otherwise {@code false} is returned.
      */
     public static boolean isJumpInstruction(final AnalyzedInstruction analyzedInstruction) {
         return isBranchingInstruction(analyzedInstruction) || isGotoInstruction(analyzedInstruction);
@@ -68,7 +63,7 @@ public final class InstructionUtils {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a parse-switch, packed-switch or array payload instruction,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isPayloadInstruction(final AnalyzedInstruction analyzedInstruction) {
         // TODO: may handle the actual parse-switch and packed-switch instructions (not the payload instructions)
@@ -87,7 +82,7 @@ public final class InstructionUtils {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isSwitchInstruction(final AnalyzedInstruction analyzedInstruction) {
         // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
@@ -101,11 +96,35 @@ public final class InstructionUtils {
     }
 
     /**
+     * Checks whether the given instruction refers to an parse-switch or packed-switch instruction.
+     *
+     * @param instruction The instruction to be checked.
+     * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
+     *         otherwise {@code false} is returned.
+     */
+    public static boolean isSwitchInstruction(final BuilderInstruction instruction) {
+        // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
+        EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH, Opcode.SPARSE_SWITCH);
+        return opcodes.contains(instruction.getOpcode());
+    }
+
+    /**
+     * Retrieves the list of switch elements from the given switch instruction.
+     *
+     * @param switchInstruction The given switch instruction.
+     * @return Returns the list of switch elements from the given switch instruction.
+     */
+    public static List<? extends BuilderSwitchElement> getSwitchElements(final BuilderInstruction switchInstruction) {
+        Instruction switchPayloadInstruction
+                = ((BuilderInstruction31t) switchInstruction).getTarget().getLocation().getInstruction();
+        return ((BuilderSwitchPayload) switchPayloadInstruction).getSwitchElements();
+    }
+
+    /**
      * Checks whether the given instruction refers to a goto instruction.
      *
      * @param analyzedInstruction The instruction to be analyzed.
-     * @return Returns {@code true} if the instruction is a goto instruction,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the instruction is a goto instruction, otherwise {@code false} is returned.
      */
     public static boolean isGotoInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -117,8 +136,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to an if instruction.
      *
      * @param analyzedInstruction The instruction to be analyzed.
-     * @return Returns {@code true} if the instruction is a branching instruction,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the instruction is a branching instruction, otherwise {@code false} is returned.
      */
     public static boolean isBranchingInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -130,8 +148,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to a return or throw statement.
      *
      * @param instruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is a return or throw statement,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is a return or throw statement, otherwise {@code false} is returned.
      */
     public static boolean isTerminationStatement(final AnalyzedInstruction instruction) {
         // TODO: should we handle the throw-verification-error instruction?
@@ -142,8 +159,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to a nop instruction.
      *
      * @param instruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is a nop instruction,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is a nop instruction, otherwise {@code false} is returned.
      */
     public static boolean isNOPInstruction(final AnalyzedInstruction instruction) {
         return instruction.getInstruction().getOpcode() == Opcode.NOP;
@@ -153,8 +169,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to a return statement.
      *
      * @param analyzedInstruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is a return statement, otherwise
-     * {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is a return statement, otherwise {@code false} is returned.
      */
     public static boolean isReturnInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -167,8 +182,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction is any sort of invoke statement.
      *
      * @param analyzedInstruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is an invoke statement,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is an invoke statement, otherwise {@code false} is returned.
      */
     public static boolean isInvokeInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -179,112 +193,9 @@ public final class InstructionUtils {
      * Checks whether the given instruction is any sort of invoke statement.
      *
      * @param instruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is an invoke statement,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is an invoke statement, otherwise {@code false} is returned.
      */
     public static boolean isInvokeInstruction(final Instruction instruction) {
         return INVOKE_OPCODES.contains(instruction.getOpcode());
-    }
-
-    /**
-     * Gets the last long value that was written to the target register
-     *
-     * @param analyzedInstruction The instruction before which to search (excluding)
-     * @param register The target register to look out for
-     * @return The last long value written to the target register
-     */
-    public static Optional<Long> getLastWriteToRegister(AnalyzedInstruction analyzedInstruction, int register) {
-        return Stream.iterate(analyzedInstruction, a -> a.getPredecessorCount() == 1, a -> a.getPredecessors().first())
-                .skip(1) // Skip seed
-                .map(a -> isWriteToRegister(a.getInstruction(), register))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .findFirst();
-    }
-
-    private static Optional<Long> isWriteToRegister(Instruction instruction, int register) {
-        if (instruction instanceof WideLiteralInstruction
-                && instruction instanceof OneRegisterInstruction
-                && ((OneRegisterInstruction) instruction).getRegisterA() == register) {
-            return Optional.of(((WideLiteralInstruction) instruction).getWideLiteral());
-        }
-
-        return Optional.empty();
-    }
-
-    private static List<BuilderInstruction> runBackwards(BuilderInstruction builderInstruction, Method method, DexFile dexFile) {
-        List<AnalyzedInstruction> analyzedInstructions = MethodUtils.getAnalyzedInstructions(dexFile, method);
-        MutableMethodImplementation methodImplementation = new MutableMethodImplementation(method.getImplementation());
-
-        AnalyzedInstruction target = null;
-        for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
-            if (analyzedInstruction.getInstructionIndex() == builderInstruction.getLocation().getIndex()) {
-                target = analyzedInstruction;
-            }
-        }
-
-        Objects.requireNonNull(target);
-
-        List<AnalyzedInstruction> parents = new LinkedList<>();
-
-        while (true) {
-            parents.add(target);
-
-            if (target.getPredecessorCount() == 0) {
-                return parents.stream().map(a -> methodImplementation.getInstructions().stream().filter(i -> i.getLocation().getIndex() == a.getInstructionIndex()).findFirst())
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .collect(Collectors.toList());
-            }
-            target = target.getPredecessors().first();
-        }
-    }
-
-    /**
-     * Returns the switch case key that the instruction belongs to
-     *
-     * @param builderInstruction The target instruction
-     * @param method The method containing the target instruction
-     * @param dexFile The dex file containing the method
-     * @return The switch case key that the instruction belongs to
-     */
-    public static Optional<Integer> getSwitchCaseKey(BuilderInstruction builderInstruction, Method method, DexFile dexFile) {
-        return getSwitchElementOfInstruction(builderInstruction, method, dexFile)
-                .map(SwitchElement::getKey);
-    }
-
-    private static Optional<SwitchElement> getSwitchElementOfInstruction(BuilderInstruction instruction, Method method, DexFile dexFile) {
-        List<BuilderInstruction> path = InstructionUtils.runBackwards(instruction, method, dexFile);
-
-        BuilderInstruction prev = null;
-        for (BuilderInstruction analyzedInstruction : path) {
-            var switchElements = getSwitchElements(analyzedInstruction);
-
-            if (switchElements.isPresent()) {
-                for (BuilderSwitchElement switchElement : switchElements.get()) {
-                    if (switchElement.getTarget().getLocation().getIndex() == prev.getLocation().getIndex()) {
-                        return Optional.of(switchElement);
-                    }
-                }
-
-                throw new IllegalStateException("Was not able to find switch target!");
-            }
-
-            prev = analyzedInstruction;
-        }
-
-        return Optional.empty();
-    }
-
-    private static Optional<List<? extends BuilderSwitchElement>> getSwitchElements(BuilderInstruction maybeSwitchInstruction) {
-        if ((maybeSwitchInstruction.getOpcode() == Opcode.PACKED_SWITCH || maybeSwitchInstruction.getOpcode() == Opcode.SPARSE_SWITCH) && maybeSwitchInstruction instanceof BuilderInstruction31t) {
-            Instruction switchPayload = ((BuilderInstruction31t) maybeSwitchInstruction).getTarget().getLocation().getInstruction();
-
-            if (switchPayload instanceof BuilderSwitchPayload) {
-                return Optional.of(((BuilderSwitchPayload) switchPayload).getSwitchElements());
-            }
-        }
-
-        return Optional.empty();
     }
 }
