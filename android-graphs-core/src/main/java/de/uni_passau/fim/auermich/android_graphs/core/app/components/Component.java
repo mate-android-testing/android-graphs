@@ -11,8 +11,6 @@ public interface Component {
 
     String getName();
 
-    String getShortName();
-
     ComponentType getComponentType();
 
     String getDefaultConstructor();

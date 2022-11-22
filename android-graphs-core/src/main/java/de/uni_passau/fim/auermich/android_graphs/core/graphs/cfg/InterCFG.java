@@ -507,15 +507,14 @@ public class InterCFG extends BaseCFG {
         });
     }
 
+    /**
+     * Retrieves the main activity.
+     *
+     * @return Returns the main activity.
+     */
     public Activity getMainActivity() {
         String mainActivityName = apk.getManifest().getMainActivity();
-        return (Activity) ComponentUtils.getComponentByName(components, ClassUtils.convertDottedClassName(mainActivityName))
-                .or(() -> {
-                    String nameToSearch = mainActivityName.startsWith(".") ? mainActivityName.substring(1) : mainActivityName;
-
-                    return components.stream().filter(c -> c.getShortName().equals(nameToSearch)).findAny();
-                })
-                .orElseThrow();
+        return ComponentUtils.getActivityByName(components, ClassUtils.convertDottedClassName(mainActivityName)).orElseThrow();
     }
 
     /**
