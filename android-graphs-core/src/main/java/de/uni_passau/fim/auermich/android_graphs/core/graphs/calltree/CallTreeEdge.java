@@ -4,6 +4,9 @@ import org.jgrapht.graph.DefaultEdge;
 
 import java.util.Objects;
 
+/**
+ * An edge in the {@link CallTree}.
+ */
 public class CallTreeEdge extends DefaultEdge implements Cloneable {
 
     @Override
@@ -38,8 +41,8 @@ public class CallTreeEdge extends DefaultEdge implements Cloneable {
         return Objects.hash(getSource(), getTarget());
     }
 
+    @Override
     public CallTreeEdge clone() {
-        CallTreeEdge clone = (CallTreeEdge) super.clone();
-        return clone;
+        return (CallTreeEdge) super.clone();
     }
 }

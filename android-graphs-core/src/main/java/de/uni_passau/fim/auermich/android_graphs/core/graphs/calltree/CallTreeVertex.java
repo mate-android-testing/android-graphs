@@ -4,7 +4,14 @@ import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 
 import java.util.Objects;
 
+/**
+ * A vertex in the {@link CallTree}. Such a vertex represents a single method.
+ */
 public class CallTreeVertex implements Comparable<CallTreeVertex> {
+
+    /**
+     * The encapsulated method.
+     */
     private final String method;
 
     public CallTreeVertex(String method) {

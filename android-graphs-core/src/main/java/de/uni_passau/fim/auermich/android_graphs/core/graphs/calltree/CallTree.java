@@ -6,9 +6,6 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.ReferenceType;
-import org.jf.dexlib2.iface.instruction.Instruction;
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.BFSShortestPath;
@@ -30,7 +27,12 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * A call tree consists of vertices that represent methods and edges describe method invocations. The call tree can
+ * be derived from the {@link InterCFG}.
+ */
 public class CallTree {
+
     private static final Logger LOGGER = LogManager.getLogger(CallTree.class);
 
     protected final Graph<CallTreeVertex, CallTreeEdge> graph = GraphTypeBuilder
@@ -39,69 +41,132 @@ public class CallTree {
             .edgeClass(CallTreeEdge.class)
             .edgeSupplier(CallTreeEdge::new)
             .buildGraph();
+
+    /**
+     * A virtual root entry.
+     */
     protected final CallTreeVertex root;
 
-    public CallTree(InterCFG interCFG) {
+    /**
+     * Caches all computed graph paths.
+     */
+    private final Map<String, Optional<GraphPath<CallTreeVertex, CallTreeEdge>>> cache = new HashMap<>();
+
+    /**
+     * Constructs the call tree based on the supplied {@link InterCFG}.
+     *
+     * @param interCFG The inter CFG from which the call tree is derived.
+     */
+    public CallTree(final InterCFG interCFG) {
+
         root = new CallTreeVertex(interCFG.getEntry().getMethod());
         String mainActivityConstructor = interCFG.getMainActivity().getDefaultConstructor();
         Set<String> methods = interCFG.getVertices().stream().map(Vertex::getMethod).collect(Collectors.toSet());
 
         for (String method : methods) {
+
+            // construct for each method in the CFG a vertex for the call tree
             CallTreeVertex methodVertex = new CallTreeVertex(method);
             graph.addVertex(methodVertex);
 
+            // derive which methods are invoked by the current vertex
             Set<String> calledMethods = interCFG.getVertices().stream()
-                    .filter(v -> v.getMethod().equals(method))
+                    .filter(v -> v.getMethod().equals(method)) // only consider vertices belonging to the current method
                     .flatMap(v -> interCFG.getOutgoingEdges(v).stream())
                     .filter(e -> !ignoreEdge(e))
                     .map(Edge::getTarget)
-                    .filter(v -> !v.containsReturnStatement())
+                    .filter(v -> !v.containsReturnStatement()) // ignore virtual return statements
                     .map(Vertex::getMethod)
-                    .filter(m -> !m.equals(method)) // No self calling
-                    .filter(m -> !m.startsWith("callbacks ") || method.contains("onResume")) // No return to callback graph
-                    .filter(m -> !m.startsWith("static initializer") || method.equals(root.toString())) // Only root points to static init
-                    .filter(m -> !method.equals(root.toString()) || m.startsWith("static initializers") || m.startsWith(mainActivityConstructor))
+                    .filter(m -> !m.equals(method)) // ignore recursive calls (only a single vertex per method)
+                    .filter(m -> !m.startsWith("callbacks ") // ignore the callbacks sub graph
+                            || method.contains("onResume"))
+                    .filter(m -> !m.startsWith("static initializer") // ignore the static initializers
+                            || method.equals(root.toString()))
+                    .filter(m -> !method.equals(root.toString()) || m.startsWith("static initializers")
+                            || m.startsWith(mainActivityConstructor))
                     .collect(Collectors.toSet());
 
-            calledMethods.forEach(t -> {
-                CallTreeVertex vertex = new CallTreeVertex(t);
+            // for each invoked method define an edge
+            calledMethods.forEach(calledMethod -> {
+                CallTreeVertex vertex = new CallTreeVertex(calledMethod);
                 graph.addVertex(vertex);
                 graph.addEdge(methodVertex, vertex);
             });
         }
     }
 
-    public boolean ignoreEdge(Edge edge) {
+    /**
+     * Ignores certain edges, e.g. edges between virtual exit vertices.
+     *
+     * @param edge The edge that should be checked.
+     * @return Returns {@code true} if the edge should be ignored, otherwise {@code false} is returned.
+     */
+    private boolean ignoreEdge(Edge edge) {
         return edge.getSource().getStatement() instanceof ExitStatement
                 && edge.getTarget().getStatement() instanceof ExitStatement;
     }
 
+    /**
+     * Retrieves the shortest path between the root vertex and the given target vertex.
+     *
+     * @param target Describes a target vertex.
+     * @return Returns the shortest path between the root and the given target vertex if such path exists.
+     */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(String target) {
         return getShortestPath(new CallTreeVertex(target));
     }
 
+    /**
+     * Retrieves the shortest path between the root vertex and the given target vertex.
+     *
+     * @param target The target vertex.
+     * @return Returns the shortest path between the root and the given target vertex if such path exists.
+     */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex target) {
         return getShortestPath(root, target);
     }
 
-    private final Map<String, Optional<GraphPath<CallTreeVertex, CallTreeEdge>>> cache = new HashMap<>();
+    /**
+     * Retrieves the shortest path between the given source and target vertex.
+     *
+     * @param source The source vertex.
+     * @param target The target vertex.
+     * @return Returns the shortest path between the given source and target vertex if such path exists.
+     */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex source, CallTreeVertex target) {
         Stream.of(source, target).forEach(vertex -> {
             if (graph.addVertex(vertex)) {
                 LOGGER.warn("Graph did not contain vertex '" + vertex.toString() + "'");
             }
         });
-        return cache.computeIfAbsent(source.getMethod() + "-->" + target.getMethod(), t -> Optional.ofNullable(BFSShortestPath.findPathBetween(graph, source, target)));
+        return cache.computeIfAbsent(source.getMethod() + "-->" + target.getMethod(),
+                t -> Optional.ofNullable(BFSShortestPath.findPathBetween(graph, source, target)));
     }
 
+    /**
+     * Retrieves the shortest path from the root vertex through the list of given stop vertices.
+     *
+     * @param stops A list of vertices through which the shortest path must flow.
+     * @return Returns the shortest path from the root vertex through the given intermediate vertices.
+     */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPathWithStops(List<CallTreeVertex> stops) {
         return getShortestPathWithStops(root, stops);
     }
 
-    public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPathWithStops(CallTreeVertex startVertex, List<CallTreeVertex> stops) {
+    /**
+     * Retrieves the shortest path from the given start vertex through the list of given stop vertices.
+     *
+     * @param startVertex The first vertex in the shortest path.
+     * @param stops A list of vertices through which the shortest path must flow.
+     * @return Returns the shortest path from the given start vertex through the given intermediate vertices.
+     */
+    public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPathWithStops(CallTreeVertex startVertex,
+                                                                                      List<CallTreeVertex> stops) {
+
         CallTreeVertex start = startVertex;
         List<GraphPath<CallTreeVertex, CallTreeEdge>> paths = new LinkedList<>();
 
+        // assemble the path through the stop vertices
         for (CallTreeVertex end : stops) {
             var path = getShortestPath(start, end);
 
@@ -114,24 +179,28 @@ public class CallTree {
             start = end;
         }
 
-        List<CallTreeEdge> edges = paths.stream().map(GraphPath::getEdgeList).flatMap(Collection::stream).collect(Collectors.toList());
+        // derive the edges describing the shortest path
+        List<CallTreeEdge> edges = paths.stream().map(GraphPath::getEdgeList)
+                .flatMap(Collection::stream).collect(Collectors.toList());
         double weight = paths.stream().mapToDouble(GraphPath::getWeight).sum();
 
         return Optional.of(new GraphWalk<>(graph, startVertex, start, edges, weight));
     }
 
+    /**
+     * Returns the vertices of the call tree.
+     *
+     * @return Returns the vertices of the call tree.
+     */
     public Set<CallTreeVertex> getVertices() {
         return graph.vertexSet();
     }
 
-    private Optional<String> getMethodName(Instruction instruction) {
-        if (instruction.getOpcode().referenceType == ReferenceType.METHOD) {
-            return Optional.of(((ReferenceInstruction) instruction).getReference().toString());
-        } else {
-            return Optional.empty();
-        }
-    }
-
+    /**
+     * Returns the set of unreachable vertices.
+     *
+     * @return Returns the set of unreachable vertices.
+     */
     public Set<CallTreeVertex> getUnreachableVertices() {
         return graph.vertexSet().stream().filter(v -> getShortestPath(v).isEmpty()).collect(Collectors.toSet());
     }
@@ -141,6 +210,7 @@ public class CallTree {
     }
 
     private <T> Set<T> goUntilSatisfied(T start, Function<T, Stream<T>> childGetter, Predicate<T> predicate) {
+
         Queue<T> workQueue = new LinkedList<>();
         workQueue.add(start);
         Set<T> satisfied = new HashSet<>();
@@ -162,7 +232,8 @@ public class CallTree {
         return satisfied;
     }
 
-    public static Graph<CallTreeVertex, CallTreeEdge> onlyKeepVertices(Graph<CallTreeVertex, CallTreeEdge> graph, Set<CallTreeVertex> vertices) {
+    public static Graph<CallTreeVertex, CallTreeEdge> onlyKeepVertices(Graph<CallTreeVertex, CallTreeEdge> graph,
+                                                                       Set<CallTreeVertex> vertices) {
         var newGraph = GraphTypeBuilder
                 .<CallTreeVertex, CallTreeEdge>directed()
                 .allowingSelfLoops(true)
@@ -172,11 +243,14 @@ public class CallTree {
         graph.vertexSet().forEach(newGraph::addVertex);
         graph.edgeSet().forEach(e -> newGraph.addEdge(e.getSource(), e.getTarget()));
 
-        Set<CallTreeVertex> verticesToUnlink = graph.vertexSet().stream().filter(v -> !vertices.contains(v)).collect(Collectors.toSet());
+        Set<CallTreeVertex> verticesToUnlink = graph.vertexSet().stream()
+                .filter(v -> !vertices.contains(v)).collect(Collectors.toSet());
 
         for (CallTreeVertex vertexToUnlink : verticesToUnlink) {
-            Set<CallTreeVertex> children = newGraph.outgoingEdgesOf(vertexToUnlink).stream().map(CallTreeEdge::getTarget).collect(Collectors.toSet());
-            Set<CallTreeVertex> parents = newGraph.incomingEdgesOf(vertexToUnlink).stream().map(CallTreeEdge::getSource).collect(Collectors.toSet());
+            Set<CallTreeVertex> children = newGraph.outgoingEdgesOf(vertexToUnlink).stream()
+                    .map(CallTreeEdge::getTarget).collect(Collectors.toSet());
+            Set<CallTreeVertex> parents = newGraph.incomingEdgesOf(vertexToUnlink).stream()
+                    .map(CallTreeEdge::getSource).collect(Collectors.toSet());
 
             for (CallTreeVertex parent : parents) {
                 for (CallTreeVertex child : children) {
@@ -227,8 +301,10 @@ public class CallTree {
                     : v.toString()) + '"';
         };
 
-        String verticesPreamble = graph.vertexSet().stream().map(toString).distinct().collect(Collectors.joining("\n"));
-        String graphString = graph.edgeSet().stream().map(e -> String.format("%s -> %s", toString.apply(e.getSource()), toString.apply(e.getTarget())))
+        String verticesPreamble = graph.vertexSet().stream()
+                .map(toString).distinct().collect(Collectors.joining("\n"));
+        String graphString = graph.edgeSet().stream()
+                .map(e -> String.format("%s -> %s", toString.apply(e.getSource()), toString.apply(e.getTarget())))
                 .distinct()
                 .collect(Collectors.joining("\n"));
 
@@ -240,7 +316,9 @@ public class CallTree {
     }
 
     public void toMergedDot(File output, Set<String> classesToKeep) {
-        var activityGraph = onlyKeepVertices(graph, graph.vertexSet().stream().filter(v -> v.equals(root) || (v.toString().contains("-><init>") && classesToKeep.contains(v.getClassName()))).collect(Collectors.toSet()));
+        var activityGraph = onlyKeepVertices(graph, graph.vertexSet().stream()
+                .filter(v -> v.equals(root) || (v.toString().contains("-><init>")
+                        && classesToKeep.contains(v.getClassName()))).collect(Collectors.toSet()));
 
         DOTExporter<CallTreeVertex, CallTreeEdge> exporter = new DOTExporter<>(v -> '"' + v.getClassName() + '"');
         exporter.setVertexAttributeProvider(v -> {
