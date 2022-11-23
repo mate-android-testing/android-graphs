@@ -1,6 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.cli;
 
 import com.beust.jcommander.JCommander;
+import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.CallTreeCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.IntraCFGCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.MainCommand;
@@ -45,6 +46,7 @@ public final class Main {
     private static final MainCommand mainCmd = new MainCommand();
     private static final InterCFGCommand interCFGCmd = new InterCFGCommand();
     private static final IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
+    private static final CallTreeCommand callTreeCmd = new CallTreeCommand();
 
     // utility class implies private constructor
     private Main() {
@@ -74,6 +76,10 @@ public final class Main {
      *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
      *             The switch -pim specifies whether isolated methods should be printed. (optional)
      *
+     *             The 'calltree' sub commando can handle the following arguments:
+     *             The switch -art specifies whether ART classes should be resolved. (optional)
+     *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
+     *
      * @throws IOException Should never happen.
      */
     public static void main(String[] args) throws IOException {
@@ -93,6 +99,7 @@ public final class Main {
                 .addObject(mainCmd)
                 .addCommand("intra", intraCFGCmd)
                 .addCommand("inter", interCFGCmd)
+                .addCommand("calltree", callTreeCmd)
                 .build();
 
         // the program name displayed in the help/usage cmd.
@@ -134,6 +141,16 @@ public final class Main {
      */
     private static boolean checkArguments(InterCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTERCFG;
+        return true;
+    }
+
+    /**
+     * Verifies that the given arguments are valid.
+     *
+     * @param cmd The command line arguments.
+     */
+    private static boolean checkArguments(CallTreeCommand cmd) {
+        assert cmd.getGraphType() == GraphType.CALLTREE;
         return true;
     }
 
@@ -226,6 +243,38 @@ public final class Main {
                         if (interCFGCmd.printIsolatedMethods()) {
                             ((InterCFG) baseGraph).printIsolatedSubGraphs();
                         }
+
+                        LOGGER.info("Size of graph: " + baseGraph.size());
+
+                        if (mainCmd.isDraw()) {
+                            LOGGER.info("Drawing graph!");
+                            baseGraph.drawGraph();
+                        }
+
+                        if (mainCmd.lookup()) {
+                            LOGGER.info("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
+                        }
+                    }
+                    break;
+
+                case CALLTREE:
+
+                    if (checkArguments(callTreeCmd)) {
+
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.CALLTREE, dexFiles)
+                                .withName("global")
+                                .withBasicBlocks()
+                                .withAPKFile(mainCmd.getAPKFile());
+
+                        if (!callTreeCmd.resolveARTClasses()) {
+                            builder = builder.withExcludeARTClasses();
+                        }
+
+                        if (callTreeCmd.resolveOnlyAUTClasses()) {
+                            builder = builder.withResolveOnlyAUTClasses();
+                        }
+
+                        BaseGraph baseGraph = builder.build();
 
                         LOGGER.info("Size of graph: " + baseGraph.size());
 
