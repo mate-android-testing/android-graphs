@@ -684,7 +684,7 @@ public class InterCFG extends BaseCFG {
                 BaseCFG serviceConnectionConstructor = intraCFGs.get(ClassUtils.getDefaultConstructor(serviceConnection));
 
                 if (serviceConnectionConstructor == null) {
-                    LOGGER.warn("Service connection '" + serviceConnection + "' for " + service.getName() + " has to intra CFG!");
+                    LOGGER.warn("Service connection '" + serviceConnection + "' for " + service.getName() + " has no intra CFG!");
                 } else {
                     // add callbacks subgraph
                     BaseCFG serviceConnectionCallbacks = dummyIntraCFG("callbacks " + serviceConnection);
@@ -1022,39 +1022,69 @@ public class InterCFG extends BaseCFG {
         }
     }
 
+    /**
+     * Attaches the derived callbacks both from code and XML to the callback sub graph.
+     *
+     * @param callbacks The callbacks derived from the code.
+     * @param callbacksXML The callbacks derived from the XML files.
+     * @param callbackGraph The component's virtual callback sub graph, i.e. the entry point of all callbacks of the
+     *                      component.
+     */
     private void attachCallbacks(Collection<BaseCFG> callbacks, Collection<BaseCFG> callbacksXML, BaseCFG callbackGraph) {
+
         List<BaseCFG> allCallbacks = Stream.concat(callbacks.stream(), callbacksXML.stream()).collect(Collectors.toList());
 
         allCallbacks.forEach(callback -> {
-            BaseCFG callbackRoot = getCallbackParentRecursively(callback, allCallbacks)
-                    .orElse(callbackGraph);
-
+            /*
+            * Menu callbacks call each other in a specific sequence. We try to accurately model this in the callbacks
+            * subgraph by stitching those callbacks together in the right order. Every other callback is attached to
+            * the callbacks entry point directly.
+             */
+            BaseCFG callbackRoot = getCallbackParentRecursively(callback, allCallbacks).orElse(callbackGraph);
             addEdge(callbackRoot.getEntry(), callback.getEntry());
             addEdge(callback.getExit(), callbackRoot.getExit());
         });
     }
 
+    /**
+     * Retrieves the next present callback parent from the callback parent sequence. This is only relevant for menu
+     * callbacks, which form a callback sequence, e.g.:
+     * onOptionsItemSelected -> onMenuOpened -> onPrepareOptionsMenu -> onCreateOptionsMenu.
+     *
+     * @param callback The child callback.
+     * @param allCallbacks The list of all callbacks.
+     * @return Returns the next callback parent if present, otherwise an empty optional.
+     */
     private Optional<BaseCFG> getCallbackParentRecursively(BaseCFG callback, Collection<BaseCFG> allCallbacks) {
+
         String callbackClass = MethodUtils.getClassName(callback.getMethodName());
 
         // iterate over the parent chain
         return Stream.iterate(MethodUtils.getMethodName(callback.getMethodName()), MethodUtils.ANDROID_CALLBACK_TO_PARENT::get)
-                .skip(1) // Skip the original callback method seed
+                .skip(1) // skip the child callback
                 .takeWhile(Objects::nonNull) // reached root of parent chain
-                .map(parentMethod -> getByMethodName(callbackClass + "->" + parentMethod, allCallbacks))
+                .map(parentMethod -> getGraphByMethodName(callbackClass + "->" + parentMethod, allCallbacks))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .findFirst();
     }
 
-    private Optional<BaseCFG> getByMethodName(String fullyQualifiedMethodName, Collection<BaseCFG> graphs) {
+    /**
+     * Retrieves the graph corresponding to the given fully-qualified method name if present.
+     *
+     * @param fullyQualifiedMethodName The given method name.
+     * @param graphs The list of graphs.
+     * @return Returns the graph corresponding to the method name or an empty optional if not present.
+     */
+    private Optional<BaseCFG> getGraphByMethodName(String fullyQualifiedMethodName, final Collection<BaseCFG> graphs) {
+
         Set<BaseCFG> candidates = graphs.stream()
                 .filter(b -> b.getMethodName().equals(fullyQualifiedMethodName)).collect(Collectors.toSet());
 
         if (candidates.isEmpty()) {
             return Optional.empty();
         } else if (candidates.size() > 1) {
-            throw new IllegalStateException("More than two methods match");
+            throw new IllegalStateException("Method name is not unique, multiple graphs found: " + fullyQualifiedMethodName);
         } else {
             return candidates.stream().findAny();
         }
