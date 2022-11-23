@@ -1,4 +1,4 @@
-package de.uni_passau.fim.auermich.android_graphs.core.calltrees;
+package de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree;
 
 import org.jgrapht.graph.DefaultEdge;
 
