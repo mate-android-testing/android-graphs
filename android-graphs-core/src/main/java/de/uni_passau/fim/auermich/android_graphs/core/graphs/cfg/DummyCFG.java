@@ -1,7 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 
 /**
  * A skeleton of a CFG that only wraps the entry and exit vertex.
@@ -19,7 +18,7 @@ public class DummyCFG extends BaseCFG {
     }
 
     @Override
-    public Vertex lookUpVertex(String trace) {
+    public CFGVertex lookUpVertex(String trace) {
         throw new UnsupportedOperationException("Look up of vertex in dummy CFG not yet supported!");
     }
 

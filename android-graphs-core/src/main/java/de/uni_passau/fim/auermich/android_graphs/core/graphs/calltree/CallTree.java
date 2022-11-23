@@ -1,7 +1,15 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree;
 
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
+import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
+import com.mxgraph.layout.mxIGraphLayout;
+import com.mxgraph.model.mxICell;
+import com.mxgraph.util.mxCellRenderer;
+import com.mxgraph.util.mxConstants;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGEdge;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
 import org.apache.logging.log4j.LogManager;
@@ -9,16 +17,25 @@ import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.BFSShortestPath;
+import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.GraphWalk;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
 import org.jgrapht.nio.AttributeType;
 import org.jgrapht.nio.DefaultAttribute;
 import org.jgrapht.nio.dot.DOTExporter;
+import org.jgrapht.traverse.DepthFirstIterator;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Queue;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -31,7 +48,7 @@ import java.util.stream.Stream;
  * A call tree consists of vertices that represent methods and edges describe method invocations. The call tree can
  * be derived from the {@link InterCFG}.
  */
-public class CallTree {
+public class CallTree implements BaseGraph {
 
     private static final Logger LOGGER = LogManager.getLogger(CallTree.class);
 
@@ -61,7 +78,7 @@ public class CallTree {
 
         root = new CallTreeVertex(interCFG.getEntry().getMethod());
         String mainActivityConstructor = interCFG.getMainActivity().getDefaultConstructor();
-        Set<String> methods = interCFG.getVertices().stream().map(Vertex::getMethod).collect(Collectors.toSet());
+        Set<String> methods = interCFG.getVertices().stream().map(CFGVertex::getMethod).collect(Collectors.toSet());
 
         for (String method : methods) {
 
@@ -74,9 +91,9 @@ public class CallTree {
                     .filter(v -> v.getMethod().equals(method)) // only consider vertices belonging to the current method
                     .flatMap(v -> interCFG.getOutgoingEdges(v).stream())
                     .filter(e -> !ignoreEdge(e))
-                    .map(Edge::getTarget)
+                    .map(CFGEdge::getTarget)
                     .filter(v -> !v.containsReturnStatement()) // ignore virtual return statements
-                    .map(Vertex::getMethod)
+                    .map(CFGVertex::getMethod)
                     .filter(m -> !m.equals(method)) // ignore recursive calls (only a single vertex per method)
                     .filter(m -> !m.startsWith("callbacks ") // ignore the callbacks sub graph
                             || method.contains("onResume"))
@@ -101,7 +118,7 @@ public class CallTree {
      * @param edge The edge that should be checked.
      * @return Returns {@code true} if the edge should be ignored, otherwise {@code false} is returned.
      */
-    private boolean ignoreEdge(Edge edge) {
+    private boolean ignoreEdge(CFGEdge edge) {
         return edge.getSource().getStatement() instanceof ExitStatement
                 && edge.getTarget().getStatement() instanceof ExitStatement;
     }
@@ -265,7 +282,9 @@ public class CallTree {
     }
 
     public void toDot(File output, Map<String, String> methodsToHighlight) {
+
         Pattern pattern = Pattern.compile("^.*/(\\S+);->(\\S+)\\(.*\\).*$");
+
         DOTExporter<CallTreeVertex, CallTreeEdge> exporter = new DOTExporter<>(v -> {
             Matcher matcher = pattern.matcher(v.toString());
             int hash = v.hashCode() % 100;
@@ -276,6 +295,7 @@ public class CallTree {
                             : v.toString())
                     + '"';
         });
+
         exporter.setVertexAttributeProvider(v -> {
             String color = methodsToHighlight.get(v.getMethod());
 
@@ -293,7 +313,9 @@ public class CallTree {
     }
 
     public void toClassTreeDot(File output) {
+
         Pattern pattern = Pattern.compile("^.*/(\\S+);->\\S+\\(.*\\).*$|^callbacks L.+/(\\S+);$");
+
         Function<CallTreeVertex, String> toString = v -> {
             Matcher matcher = pattern.matcher(v.toString());
             return '"' + (matcher.matches()
@@ -316,6 +338,7 @@ public class CallTree {
     }
 
     public void toMergedDot(File output, Set<String> classesToKeep) {
+
         var activityGraph = onlyKeepVertices(graph, graph.vertexSet().stream()
                 .filter(v -> v.equals(root) || (v.toString().contains("-><init>")
                         && classesToKeep.contains(v.getClassName()))).collect(Collectors.toSet()));
@@ -333,5 +356,138 @@ public class CallTree {
         });
 
         exporter.exportGraph(activityGraph, output);
+    }
+
+    @Override
+    public void drawGraph() {
+        // FIXME: drawing only works within IDE, no valid file path when being executed via command line
+        final Path resourceDirectory = Paths.get("android-graphs-core","src", "main", "resources");
+
+        if (size() <= 1000) {
+            File output = new File(resourceDirectory.toFile(), "graph.png");
+            convertGraphToPNG(output, Collections.emptySet(), Collections.emptySet());
+        } else {
+            final File output = new File(resourceDirectory.toFile(), "graph.dot");
+            toClassTreeDot(output);
+        }
+    }
+
+    @Override
+    public int size() {
+        return graph.vertexSet().size();
+    }
+
+    @Override
+    public GraphType getGraphType() {
+        return GraphType.CALLTREE;
+    }
+
+    @Override
+    public Vertex lookUpVertex(String trace) {
+        return lookUpVertexDFS(trace);
+    }
+
+    @Override
+    public String toString() {
+        return graph.toString();
+    }
+
+    /**
+     * Performs a depth first search for looking up the vertex.
+     *
+     * @param method           The method describing the vertex.
+     * @return Returns the vertex described by the given method.
+     */
+    private CallTreeVertex lookUpVertexDFS(final String method) {
+
+        DepthFirstIterator<CallTreeVertex, CallTreeEdge> dfs = new DepthFirstIterator<>(graph, root);
+
+        while (dfs.hasNext()) {
+            CallTreeVertex vertex = dfs.next();
+            if (vertex.getMethod().equals(method)) {
+                return vertex;
+            }
+        }
+
+        throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
+    }
+
+    /**
+     * Converts the graph into a PNG file using a hierarchical layout.
+     * This method should be only used for small graphs, i.e. not more than 1000 (max 2000) vertices.
+     *
+     * @param output The file path of the resulting PNG file.
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertices The set of target vertices.
+     */
+    private void convertGraphToPNG(File output, Set<CallTreeVertex> visitedVertices, Set<CallTreeVertex> targetVertices) {
+
+        JGraphXAdapter<CallTreeVertex, CallTreeEdge> graphXAdapter
+                = new JGraphXAdapter<>(graph);
+        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        if (!visitedVertices.isEmpty() || !targetVertices.isEmpty()) {
+            colorVertices(graphXAdapter, visitedVertices, targetVertices);
+        }
+
+        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
+        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
+
+        // mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
+        // ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
+
+        layout.execute(graphXAdapter.getDefaultParent());
+
+        BufferedImage image =
+                mxCellRenderer.createBufferedImage(graphXAdapter, null, 1, Color.WHITE, true, null);
+
+        try {
+            output.createNewFile();
+            ImageIO.write(image, "PNG", output);
+        } catch (IOException e) {
+            LOGGER.warn(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Marks the given set of visited and target vertices in different colors.
+     *
+     * @param graphXAdapter The graph adapter.
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertices The set of target vertices.
+     */
+    private void colorVertices(JGraphXAdapter<CallTreeVertex, CallTreeEdge> graphXAdapter, Set<CallTreeVertex> visitedVertices,
+                               Set<CallTreeVertex> targetVertices) {
+
+        Map<CallTreeVertex, mxICell> vertexToCellMap = graphXAdapter.getVertexToCellMap();
+
+        /*
+         * We mark the covered target vertices orange in the graph.
+         */
+        Set<CallTreeVertex> coveredTargets = new HashSet<>(targetVertices);
+        coveredTargets.retainAll(visitedVertices);
+        List<Object> coveredTargetCells = new ArrayList<>();
+        coveredTargets.forEach(v -> coveredTargetCells.add(vertexToCellMap.get(v)));
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "orange", coveredTargetCells.toArray());
+
+        /*
+         * We mark the visited vertices red in the graph.
+         */
+        List<Object> visitedCells = new ArrayList<>();
+        visitedVertices.stream().filter(Predicate.not(coveredTargets::contains))
+                .forEach(v -> visitedCells.add(vertexToCellMap.get(v)));
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "green", visitedCells.toArray());
+
+        /*
+         * We mark the yet uncovered target vertices green in the graph.
+         */
+        List<Object> targetCells = new ArrayList<>();
+        targetVertices.stream().filter(Predicate.not(coveredTargets::contains))
+                .forEach(v -> targetCells.add(vertexToCellMap.get(v)));
+        graphXAdapter.setCellStyles(mxConstants.STYLE_FILLCOLOR, "red", targetCells.toArray());
+
+        // update layout
+        graphXAdapter.refresh();
     }
 }

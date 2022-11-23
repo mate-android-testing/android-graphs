@@ -1,6 +1,8 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGEdge;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
@@ -81,7 +83,7 @@ public class BaseGraphBuilderTest {
                 .findFirst().get();
         */
 
-        Vertex targetVertex = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
+        CFGVertex targetVertex = interCFG.getVertices().stream().filter(v -> v.isEntryVertex()
             && v.getMethod().equals("Lcom/android/calendar/DayFragment;->onAttach(Landroid/content/Context;)V")).findFirst().get();
 
         interCFG.getIncomingEdges(targetVertex).forEach(edge -> System.out.println("Predecessor: " + edge.getSource()));
@@ -122,7 +124,7 @@ public class BaseGraphBuilderTest {
 
         System.out.println("Total number of Branches: " + interCFG.getBranches().size());
 
-        Vertex targetVertex = interCFG.getVertices().stream().filter(v ->
+        CFGVertex targetVertex = interCFG.getVertices().stream().filter(v ->
                 v.containsInstruction("Lcom/simple/app/SecondActivity$1;->onClick(Landroid/view/View;)V", 9))
                 .findFirst().get();
 
@@ -146,17 +148,17 @@ public class BaseGraphBuilderTest {
 
         System.out.println("Number of visited vertices: " + executionPath.size());
 
-        Map<String, Vertex> vertexMap = constructVertexMap(interCFG);
-        Set<Vertex> visitedVertices = mapTracesToVertices(executionPath, vertexMap);
+        Map<String, CFGVertex> vertexMap = constructVertexMap(interCFG);
+        Set<CFGVertex> visitedVertices = mapTracesToVertices(executionPath, vertexMap);
 
         // the minimal distance between a execution path and a chosen target vertex
         AtomicInteger min = new AtomicInteger(Integer.MAX_VALUE);
 
         // cache already computed branch distances
-        Map<Vertex, Double> branchDistances = new ConcurrentHashMap<>();
+        Map<CFGVertex, Double> branchDistances = new ConcurrentHashMap<>();
 
         // use bidirectional dijkstra
-        ShortestPathAlgorithm<Vertex, Edge> bfs = interCFG.initBidirectionalDijkstraAlgorithm();
+        ShortestPathAlgorithm<CFGVertex, CFGEdge> bfs = interCFG.initBidirectionalDijkstraAlgorithm();
 
         visitedVertices.parallelStream().forEach(visitedVertex -> {
 
@@ -167,7 +169,7 @@ public class BaseGraphBuilderTest {
             if (branchDistances.containsKey(visitedVertex)) {
                 distance = branchDistances.get(visitedVertex).intValue();
             } else {
-                GraphPath<Vertex, Edge> path = bfs.getPath(visitedVertex, targetVertex);
+                GraphPath<CFGVertex, CFGEdge> path = bfs.getPath(visitedVertex, targetVertex);
                 if (path != null) {
                     distance = path.getLength();
                     // update branch distance map
@@ -196,11 +198,11 @@ public class BaseGraphBuilderTest {
          *  are not marked although they should be.
          */
         System.out.println("Marking intermediate path nodes now...");
-        Set<Vertex> entryVertices = visitedVertices.stream().filter(Vertex::isEntryVertex).collect(Collectors.toSet());
+        Set<CFGVertex> entryVertices = visitedVertices.stream().filter(CFGVertex::isEntryVertex).collect(Collectors.toSet());
 
         // mark the intermediate path nodes that are between branches we visited
         entryVertices.forEach(entry -> {
-            Vertex exit = new Vertex(new ExitStatement(entry.getMethod()));
+            CFGVertex exit = new CFGVertex(new ExitStatement(entry.getMethod()));
             if (visitedVertices.contains(entry) && visitedVertices.contains(exit)) {
                 markIntermediatePathVertices(entry, exit, visitedVertices, interCFG);
             }
@@ -221,9 +223,9 @@ public class BaseGraphBuilderTest {
      * @param baseCFG The given graph.
      * @return Returns a mapping of certain traces to vertices.
      */
-    private Map<String, Vertex> constructVertexMap(BaseCFG baseCFG) {
+    private Map<String, CFGVertex> constructVertexMap(BaseCFG baseCFG) {
 
-        Map<String, Vertex> vertexMap = new ConcurrentHashMap<>();
+        Map<String, CFGVertex> vertexMap = new ConcurrentHashMap<>();
 
         System.out.println("Constructing vertexMap ...");
 
@@ -260,12 +262,12 @@ public class BaseGraphBuilderTest {
      * @param vertexMap A mapping of certain traces to vertices.
      * @return Returns the set of visited vertices.
      */
-    private Set<Vertex> mapTracesToVertices(List<String> traces, Map<String, Vertex> vertexMap) {
+    private Set<CFGVertex> mapTracesToVertices(List<String> traces, Map<String, CFGVertex> vertexMap) {
 
         System.out.println("Mapping traces to vertices...");
 
         // we need to mark vertices we visit
-        Set<Vertex> visitedVertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
+        Set<CFGVertex> visitedVertices = Collections.newSetFromMap(new ConcurrentHashMap<CFGVertex, Boolean>());
 
         // map trace to vertex
         traces.parallelStream().forEach(pathNode -> {
@@ -273,7 +275,7 @@ public class BaseGraphBuilderTest {
             int index = pathNode.lastIndexOf("->");
             String type = pathNode.substring(index+2);
 
-            Vertex visitedVertex = vertexMap.get(pathNode);
+            CFGVertex visitedVertex = vertexMap.get(pathNode);
 
             if (visitedVertex == null) {
                 System.out.println("Couldn't derive vertex for trace entry: " + pathNode);
@@ -324,7 +326,7 @@ public class BaseGraphBuilderTest {
 
         System.out.println("Total number of Branches: " + interCFG.getBranches().size());
 
-        Vertex targetVertex = interCFG.getVertices().stream().filter(v ->
+        CFGVertex targetVertex = interCFG.getVertices().stream().filter(v ->
                 v.containsInstruction("Lcom/android/calendar/DayView$TodayAnimatorListener;" +
                         "->onAnimationEnd(Landroid/animation/Animator;)V", 20))
                 .findFirst().get();
@@ -351,9 +353,9 @@ public class BaseGraphBuilderTest {
         System.out.println("Number of visited vertices: " + executionPath.size());
 
         // we need to mark vertices we visit
-        Set<Vertex> visitedVertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
+        Set<CFGVertex> visitedVertices = Collections.newSetFromMap(new ConcurrentHashMap<CFGVertex, Boolean>());
 
-        Map<String, Vertex> vertexMap = new ConcurrentHashMap<>();
+        Map<String, CFGVertex> vertexMap = new ConcurrentHashMap<>();
 
         System.out.println("Constructing vertexMap ...");
 
@@ -380,7 +382,7 @@ public class BaseGraphBuilderTest {
             }
         });
 
-        Set<Vertex> entryVertices = Collections.newSetFromMap(new ConcurrentHashMap<Vertex, Boolean>());
+        Set<CFGVertex> entryVertices = Collections.newSetFromMap(new ConcurrentHashMap<CFGVertex, Boolean>());
 
         System.out.println("Mapping traces to vertices...");
 
@@ -390,7 +392,7 @@ public class BaseGraphBuilderTest {
             int index = pathNode.lastIndexOf("->");
             String type = pathNode.substring(index+2);
 
-            Vertex visitedVertex = vertexMap.get(pathNode);
+            CFGVertex visitedVertex = vertexMap.get(pathNode);
 
             if (visitedVertex == null) {
                 System.out.println("Couldn't derive vertex for trace entry: " + pathNode);
@@ -409,7 +411,7 @@ public class BaseGraphBuilderTest {
 
         // mark the intermediate path nodes that are between branches we visited
         entryVertices.forEach(entry -> {
-            Vertex exit = new Vertex(new ExitStatement(entry.getMethod()));
+            CFGVertex exit = new CFGVertex(new ExitStatement(entry.getMethod()));
             if (visitedVertices.contains(entry) && visitedVertices.contains(exit)) {
                 markIntermediatePathVertices(entry, exit, visitedVertices, interCFG);
             }
@@ -419,10 +421,10 @@ public class BaseGraphBuilderTest {
         AtomicInteger min = new AtomicInteger(Integer.MAX_VALUE);
 
         // cache already computed branch distances
-        Map<Vertex, Double> branchDistances = new ConcurrentHashMap<>();
+        Map<CFGVertex, Double> branchDistances = new ConcurrentHashMap<>();
 
         // use bidirectional dijkstra
-        ShortestPathAlgorithm<Vertex, Edge> bfs = interCFG.initBidirectionalDijkstraAlgorithm();
+        ShortestPathAlgorithm<CFGVertex, CFGEdge> bfs = interCFG.initBidirectionalDijkstraAlgorithm();
 
         visitedVertices.parallelStream().forEach(visitedVertex -> {
 
@@ -433,7 +435,7 @@ public class BaseGraphBuilderTest {
             if (branchDistances.containsKey(visitedVertex)) {
                 distance = branchDistances.get(visitedVertex).intValue();
             } else {
-                GraphPath<Vertex, Edge> path = bfs.getPath(visitedVertex, targetVertex);
+                GraphPath<CFGVertex, CFGEdge> path = bfs.getPath(visitedVertex, targetVertex);
                 if (path != null) {
                     distance = path.getLength();
                     // update branch distance map
@@ -467,7 +469,7 @@ public class BaseGraphBuilderTest {
         System.out.println("Branch Distance: " + branchDistance);
     }
 
-    private boolean isInvokeVertex(Vertex vertex) {
+    private boolean isInvokeVertex(CFGVertex vertex) {
 
         if (vertex.isEntryVertex() || vertex.isExitVertex()
                 || vertex.isReturnVertex()) {
@@ -506,16 +508,16 @@ public class BaseGraphBuilderTest {
         return false;
     }
 
-    private void markIntermediatePathVertices(Vertex entry, Vertex exit, Set<Vertex> visitedVertices,
+    private void markIntermediatePathVertices(CFGVertex entry, CFGVertex exit, Set<CFGVertex> visitedVertices,
                                               BaseCFG interCFG) {
 
-        Queue<Vertex> queue = new LinkedList<>();
+        Queue<CFGVertex> queue = new LinkedList<>();
         queue.offer(entry);
         String method = entry.getMethod();
 
         while (!queue.isEmpty()) {
 
-            Vertex currentVertex = queue.poll();
+            CFGVertex currentVertex = queue.poll();
             visitedVertices.add(currentVertex);
 
             // check if we gonna leave method, then enqueue return vertex
@@ -523,36 +525,36 @@ public class BaseGraphBuilderTest {
 
                 System.out.println("Invoke Vertex: " + currentVertex);
 
-                Vertex successor = interCFG.getOutgoingEdges(currentVertex)
+                CFGVertex successor = interCFG.getOutgoingEdges(currentVertex)
                         .stream()
-                        .map(Edge::getTarget).findFirst().get();
+                        .map(CFGEdge::getTarget).findFirst().get();
 
                 System.out.println("Size of successors: " + interCFG.getOutgoingEdges(currentVertex).size());
 
                 // should be the entry vertex of invoked method
                 if (successor.isEntryVertex()) {
-                    Vertex exitVertex = new Vertex(new ExitStatement(successor.getMethod()));
+                    CFGVertex exitVertex = new CFGVertex(new ExitStatement(successor.getMethod()));
                     queue.offer(getReturnVertex(currentVertex, exitVertex, visitedVertices, interCFG));
                 } else {
                     System.out.println("Might be an invoke stmt that calls an ART method");
                 }
             }
 
-            List<Vertex> successors = interCFG.getOutgoingEdges(currentVertex)
+            List<CFGVertex> successors = interCFG.getOutgoingEdges(currentVertex)
                     .stream()
-                    .map(Edge::getTarget)
+                    .map(CFGEdge::getTarget)
                     .collect(Collectors.toList());
 
             if (successors.size() == 1) {
                 // single path
-                Vertex successor = successors.get(0);
+                CFGVertex successor = successors.get(0);
                 if (method.equals(successor.getMethod())) {
                     // ensure that we stay within the same method
                     queue.offer(successor);
                 }
             } else {
                 // there are multiple successors, check which path(s) we visited
-                for (Vertex successor : successors) {
+                for (CFGVertex successor : successors) {
                     if (method.equals(successor.getMethod())
                             && visitedVertices.contains(successor)) {
                         queue.offer(successor);
@@ -562,19 +564,19 @@ public class BaseGraphBuilderTest {
         }
     }
 
-    private void markIntermediatePathVertices2(Vertex entry, Vertex exit, Set<Vertex> visitedVertices,
-                                              BaseCFG interCFG) {
+    private void markIntermediatePathVertices2(CFGVertex entry, CFGVertex exit, Set<CFGVertex> visitedVertices,
+                                               BaseCFG interCFG) {
 
         System.out.println("Entry vertex: " + entry);
 
-        Vertex currentVertex = entry;
-        Vertex previous = currentVertex;
+        CFGVertex currentVertex = entry;
+        CFGVertex previous = currentVertex;
 
         while (!currentVertex.equals(exit)) {
 
             // System.out.println("Distance to exit: " + interCFG.getShortestDistance(currentVertex, exit));
 
-            Set<Edge> outgoingEdges = interCFG.getOutgoingEdges(currentVertex);
+            Set<CFGEdge> outgoingEdges = interCFG.getOutgoingEdges(currentVertex);
 
             if (outgoingEdges.size() == 1) {
                 // single successors -> follow the path
@@ -585,7 +587,7 @@ public class BaseGraphBuilderTest {
 
 
                 outgoingEdges.parallelStream().forEach(e -> {
-                    Vertex targetVertex = e.getTarget();
+                    CFGVertex targetVertex = e.getTarget();
                     if (visitedVertices.contains(targetVertex)) {
                         markIntermediatePathVertices(targetVertex, exit, visitedVertices, interCFG);
                     }
@@ -600,7 +602,7 @@ public class BaseGraphBuilderTest {
                 System.out.println("Entered method: " + currentVertex.getMethod());
 
                 // search for return vertex, which must be a successor of the method's exit vertex
-                Vertex exitVertex = new Vertex(new ExitStatement(currentVertex.getMethod()));
+                CFGVertex exitVertex = new CFGVertex(new ExitStatement(currentVertex.getMethod()));
                 currentVertex = getReturnVertex(previous, exitVertex, visitedVertices, interCFG);
                 System.out.println("Updated Vertex: " + currentVertex);
             }
@@ -621,8 +623,8 @@ public class BaseGraphBuilderTest {
      *          the appropriate successor vertex is returned.
      * @throws IllegalStateException If the return vertex couldn't be found.
      */
-    private Vertex getReturnVertex(Vertex vertex, Vertex exit, Set<Vertex> visitedVertices,
-                                   BaseCFG interCFG) {
+    private CFGVertex getReturnVertex(CFGVertex vertex, CFGVertex exit, Set<CFGVertex> visitedVertices,
+                                      BaseCFG interCFG) {
 
         System.out.println("Get return vertex for: " + vertex + ":" + vertex.getMethod());
 
@@ -644,17 +646,17 @@ public class BaseGraphBuilderTest {
         System.out.println("Found Index: " + index);
 
         System.out.println("Outgoing Edge Targets: "
-                + interCFG.getOutgoingEdges(exit).stream().map(Edge::getTarget).collect(Collectors.toList()));
+                + interCFG.getOutgoingEdges(exit).stream().map(CFGEdge::getTarget).collect(Collectors.toList()));
 
         // find the return vertices that return to the original method
-        List<Vertex> returnVertices = interCFG.getOutgoingEdges(exit).stream().filter(edge ->
-                edge.getTarget().getMethod().equals(vertex.getMethod())).map(Edge::getTarget)
+        List<CFGVertex> returnVertices = interCFG.getOutgoingEdges(exit).stream().filter(edge ->
+                edge.getTarget().getMethod().equals(vertex.getMethod())).map(CFGEdge::getTarget)
                 .collect(Collectors.toList());
 
         System.out.println("Number of return vertices: " + returnVertices.size());
 
         // the return vertex that has index + 1 as next instruction index is the right one
-        for (Vertex returnVertex : returnVertices) {
+        for (CFGVertex returnVertex : returnVertices) {
 
             System.out.println("Return Vertex: " + returnVertex);
 
@@ -666,10 +668,10 @@ public class BaseGraphBuilderTest {
             if (returnStmt.getType() == Statement.StatementType.BASIC_STATEMENT) {
 
                 // we need to inspect the successor vertices since the return stmt is shared
-                List<Vertex> successors = interCFG.getOutgoingEdges(returnVertex).stream().
-                        map(Edge::getTarget).collect(Collectors.toList());
+                List<CFGVertex> successors = interCFG.getOutgoingEdges(returnVertex).stream().
+                        map(CFGEdge::getTarget).collect(Collectors.toList());
 
-                for (Vertex successor : successors) {
+                for (CFGVertex successor : successors) {
                     // each successor is a basic stmt
                     BasicStatement basicStatement = (BasicStatement) successor.getStatement();
                     nextIndex = basicStatement.getInstructionIndex();
@@ -698,12 +700,12 @@ public class BaseGraphBuilderTest {
                     System.out.println("Outgoing Edges: " + interCFG.getOutgoingEdges(returnVertex));
 
                     // we need to inspect the successors in this case
-                    List<Vertex> successors = interCFG.getOutgoingEdges(returnVertex).stream().
-                            map(Edge::getTarget).collect(Collectors.toList());
+                    List<CFGVertex> successors = interCFG.getOutgoingEdges(returnVertex).stream().
+                            map(CFGEdge::getTarget).collect(Collectors.toList());
 
                     System.out.println("Successors: " + successors);
 
-                    for (Vertex successor : successors) {
+                    for (CFGVertex successor : successors) {
 
                         BlockStatement blockStmt = (BlockStatement) successor.getStatement();
 
@@ -785,7 +787,7 @@ public class BaseGraphBuilderTest {
                 .findFirst().get();
         */
 
-        Vertex targetVertex = interCFG.getVertices().stream().filter(v ->
+        CFGVertex targetVertex = interCFG.getVertices().stream().filter(v ->
                 v.isExitVertex() &&
                 v.getMethod().equals("Landroid/app/TimePickerDialog;->" +
                         "<init>(Landroid/content/Context;Landroid/app/TimePickerDialog$OnTimeSetListener;IIZ)V")).findFirst().get();
@@ -836,7 +838,7 @@ public class BaseGraphBuilderTest {
         int unreachableARTVertices = 0;
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
-        for (Vertex vertex : interCFG.getVertices()) {
+        for (CFGVertex vertex : interCFG.getVertices()) {
 
             if (vertex.equals(interCFG.getEntry()) || vertex.equals(interCFG.getExit())) {
                 continue;
@@ -896,7 +898,7 @@ public class BaseGraphBuilderTest {
         int unreachableARTVertices = 0;
         Pattern exclusionPattern = Utility.readExcludePatterns();
 
-        for (Vertex vertex : interCFG.getVertices()) {
+        for (CFGVertex vertex : interCFG.getVertices()) {
 
             if (vertex.equals(interCFG.getEntry()) || vertex.equals(interCFG.getExit())) {
                 continue;
@@ -1310,15 +1312,15 @@ public class BaseGraphBuilderTest {
 
         BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
 
-        Set<Vertex> targets = new HashSet<>();
-        Vertex target1 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->97");
-        Vertex target2 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->100");
+        Set<CFGVertex> targets = new HashSet<>();
+        CFGVertex target1 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->97");
+        CFGVertex target2 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->100");
         targets.add(target1);
         targets.add(target2);
 
-        Set<Vertex> visitedVertices = new HashSet<>();
-        Vertex visited1 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->90");
-        Vertex visited2 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->84");
+        Set<CFGVertex> visitedVertices = new HashSet<>();
+        CFGVertex visited1 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->90");
+        CFGVertex visited2 = interCFG.lookUpVertex("Lcom/zola/bmi/BMIMain;->calculateClickHandler(Landroid/view/View;)V->84");
         visitedVertices.add(target1);
         visitedVertices.add(visited1);
         visitedVertices.add(visited2);
@@ -1374,7 +1376,7 @@ public class BaseGraphBuilderTest {
         File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
 
         BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
-        for (Vertex vertex : interCFG.getVertices()) {
+        for (CFGVertex vertex : interCFG.getVertices()) {
             if (interCFG.getShortestDistance(interCFG.getEntry(), vertex) == -1) {
                 if (vertex.isEntryVertex()) {
                     LOGGER.debug("Isolated method: " + vertex.getMethod());

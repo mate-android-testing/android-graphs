@@ -8,9 +8,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.LayoutFile;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
@@ -136,7 +134,7 @@ public class InterCFG extends BaseCFG {
         final String packageName = apk.getManifest().getPackageName();
 
         // resolve the invoke vertices and connect the sub graphs with each other
-        for (Vertex invokeVertex : getInvokeVertices()) {
+        for (CFGVertex invokeVertex : getInvokeVertices()) {
 
             BlockStatement blockStatement = (BlockStatement) invokeVertex.getStatement();
 
@@ -152,21 +150,21 @@ public class InterCFG extends BaseCFG {
             LOGGER.debug("Invoke Vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]");
 
             // save the predecessors and successors as we remove the vertex
-            Set<Vertex> predecessors = getIncomingEdges(invokeVertex).stream().map(Edge::getSource).collect(Collectors.toSet());
-            Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
+            Set<CFGVertex> predecessors = getIncomingEdges(invokeVertex).stream().map(CFGEdge::getSource).collect(Collectors.toSet());
+            Set<CFGVertex> successors = getOutgoingEdges(invokeVertex).stream().map(CFGEdge::getTarget).collect(Collectors.toSet());
 
             // remove original vertex, inherently removes edges
             removeVertex(invokeVertex);
 
-            List<Vertex> blockVertices = new ArrayList<>();
-            List<List<Vertex>> exitVertices = new ArrayList<>();
+            List<CFGVertex> blockVertices = new ArrayList<>();
+            List<List<CFGVertex>> exitVertices = new ArrayList<>();
 
             for (int i = 0; i < blocks.size(); i++) {
 
                 // create a new vertex for each block
                 List<Statement> block = blocks.get(i);
                 Statement blockStmt = new BlockStatement(invokeVertex.getMethod(), block);
-                Vertex blockVertex = new Vertex(blockStmt);
+                CFGVertex blockVertex = new CFGVertex(blockStmt);
                 blockVertices.add(blockVertex);
 
                 // add modified block vertex to graph
@@ -174,7 +172,7 @@ public class InterCFG extends BaseCFG {
 
                 // first block, add original predecessors to first block
                 if (i == 0) {
-                    for (Vertex predecessor : predecessors) {
+                    for (CFGVertex predecessor : predecessors) {
                         // handle self-references afterwards
                         if (!predecessor.equals(invokeVertex)) {
                             addEdge(predecessor, blockVertex);
@@ -185,7 +183,7 @@ public class InterCFG extends BaseCFG {
                 // last block, add original successors to the last block
                 if (i == blocks.size() - 1) {
                     // LOGGER.debug("Number of successors: " + successors.size());
-                    for (Vertex successor : successors) {
+                    for (CFGVertex successor : successors) {
                         // handle self-references afterwards
                         if (!successor.equals(invokeVertex)) {
                             addEdge(blockVertex, successor);
@@ -208,7 +206,7 @@ public class InterCFG extends BaseCFG {
 
             // connect each target CFC's exit with the corresponding virtual return vertex
             for (int i = 0; i < exitVertices.size(); i++) {
-                for (Vertex exitVertex : exitVertices.get(i)) {
+                for (CFGVertex exitVertex : exitVertices.get(i)) {
                     addEdge(exitVertex, blockVertices.get(i + 1));
                 }
             }
@@ -376,7 +374,7 @@ public class InterCFG extends BaseCFG {
 
                 String className = MethodUtils.getClassName(overriddenMethod);
                 BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
-                Vertex last = asyncTaskCFG.getEntry();
+                CFGVertex last = asyncTaskCFG.getEntry();
 
                 // optional
                 String onPreExecuteMethod = classHierarchy
@@ -1507,7 +1505,7 @@ public class InterCFG extends BaseCFG {
         final String packageName = apk.getManifest().getPackageName();
 
         // resolve the invoke vertices and connect the sub graphs with each other
-        for (Vertex invokeVertex : getInvokeVertices()) {
+        for (CFGVertex invokeVertex : getInvokeVertices()) {
 
             // every (invoke) statement is a basic statement (no basic blocks here)
             BasicStatement invokeStmt = (BasicStatement) invokeVertex.getStatement();
@@ -1538,7 +1536,7 @@ public class InterCFG extends BaseCFG {
             }
 
             // save the original successor vertices
-            Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
+            Set<CFGVertex> successors = getOutgoingEdges(invokeVertex).stream().map(CFGEdge::getTarget).collect(Collectors.toSet());
 
             // get the CFGs matching the invocation target (multiple for overriden methods)
             Set<BaseCFG> targetCFGs = lookupTargetCFGs(apk, invokeStmt);
@@ -1555,14 +1553,14 @@ public class InterCFG extends BaseCFG {
             // insert virtual return vertex
             ReturnStatement returnStmt = new ReturnStatement(invokeVertex.getMethod(), targetMethod,
                     invokeStmt.getInstructionIndex());
-            Vertex returnVertex = new Vertex(returnStmt);
+            CFGVertex returnVertex = new CFGVertex(returnStmt);
             addVertex(returnVertex);
 
             // add edge from exit of each target CFG to virtual return vertex
             targetCFGs.forEach(targetCFG -> addEdge(targetCFG.getExit(), returnVertex));
 
             // add edge from virtual return vertex to each original successor
-            for (Vertex successor : successors) {
+            for (CFGVertex successor : successors) {
                 addEdge(returnVertex, successor);
             }
         }
@@ -1792,22 +1790,22 @@ public class InterCFG extends BaseCFG {
     public BaseCFG copy() {
         BaseCFG clone = new InterCFG(getMethodName());
 
-        Graph<Vertex, Edge> graphClone = GraphTypeBuilder
-                .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
-                .edgeClass(Edge.class).buildGraph();
+        Graph<CFGVertex, CFGEdge> graphClone = GraphTypeBuilder
+                .<CFGVertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                .edgeClass(CFGEdge.class).buildGraph();
 
-        Set<Vertex> vertices = graph.vertexSet();
-        Set<Edge> edges = graph.edgeSet();
+        Set<CFGVertex> vertices = graph.vertexSet();
+        Set<CFGEdge> edges = graph.edgeSet();
 
         Cloner cloner = new Cloner();
 
-        for (Vertex vertex : vertices) {
+        for (CFGVertex vertex : vertices) {
             graphClone.addVertex(cloner.deepClone(vertex));
         }
 
-        for (Edge edge : edges) {
-            Vertex src = cloner.deepClone(edge.getSource());
-            Vertex dest = cloner.deepClone(edge.getTarget());
+        for (CFGEdge edge : edges) {
+            CFGVertex src = cloner.deepClone(edge.getSource());
+            CFGVertex dest = cloner.deepClone(edge.getTarget());
             graphClone.addEdge(src, dest);
         }
 
@@ -1826,7 +1824,7 @@ public class InterCFG extends BaseCFG {
      * @return Returns the vertex corresponding to the given trace.
      */
     @Override
-    public Vertex lookUpVertex(String trace) {
+    public CFGVertex lookUpVertex(String trace) {
 
         /*
          * A trace has the following form:
@@ -1857,7 +1855,7 @@ public class InterCFG extends BaseCFG {
             } else {
                 // lookup of a branch
                 int instructionIndex = Integer.parseInt(tokens[2]);
-                Vertex entry = intraCFGs.get(method).getEntry();
+                CFGVertex entry = intraCFGs.get(method).getEntry();
                 return lookUpVertex(method, instructionIndex, entry);
             }
 
@@ -1865,7 +1863,7 @@ public class InterCFG extends BaseCFG {
 
             // String instructionType = tokens[2];
             int instructionIndex = Integer.parseInt(tokens[3]);
-            Vertex entry = intraCFGs.get(method).getEntry();
+            CFGVertex entry = intraCFGs.get(method).getEntry();
             return lookUpVertex(method, instructionIndex, entry);
 
         } else {
@@ -1884,7 +1882,7 @@ public class InterCFG extends BaseCFG {
      * a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
-    private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry, Vertex exit) {
+    private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry, CFGVertex exit) {
 
         /*
          * If the 'AllDirectedPaths' algorithm appears to be too slow, we could alternatively use
@@ -1898,20 +1896,20 @@ public class InterCFG extends BaseCFG {
          * the entry of the different method.
          */
 
-        AllDirectedPaths<Vertex, Edge> allDirectedPaths = new AllDirectedPaths<>(graph);
+        AllDirectedPaths<CFGVertex, CFGEdge> allDirectedPaths = new AllDirectedPaths<>(graph);
 
         /*
          * In general this algorithm is really fast, however, when dealing with cycles in the graph, the algorithm
          * fails to find the desired vertex. If we adjust the 'simplePathsOnly' parameter to handle cycles the
          * algorithm can be really slow.
          */
-        List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
+        List<GraphPath<CFGVertex, CFGEdge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
 
         // https://stackoverflow.com/questions/64929090/nested-parallel-stream-execution-in-java-findany-randomly-fails
         return paths.parallelStream().flatMap(path -> path.getEdgeList().parallelStream()
                 .map(edge -> {
-                    Vertex source = edge.getSource();
-                    Vertex target = edge.getTarget();
+                    CFGVertex source = edge.getSource();
+                    CFGVertex target = edge.getTarget();
 
                     LOGGER.debug("Inspecting source vertex: " + source);
                     LOGGER.debug("Inspecting target vertex: " + target);
@@ -1938,12 +1936,12 @@ public class InterCFG extends BaseCFG {
      * a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
-    private Vertex lookUpVertexDFS(String method, int instructionIndex, Vertex entry) {
+    private CFGVertex lookUpVertexDFS(String method, int instructionIndex, CFGVertex entry) {
 
-        DepthFirstIterator<Vertex, Edge> dfs = new DepthFirstIterator<>(graph, entry);
+        DepthFirstIterator<CFGVertex, CFGEdge> dfs = new DepthFirstIterator<>(graph, entry);
 
         while (dfs.hasNext()) {
-            Vertex vertex = dfs.next();
+            CFGVertex vertex = dfs.next();
             if (vertex.containsInstruction(method, instructionIndex)) {
                 return vertex;
             }
@@ -1961,12 +1959,12 @@ public class InterCFG extends BaseCFG {
      * @return Returns the vertex described by the given method and the instruction index, otherwise
      * a {@link IllegalArgumentException} is thrown.
      */
-    private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry) {
+    private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry) {
 
-        BreadthFirstIterator<Vertex, Edge> bfs = new BreadthFirstIterator<>(graph, entry);
+        BreadthFirstIterator<CFGVertex, CFGEdge> bfs = new BreadthFirstIterator<>(graph, entry);
 
         while (bfs.hasNext()) {
-            Vertex vertex = bfs.next();
+            CFGVertex vertex = bfs.next();
             if (vertex.containsInstruction(method, instructionIndex)) {
                 return vertex;
             }

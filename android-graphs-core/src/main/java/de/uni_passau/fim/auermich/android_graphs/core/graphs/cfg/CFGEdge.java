@@ -1,22 +1,22 @@
-package de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree;
+package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 
 import java.util.Objects;
 
 /**
- * An edge in the {@link CallTree}.
+ * An edge in a CFG.
  */
-public class CallTreeEdge extends Edge {
+public class CFGEdge extends Edge {
 
     @Override
-    public CallTreeVertex getSource() {
-        return (CallTreeVertex) super.getSource();
+    public CFGVertex getSource() {
+        return (CFGVertex) super.getSource();
     }
 
     @Override
-    public CallTreeVertex getTarget() {
-        return (CallTreeVertex) super.getTarget();
+    public CFGVertex getTarget() {
+        return (CFGVertex) super.getTarget();
     }
 
     @Override
@@ -25,11 +25,11 @@ public class CallTreeEdge extends Edge {
         if (o == this)
             return true;
 
-        if (!(o instanceof CallTreeEdge)) {
+        if (!(o instanceof CFGEdge)) {
             return false;
         }
 
-        CallTreeEdge other = (CallTreeEdge) o;
+        CFGEdge other = (CFGEdge) o;
 
         // compare edge based on source and target vertex of edge
         return this.getSource().equals(other.getSource())
@@ -42,7 +42,7 @@ public class CallTreeEdge extends Edge {
     }
 
     @Override
-    public CallTreeEdge clone() {
-        return (CallTreeEdge) super.clone();
+    public CFGEdge clone() {
+        return (CFGEdge) super.clone();
     }
 }

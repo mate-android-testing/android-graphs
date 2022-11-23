@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree;
 
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 
 import java.util.Objects;
@@ -7,7 +8,7 @@ import java.util.Objects;
 /**
  * A vertex in the {@link CallTree}. Such a vertex represents a single method.
  */
-public class CallTreeVertex implements Comparable<CallTreeVertex> {
+public class CallTreeVertex extends Vertex implements Comparable<CallTreeVertex> {
 
     /**
      * The encapsulated method.

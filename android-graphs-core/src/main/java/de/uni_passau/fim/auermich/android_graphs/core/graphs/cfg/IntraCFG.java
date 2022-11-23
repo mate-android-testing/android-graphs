@@ -1,9 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
 import com.rits.cloning.Cloner;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
@@ -70,7 +68,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
         if (methodImplementation != null) {
 
             List<AnalyzedInstruction> analyzedInstructions = MethodUtils.getAnalyzedInstructions(dexFile, targetMethod);
-            List<Vertex> vertices = new ArrayList<>();
+            List<CFGVertex> vertices = new ArrayList<>();
 
             // pre-create a vertex for each single instruction
             for (int index = 0; index < analyzedInstructions.size(); index++) {
@@ -85,7 +83,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                 }
 
                 Statement stmt = new BasicStatement(getMethodName(), analyzedInstruction);
-                Vertex vertex = new Vertex(stmt);
+                CFGVertex vertex = new CFGVertex(stmt);
 
                 // keep track of invoke vertices
                 if (InstructionUtils.isInvokeInstruction(analyzedInstruction)) {
@@ -108,7 +106,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                     continue;
                 }
 
-                Vertex vertex = vertices.get(index);
+                CFGVertex vertex = vertices.get(index);
 
                 // connect entry vertex with 'first' instruction (there might be multiple due to exceptional flow)
                 if (analyzedInstruction.isBeginningInstruction()) {
@@ -125,7 +123,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
                     // ignore the fake 'startOfMethod' instruction located at index -1
                     if (predecessor.getInstructionIndex() != -1) {
-                        Vertex src = vertices.get(predecessor.getInstructionIndex());
+                        CFGVertex src = vertices.get(predecessor.getInstructionIndex());
                         LOGGER.debug("Edge: " + predecessor.getInstructionIndex() + "->" + analyzedInstruction.getInstructionIndex());
                         addEdge(src, vertex);
                     }
@@ -149,7 +147,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                     addEdge(vertex, getExit());
                 } else {
                     for (AnalyzedInstruction successor : successors) {
-                        Vertex dest = vertices.get(successor.getInstructionIndex());
+                        CFGVertex dest = vertices.get(successor.getInstructionIndex());
                         LOGGER.debug("Edge: " + analyzedInstruction.getInstructionIndex() + "->" + successor.getInstructionIndex());
                         addEdge(vertex, dest);
                     }
@@ -182,7 +180,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             String method = targetMethod.toString();
 
             // save for each basic block vertex the instruction id of the first and last statement
-            Map<Integer, Vertex> basicBlocks = new HashMap<>();
+            Map<Integer, CFGVertex> basicBlocks = new HashMap<>();
 
             BlockStatement basicBlock = new BlockStatement(method);
             basicBlock.addStatement(new BasicStatement(method, analyzedInstructions.get(0)));
@@ -232,9 +230,9 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      * @param basicBlock The basic block wrapping the statements.
      * @param basicBlocks A map storing for each basic block vertex the first and last instruction index.
      */
-    private void createBasicBlockVertex(BlockStatement basicBlock, Map<Integer, Vertex> basicBlocks) {
+    private void createBasicBlockVertex(BlockStatement basicBlock, Map<Integer, CFGVertex> basicBlocks) {
 
-        Vertex vertex = new Vertex(basicBlock);
+        CFGVertex vertex = new CFGVertex(basicBlock);
         addVertex(vertex);
 
         // keep track of invoke vertices
@@ -369,22 +367,22 @@ public class IntraCFG extends BaseCFG implements Cloneable {
     public BaseCFG copy() {
         BaseCFG clone = new IntraCFG(getMethodName());
 
-        Graph<Vertex, Edge> graphClone = GraphTypeBuilder
-                .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
-                .edgeClass(Edge.class).buildGraph();
+        Graph<CFGVertex, CFGEdge> graphClone = GraphTypeBuilder
+                .<CFGVertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                .edgeClass(CFGEdge.class).buildGraph();
 
-        Set<Vertex> vertices = graph.vertexSet();
-        Set<Edge> edges = graph.edgeSet();
+        Set<CFGVertex> vertices = graph.vertexSet();
+        Set<CFGEdge> edges = graph.edgeSet();
 
         Cloner cloner = new Cloner();
 
-        for (Vertex vertex : vertices) {
+        for (CFGVertex vertex : vertices) {
             graphClone.addVertex(cloner.deepClone(vertex));
         }
 
-        for (Edge edge : edges) {
-            Vertex src = cloner.deepClone(edge.getSource());
-            Vertex dest = cloner.deepClone(edge.getTarget());
+        for (CFGEdge edge : edges) {
+            CFGVertex src = cloner.deepClone(edge.getSource());
+            CFGVertex dest = cloner.deepClone(edge.getTarget());
             graphClone.addEdge(src, dest);
         }
 
@@ -410,7 +408,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      * @return Returns the vertex corresponding to the given trace.
      */
     @Override
-    public Vertex lookUpVertex(String trace) {
+    public CFGVertex lookUpVertex(String trace) {
 
         // TODO: adjust method to comply with lookUpVertex() of InterCFG
 
@@ -436,7 +434,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             // brute force search
             int instructionIndex = Integer.parseInt(tokens[2]);
 
-            for (Vertex vertex : getVertices()) {
+            for (CFGVertex vertex : getVertices()) {
 
                 if (vertex.isEntryVertex() || vertex.isExitVertex()) {
                     continue;
