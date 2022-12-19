@@ -22,6 +22,8 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
 
     private final boolean isIfVertex;
 
+    private final boolean isSwitchVertex;
+
     private Statement statement;
 
     public Vertex(Statement statement) {
@@ -29,6 +31,7 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
         type = VertexType.mapType(statement);
         isBranchVertex = computeIsBranchVertex(statement);
         isIfVertex = computeIsIfVertex(statement);
+        isSwitchVertex = computeIsSwitchVertex(statement);
     }
 
     @Override
@@ -114,14 +117,38 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                 return false;
             case BASIC_STATEMENT:
                 BasicStatement stmt = (BasicStatement) statement;
-                return InstructionUtils.isBranchingInstruction(
-                        stmt.getInstruction());
+                return InstructionUtils.isBranchingInstruction(stmt.getInstruction());
             case BLOCK_STATEMENT:
                 // Since an if instruction denotes the end of a basic block, we only need to look at the last instruction.
                 BlockStatement block = (BlockStatement) statement;
                 Statement lastStmt = block.getLastStatement();
                 if (lastStmt instanceof BasicStatement) {
                     return InstructionUtils.isBranchingInstruction(((BasicStatement) lastStmt).getInstruction());
+                } else {
+                    return false;
+                }
+            default:
+                throw new UnsupportedOperationException(
+                        "Statement type not supported yet!");
+        }
+    }
+
+    private static boolean computeIsSwitchVertex(final Statement statement) {
+
+        switch (statement.getType()) {
+            case ENTRY_STATEMENT:
+            case RETURN_STATEMENT:
+            case EXIT_STATEMENT:
+                return false;
+            case BASIC_STATEMENT:
+                BasicStatement stmt = (BasicStatement) statement;
+                return InstructionUtils.isSwitchInstruction(stmt.getInstruction());
+            case BLOCK_STATEMENT:
+                // Since an if instruction denotes the end of a basic block, we only need to look at the last instruction.
+                BlockStatement block = (BlockStatement) statement;
+                Statement lastStmt = block.getLastStatement();
+                if (lastStmt instanceof BasicStatement) {
+                    return InstructionUtils.isSwitchInstruction(((BasicStatement) lastStmt).getInstruction());
                 } else {
                     return false;
                 }
@@ -168,16 +195,23 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
     /**
      * Checks whether a given vertex represents/contains an if statement.
      *
-     * @return Returns whether the given vertex represents/contains an if
-     * statement.
+     * @return Returns whether the given vertex represents/contains an if statement.
      */
     public boolean isIfVertex() {
         return isIfVertex;
     }
 
     /**
-     * Checks whether a given vertex represents a branch target, i.e. a
-     * successor of an if-statement.
+     * Checks whether a given vertex represents/contains a switch statement.
+     *
+     * @return Returns whether the given vertex represents/contains an if statement.
+     */
+    public boolean isSwitchVertex() {
+        return isSwitchVertex;
+    }
+
+    /**
+     * Checks whether a given vertex represents a branch target, i.e. a successor of an if-statement.
      * Essentially, every branch target must be a leader instruction.
      *
      * @return Returns whether the given vertex represents a branch target.
