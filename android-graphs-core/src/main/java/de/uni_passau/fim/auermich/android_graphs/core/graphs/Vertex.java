@@ -144,7 +144,7 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                 BasicStatement stmt = (BasicStatement) statement;
                 return InstructionUtils.isSwitchInstruction(stmt.getInstruction());
             case BLOCK_STATEMENT:
-                // Since an if instruction denotes the end of a basic block, we only need to look at the last instruction.
+                // Since a switch instruction denotes the end of a basic block, we only need to look at the last instruction.
                 BlockStatement block = (BlockStatement) statement;
                 Statement lastStmt = block.getLastStatement();
                 if (lastStmt instanceof BasicStatement) {
