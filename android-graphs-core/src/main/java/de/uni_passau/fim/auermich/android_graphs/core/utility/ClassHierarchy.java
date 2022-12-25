@@ -341,7 +341,8 @@ public class ClassHierarchy {
                      */
                     overriddenMethods.add(method);
                 }
-            } else {
+            } else if (currentClassDefinesMethod && clazz.getClazz() != null) {
+
                 /*
                 * The method is not defined by any super class but at least in the current class.
                 * Since we need to over-approximate method invocations, we need to check every
@@ -353,6 +354,14 @@ public class ClassHierarchy {
                 } else {
                     overriddenMethods.add(method);
                 }
+            } else {
+                LOGGER.debug("Method " + method + " not defined in any super class nor current class!");
+                /*
+                 * The method is not defined by any accessible super class nor in the current class.
+                 * This can be for instance an ART method like 'sendBroadcast()', where the current class
+                 * isn't contained in the APK. We need to pass the method unchanged to the next processing step.
+                 */
+                overriddenMethods.add(method);
             }
         } else {
             // class not defined in class hierarchy or run method of Thread/Runnable class

@@ -262,7 +262,7 @@ public class MethodUtils {
      * @return Returns the method name from the fully qualified method name.
      */
     public static String getMethodName(final String fullyQualifiedMethodName) {
-        return fullyQualifiedMethodName.split(";->|^\\[.->")[1];
+        return fullyQualifiedMethodName.split("->")[1];
     }
 
     /**
@@ -272,7 +272,7 @@ public class MethodUtils {
      * @return Returns the method name from the fully qualified method name.
      */
     public static String getMethodName(final Method method) {
-        return getMethodName(method.toString());
+        return method.toString().split("->")[1];
     }
 
     /**
