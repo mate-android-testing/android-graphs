@@ -231,7 +231,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      */
     public List<CFGVertex> getBranches() {
         return getVertices().stream()
-                .filter(v -> v.isBranchVertex()).collect(Collectors.toList());
+                .filter(CFGVertex::isBranchVertex).collect(Collectors.toList());
     }
 
     public abstract GraphType getGraphType();
