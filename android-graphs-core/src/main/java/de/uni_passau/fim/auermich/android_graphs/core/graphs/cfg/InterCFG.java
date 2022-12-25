@@ -669,27 +669,31 @@ public class InterCFG extends BaseCFG {
                 String serviceConnection = service.getServiceConnection();
                 BaseCFG serviceConnectionConstructor = intraCFGs.get(ClassUtils.getDefaultConstructor(serviceConnection));
 
-                // add callbacks subgraph
-                BaseCFG serviceConnectionCallbacks = dummyIntraCFG("callbacks " + serviceConnection);
-                addSubGraph(serviceConnectionCallbacks);
-                addEdge(serviceConnectionCallbacks.getExit(), serviceConnectionCallbacks.getEntry());
+                if (serviceConnectionConstructor == null) {
+                    LOGGER.warn("Service connection '" + serviceConnection + "' for " + service.getName() + " has no intra CFG!");
+                } else {
+                    // add callbacks subgraph
+                    BaseCFG serviceConnectionCallbacks = dummyIntraCFG("callbacks " + serviceConnection);
+                    addSubGraph(serviceConnectionCallbacks);
+                    addEdge(serviceConnectionCallbacks.getExit(), serviceConnectionCallbacks.getEntry());
 
-                // connect constructor with callback entry point
-                addEdge(serviceConnectionConstructor.getExit(), serviceConnectionCallbacks.getEntry());
+                    // connect constructor with callback entry point
+                    addEdge(serviceConnectionConstructor.getExit(), serviceConnectionCallbacks.getEntry());
 
-                // integrate callback methods onServiceConnected() and onServiceDisconnected()
-                BaseCFG onServiceConnected = intraCFGs.get(serviceConnection
-                        + "->onServiceConnected(Landroid/content/ComponentName;Landroid/os/IBinder;)V");
-                BaseCFG onServiceDisconnected = intraCFGs.get(serviceConnection
-                        + "->onServiceDisconnected(Landroid/content/ComponentName;)V");
-                addEdge(serviceConnectionCallbacks.getEntry(), onServiceConnected.getEntry());
-                addEdge(serviceConnectionCallbacks.getEntry(), onServiceDisconnected.getEntry());
-                addEdge(onServiceConnected.getExit(), serviceConnectionCallbacks.getExit());
-                addEdge(onServiceDisconnected.getExit(), serviceConnectionCallbacks.getExit());
+                    // integrate callback methods onServiceConnected() and onServiceDisconnected()
+                    BaseCFG onServiceConnected = intraCFGs.get(serviceConnection
+                            + "->onServiceConnected(Landroid/content/ComponentName;Landroid/os/IBinder;)V");
+                    BaseCFG onServiceDisconnected = intraCFGs.get(serviceConnection
+                            + "->onServiceDisconnected(Landroid/content/ComponentName;)V");
+                    addEdge(serviceConnectionCallbacks.getEntry(), onServiceConnected.getEntry());
+                    addEdge(serviceConnectionCallbacks.getEntry(), onServiceDisconnected.getEntry());
+                    addEdge(onServiceConnected.getExit(), serviceConnectionCallbacks.getExit());
+                    addEdge(onServiceDisconnected.getExit(), serviceConnectionCallbacks.getExit());
 
-                // connect onBind() with onServiceConnected()
-                BaseCFG onBind = intraCFGs.get(onBindMethod);
-                addEdge(onBind.getExit(), onServiceConnected.getEntry());
+                    // connect onBind() with onServiceConnected()
+                    BaseCFG onBind = intraCFGs.get(onBindMethod);
+                    addEdge(onBind.getExit(), onServiceConnected.getEntry());
+                }
             }
 
             // the service may overwrite onUnBind()
