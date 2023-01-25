@@ -170,7 +170,8 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                 return stmt.getInstruction()
                         .getPredecessors()
                         .stream()
-                        .anyMatch(InstructionUtils::isBranchingInstruction);
+                        .anyMatch(instruction ->InstructionUtils.isBranchingInstruction(instruction)
+                                || InstructionUtils.isSwitchInstruction(instruction));
             case BLOCK_STATEMENT:
                 // Since a branch represents a leader instruction (basic block), we only need to look at the first instruction.
                 BlockStatement block = (BlockStatement) statement;
@@ -182,7 +183,8 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
                             .getInstruction()
                             .getPredecessors()
                             .stream()
-                            .anyMatch(InstructionUtils::isBranchingInstruction);
+                            .anyMatch(instruction ->InstructionUtils.isBranchingInstruction(instruction)
+                                    || InstructionUtils.isSwitchInstruction(instruction));
                 } else {
                     return false;
                 }
@@ -211,7 +213,7 @@ public class Vertex implements Cloneable, Comparable<Vertex> {
     }
 
     /**
-     * Checks whether a given vertex represents a branch target, i.e. a successor of an if-statement.
+     * Checks whether a given vertex represents a branch target, i.e. a successor of an if or switch statement.
      * Essentially, every branch target must be a leader instruction.
      *
      * @return Returns whether the given vertex represents a branch target.
