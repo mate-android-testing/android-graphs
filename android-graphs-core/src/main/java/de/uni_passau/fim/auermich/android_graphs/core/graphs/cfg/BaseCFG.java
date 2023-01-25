@@ -16,9 +16,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
+import org.jgrapht.alg.interfaces.ManyToManyShortestPathsAlgorithm;
 import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
 import org.jgrapht.alg.shortestpath.BFSShortestPath;
 import org.jgrapht.alg.shortestpath.BidirectionalDijkstraShortestPath;
+import org.jgrapht.alg.shortestpath.CHManyToManyShortestPaths;
+import org.jgrapht.alg.shortestpath.DijkstraManyToManyShortestPaths;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
@@ -26,6 +29,7 @@ import org.jgrapht.nio.Attribute;
 import org.jgrapht.nio.DefaultAttribute;
 import org.jgrapht.nio.dot.DOTExporter;
 import org.jgrapht.nio.json.JSONExporter;
+import org.jgrapht.util.ConcurrencyUtil;
 import org.w3c.dom.Document;
 
 import javax.imageio.ImageIO;
@@ -91,9 +95,8 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         return invokeVertices;
     }
 
-    // TODO: replace with bidirectional dijkstra
     public int getShortestDistance(Vertex source, Vertex target) {
-        GraphPath<Vertex, Edge> path = BFSShortestPath.findPathBetween(graph, source, target);
+        GraphPath<Vertex, Edge> path = BidirectionalDijkstraShortestPath.findPathBetween(graph, source, target);
         if (path != null) {
             return path.getLength();
         } else {
@@ -101,19 +104,57 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         }
     }
 
+    /**
+     * Initialises the BFS shortest path algorithm. Seems to be a bit slower than bi-directional dijkstra.
+     *
+     * @return Returns the BFS shortest path algorithm.
+     */
     @SuppressWarnings("unused")
     public ShortestPathAlgorithm<Vertex, Edge> initBFSAlgorithm() {
         return new BFSShortestPath<>(graph);
     }
 
     /**
-     * Initialises the bidirectional dijkstra algorithm. This seems to be fastest algorithm
-     * next to the BFS search algorithm.
+     * Initialises the bidirectional dijkstra algorithm. This seems to be fastest algorithm for computing the distance
+     * between two vertices.
      *
-     * @return Returns a shortest path algorithm.
+     * @return Returns the bi-directional dijkstra shortest path algorithm.
      */
     public ShortestPathAlgorithm<Vertex, Edge> initBidirectionalDijkstraAlgorithm() {
         return new BidirectionalDijkstraShortestPath<>(graph);
+    }
+
+    /**
+     * Initialises the CH many-to-many shortest paths algorithm on the underlying graph. This seems to be the fastest
+     * option on large graphs.
+     *
+     * @return Returns the CH many-to-many shortest paths algorithm.
+     */
+    public ManyToManyShortestPathsAlgorithm<Vertex, Edge> initCHManyToManyShortestPathAlgorithm() {
+
+        // enable the maximal parallelism
+        final int parallelism = Runtime.getRuntime().availableProcessors();
+        final var executor = ConcurrencyUtil.createThreadPoolExecutor(parallelism);
+        final var algorithm = new CHManyToManyShortestPaths<>(graph, executor);
+
+        try {
+            ConcurrencyUtil.shutdownExecutionService(executor);
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        return algorithm;
+    }
+
+    /**
+     * Initialises the dijkstra many-to-many shortest paths algorithm on the underlying graph. This seems to be slow
+     * and memory consuming on a large graph!
+     *
+     * @return Returns the dijkstra many-to-many shortest paths algorithm.
+     */
+    @SuppressWarnings("unused")
+    public ManyToManyShortestPathsAlgorithm<Vertex, Edge> initDijkstraManyToManyShortestPathAlgorithm() {
+        return new DijkstraManyToManyShortestPaths<>(graph);
     }
 
     public void addEdge(Vertex src, Vertex dest) {
