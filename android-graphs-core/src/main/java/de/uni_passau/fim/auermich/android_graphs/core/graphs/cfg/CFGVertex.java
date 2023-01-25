@@ -173,7 +173,8 @@ public class CFGVertex extends Vertex implements Comparable<CFGVertex>, Cloneabl
                 return stmt.getInstruction()
                         .getPredecessors()
                         .stream()
-                        .anyMatch(InstructionUtils::isBranchingInstruction);
+                        .anyMatch(instruction ->InstructionUtils.isBranchingInstruction(instruction)
+                                || InstructionUtils.isSwitchInstruction(instruction));
             case BLOCK_STATEMENT:
                 // Since a branch represents a leader instruction (basic block), we only need to look at the first instruction.
                 BlockStatement block = (BlockStatement) statement;
@@ -185,7 +186,8 @@ public class CFGVertex extends Vertex implements Comparable<CFGVertex>, Cloneabl
                             .getInstruction()
                             .getPredecessors()
                             .stream()
-                            .anyMatch(InstructionUtils::isBranchingInstruction);
+                            .anyMatch(instruction ->InstructionUtils.isBranchingInstruction(instruction)
+                                    || InstructionUtils.isSwitchInstruction(instruction));
                 } else {
                     return false;
                 }

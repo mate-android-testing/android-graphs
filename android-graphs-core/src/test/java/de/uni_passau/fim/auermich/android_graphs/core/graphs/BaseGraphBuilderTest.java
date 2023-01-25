@@ -1394,7 +1394,7 @@ public class BaseGraphBuilderTest {
         File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
 
         BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
-        Vertex vertex = getRandomSetElement(interCFG.getVertices());
+        CFGVertex vertex = getRandomSetElement(interCFG.getVertices());
         assertEquals(0, interCFG.getShortestDistance(vertex, vertex));
     }
 
@@ -1405,8 +1405,8 @@ public class BaseGraphBuilderTest {
         File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
 
         BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
-        Vertex vertex = getRandomSetElement(interCFG.getVertices());
-        Vertex successor = getRandomSetElement(interCFG.getOutgoingEdges(vertex)).getTarget();
+        CFGVertex vertex = getRandomSetElement(interCFG.getVertices());
+        CFGVertex successor = getRandomSetElement(interCFG.getOutgoingEdges(vertex)).getTarget();
         assertEquals(1, interCFG.getShortestDistance(vertex, successor));
     }
 
