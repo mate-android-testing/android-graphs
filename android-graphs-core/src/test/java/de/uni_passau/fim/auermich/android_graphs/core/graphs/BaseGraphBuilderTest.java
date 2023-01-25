@@ -36,6 +36,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 public class BaseGraphBuilderTest {
 
     private static final Logger LOGGER = LogManager.getLogger(BaseGraphBuilderTest.class);
@@ -1381,6 +1383,33 @@ public class BaseGraphBuilderTest {
                 }
             }
         }
+    }
+
+    @Test
+    public void testDistanceOfZero() throws IOException {
+
+        Path resourceDirectory = getResourceDirectory();
+        File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
+
+        BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
+        Vertex vertex = getRandomSetElement(interCFG.getVertices());
+        assertEquals(0, interCFG.getShortestDistance(vertex, vertex));
+    }
+
+    @Test
+    public void testDistanceOfOne() throws IOException {
+
+        Path resourceDirectory = getResourceDirectory();
+        File apkFile = new File(resourceDirectory.toFile(), "com.zola.bmi.apk");
+
+        BaseCFG interCFG = (BaseCFG) buildInterCFG(apkFile);
+        Vertex vertex = getRandomSetElement(interCFG.getVertices());
+        Vertex successor = getRandomSetElement(interCFG.getOutgoingEdges(vertex)).getTarget();
+        assertEquals(1, interCFG.getShortestDistance(vertex, successor));
+    }
+
+    private static <E> E getRandomSetElement(Set<E> set) {
+        return set.stream().skip(new Random().nextInt(set.size())).findFirst().orElseThrow();
     }
 
     /**
