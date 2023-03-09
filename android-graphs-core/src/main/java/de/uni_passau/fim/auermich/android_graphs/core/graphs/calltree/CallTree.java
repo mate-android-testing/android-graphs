@@ -60,6 +60,11 @@ public class CallTree implements BaseGraph {
             .buildGraph();
 
     /**
+     * The inter-procedural CFG from which the call tree is derived.
+     */
+    private final InterCFG interCFG;
+
+    /**
      * A virtual root entry.
      */
     protected final CallTreeVertex root;
@@ -76,6 +81,7 @@ public class CallTree implements BaseGraph {
      */
     public CallTree(final InterCFG interCFG) {
 
+        this.interCFG = interCFG;
         root = new CallTreeVertex(interCFG.getEntry().getMethod());
         String mainActivityConstructor = interCFG.getMainActivity().getDefaultConstructor();
         Set<String> methods = interCFG.getVertices().stream().map(CFGVertex::getMethod).collect(Collectors.toSet());
@@ -110,6 +116,15 @@ public class CallTree implements BaseGraph {
                 graph.addEdge(methodVertex, vertex);
             });
         }
+    }
+
+    /**
+     * The inter-procedural CFG from which the call tree was derived.
+     *
+     * @return Returns the inter-procedural CFG.
+     */
+    public InterCFG getInterCFG() {
+        return interCFG;
     }
 
     /**
