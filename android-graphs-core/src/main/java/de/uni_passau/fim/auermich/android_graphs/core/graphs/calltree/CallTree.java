@@ -398,7 +398,7 @@ public class CallTree implements BaseGraph {
     }
 
     @Override
-    public Vertex lookUpVertex(String trace) {
+    public CallTreeVertex lookUpVertex(String trace) {
         return lookUpVertexDFS(trace);
     }
 
