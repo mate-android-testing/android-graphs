@@ -28,8 +28,12 @@ import org.jgrapht.nio.DefaultAttribute;
 import org.jgrapht.nio.dot.DOTExporter;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.jgrapht.util.ConcurrencyUtil;
+import org.w3c.dom.Document;
 
 import javax.imageio.ImageIO;
+import javax.xml.transform.*;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -233,6 +237,14 @@ public class CallTree implements BaseGraph {
         return Optional.of(new GraphWalk<>(graph, startVertex, start, edges, weight));
     }
 
+    public Set<CallTreeEdge> getOutgoingEdges(CallTreeVertex vertex) {
+        return this.graph.outgoingEdgesOf(vertex);
+    }
+
+    public Set<CallTreeEdge> getIncomingEdges(CallTreeVertex vertex) {
+        return this.graph.incomingEdgesOf(vertex);
+    }
+
     /**
      * Returns the vertices of the call tree.
      *
@@ -341,7 +353,7 @@ public class CallTree implements BaseGraph {
         exporter.exportGraph(graph, output);
     }
 
-    public void toClassTreeDot(File output) {
+    public void convertGraphToDOT(File output) {
 
         Pattern pattern = Pattern.compile("^.*/(\\S+);->\\S+\\(.*\\).*$|^callbacks L.+/(\\S+);$");
 
@@ -445,6 +457,82 @@ public class CallTree implements BaseGraph {
         return algorithm;
     }
 
+    /**
+     * Converts the graph into a SVG file.
+     * This conversion works for medium-sized graphs (<5000 vertices) best, while
+     * for larger graphs it takes too long.
+     *
+     * @param outputFile The file path of the resulting SVG file.
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertices The set of target vertices.
+     */
+    private void convertGraphToSVG(File outputFile, Set<CallTreeVertex> visitedVertices, Set<CallTreeVertex> targetVertices) {
+
+        JGraphXAdapter<CallTreeVertex, CallTreeEdge> graphXAdapter
+                = new JGraphXAdapter<>(graph);
+        graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
+
+        if (!visitedVertices.isEmpty() || !targetVertices.isEmpty()) {
+            colorVertices(graphXAdapter, visitedVertices, targetVertices);
+        }
+
+        // this layout orders the vertices in a sequence from top to bottom (entry -> v1...vn -> exit)
+        mxIGraphLayout layout = new mxHierarchicalLayout(graphXAdapter);
+
+        // mxIGraphLayout layout = new mxCircleLayout(graphXAdapter);
+        // ((mxCircleLayout) layout).setRadius(((mxCircleLayout) layout).getRadius()*2.5);
+
+        layout.execute(graphXAdapter.getDefaultParent());
+
+        Document svg =
+                mxCellRenderer.createSvgDocument(graphXAdapter, null, 1, Color.WHITE, null);
+
+        try {
+            Transformer transformer = TransformerFactory.newInstance().newTransformer();
+            Source input = new DOMSource(svg);
+            Result output = new StreamResult(outputFile);
+            transformer.transform(input, output);
+        } catch (TransformerException e) {
+            LOGGER.warn(e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Draws the graph where both the visited and target vertices are marked in a different color.
+     *
+     * @param outputDir The output directory of the graph.
+     * @param visitedVertices The set of visited vertices.
+     * @param targetVertices The selected target vertices.
+     */
+    public void drawGraph(File outputDir, Set<CallTreeVertex> visitedVertices, Set<CallTreeVertex> targetVertices) {
+
+        LOGGER.info("Number of visited vertices: " + visitedVertices.size());
+        LOGGER.info("Number of target vertices: " + targetVertices.size());
+
+        if (size() <= 1000) {
+            File output = new File(outputDir, "graph.png");
+            convertGraphToPNG(output, visitedVertices, targetVertices);
+        } else if (size() <= 5000) {
+            // can theoretically render large graphs to SVG, but this takes quite some time
+            File output = new File(outputDir, "graph.svg");
+            convertGraphToSVG(output, visitedVertices, targetVertices);
+        } else {
+            // too 'large' graphs can't be handled by the JGraphXAdapter class, export to DOT
+            File output = new File(outputDir, "graph.dot");
+            convertGraphToDOT(output);
+        }
+    }
+
+    /**
+     * Draws the raw graph and saves it at the specified output path.
+     *
+     * @param outputDir The output directory of the graph.
+     */
+    public void drawGraph(File outputDir) {
+        drawGraph(outputDir, Collections.emptySet(), Collections.emptySet());
+    }
+
     @Override
     public void drawGraph() {
         // FIXME: drawing only works within IDE, no valid file path when being executed via command line
@@ -455,7 +543,7 @@ public class CallTree implements BaseGraph {
             convertGraphToPNG(output, Collections.emptySet(), Collections.emptySet());
         } else {
             final File output = new File(resourceDirectory.toFile(), "graph.dot");
-            toClassTreeDot(output);
+            convertGraphToDOT(output);
         }
     }
 
