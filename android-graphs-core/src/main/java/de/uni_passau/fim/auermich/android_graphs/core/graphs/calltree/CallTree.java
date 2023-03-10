@@ -71,7 +71,7 @@ public class CallTree implements BaseGraph {
     /**
      * A virtual root entry.
      */
-    protected final CallTreeVertex root;
+    private final CallTreeVertex root;
 
     /**
      * Caches all computed graph paths.
@@ -120,6 +120,15 @@ public class CallTree implements BaseGraph {
                 graph.addEdge(methodVertex, vertex);
             });
         }
+    }
+
+    /**
+     * Returns the virtual root vertex.
+     *
+     * @return Returns the root vertex.
+     */
+    public CallTreeVertex getRoot() {
+        return root;
     }
 
     /**
