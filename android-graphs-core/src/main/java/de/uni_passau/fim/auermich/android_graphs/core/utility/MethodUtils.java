@@ -203,7 +203,7 @@ public class MethodUtils {
      * @return Returns {@code true} if the method is an android callback,
      *         otherwise {@code false} is returned.
      */
-    public static boolean isCallback(String methodSignature) {
+    public static boolean isCallback(final String methodSignature) {
         return ANDROID_CALLBACKS.contains(getMethodName(methodSignature));
     }
 
@@ -214,7 +214,7 @@ public class MethodUtils {
      * @return Returns {@code true} if the method is a constructor call of a lambda class,
      *         otherwise {@code false} is returned.
      */
-    public static boolean isLambdaClassConstructorCall(String methodSignature) {
+    public static boolean isLambdaClassConstructorCall(final String methodSignature) {
         String className = MethodUtils.getClassName(methodSignature);
         return className.contains("$Lambda$") && isConstructorCall(methodSignature);
     }
@@ -226,7 +226,7 @@ public class MethodUtils {
      * @return Returns {@code true} if the method is a constructor call,
      *         otherwise {@code false} is returned.
      */
-    public static boolean isConstructorCall(String methodSignature) {
+    public static boolean isConstructorCall(final String methodSignature) {
         String method = MethodUtils.getMethodName(methodSignature);
         return method.startsWith("<init>(") && method.endsWith(")V");
     }
@@ -238,7 +238,7 @@ public class MethodUtils {
      * @return Returns {@code true} if the method is a private constructor,
      *         otherwise {@code false} is returned.
      */
-    public static boolean isPrivateConstructor(Method method) {
+    public static boolean isPrivateConstructor(final Method method) {
         int accessFlags = method.getAccessFlags();
         AccessFlags[] flags = AccessFlags.getAccessFlagsForMethod(accessFlags);
         return Arrays.stream(flags).anyMatch(flag -> flag == AccessFlags.CONSTRUCTOR)
@@ -251,7 +251,7 @@ public class MethodUtils {
      * @param fullyQualifiedMethodName The given method signature.
      * @return Returns the return type of the given method.
      */
-    public static String getReturnType(String fullyQualifiedMethodName) {
+    public static String getReturnType(final String fullyQualifiedMethodName) {
         return fullyQualifiedMethodName.split("\\)")[1];
     }
 
@@ -326,7 +326,7 @@ public class MethodUtils {
     public static Optional<Tuple<DexFile, Method>> containsTargetMethod(final List<DexFile> dexFiles,
                                                                         final String methodSignature) {
 
-        String className = methodSignature.split("->")[0];
+        final String className = methodSignature.split("->")[0];
 
         for (DexFile dexFile : dexFiles) {
             for (ClassDef classDef : dexFile.getClasses()) {
@@ -334,6 +334,34 @@ public class MethodUtils {
                     for (Method method : classDef.getMethods()) {
                         if (deriveMethodSignature(method).equals(methodSignature)) {
                             return Optional.of(new Tuple<>(dexFile, method));
+                        }
+                    }
+                    // speed up
+                    return Optional.empty();
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Checks whether the given method is contained in the dex files.
+     *
+     * @param dexFiles The dex files.
+     * @param methodSignature The method to be looked up.
+     * @return Returns the class and method definition of the given method, if possible.
+     */
+    public static Optional<Tuple<ClassDef, Method>> searchForTargetMethod(final List<DexFile> dexFiles,
+                                                                   final String methodSignature) {
+
+        final String className = methodSignature.split("->")[0];
+
+        for (DexFile dexFile : dexFiles) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+                if (classDef.toString().equals(className)) {
+                    for (Method method : classDef.getMethods()) {
+                        if (deriveMethodSignature(method).equals(methodSignature)) {
+                            return Optional.of(new Tuple<>(classDef, method));
                         }
                     }
                     // speed up
