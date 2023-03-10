@@ -93,6 +93,13 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         return invokeVertices;
     }
 
+    /**
+     * Retrieves the shortest distance between the given source and target vertex.
+     *
+     * @param source The given source vertex.
+     * @param target The given target vertex.
+     * @return Returns the shortest distance between the given source and target vertex, or {@code -1} if no path exists.
+     */
     public int getShortestDistance(CFGVertex source, CFGVertex target) {
         GraphPath<CFGVertex, CFGEdge> path = BidirectionalDijkstraShortestPath.findPathBetween(graph, source, target);
         if (path != null) {

@@ -15,7 +15,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
+import org.jgrapht.alg.interfaces.ManyToManyShortestPathsAlgorithm;
+import org.jgrapht.alg.interfaces.ShortestPathAlgorithm;
 import org.jgrapht.alg.shortestpath.BFSShortestPath;
+import org.jgrapht.alg.shortestpath.BidirectionalDijkstraShortestPath;
+import org.jgrapht.alg.shortestpath.CHManyToManyShortestPaths;
 import org.jgrapht.ext.JGraphXAdapter;
 import org.jgrapht.graph.GraphWalk;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
@@ -23,6 +27,7 @@ import org.jgrapht.nio.AttributeType;
 import org.jgrapht.nio.DefaultAttribute;
 import org.jgrapht.nio.dot.DOTExporter;
 import org.jgrapht.traverse.DepthFirstIterator;
+import org.jgrapht.util.ConcurrencyUtil;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -166,6 +171,7 @@ public class CallTree implements BaseGraph {
      */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex source, CallTreeVertex target) {
         Stream.of(source, target).forEach(vertex -> {
+            // TODO: This side effect should be eliminated.
             if (graph.addVertex(vertex)) {
                 LOGGER.warn("Graph did not contain vertex '" + vertex.toString() + "'");
             }
@@ -370,6 +376,64 @@ public class CallTree implements BaseGraph {
         });
 
         exporter.exportGraph(activityGraph, output);
+    }
+
+    /**
+     * Retrieves the shortest distance between the given source and target vertex.
+     *
+     * @param source The given source vertex.
+     * @param target The given target vertex.
+     * @return Returns the shortest distance between the given source and target vertex, or {@code -1} if no path exists.
+     */
+    public int getShortestDistance(CallTreeVertex source, CallTreeVertex target) {
+        GraphPath<CallTreeVertex, CallTreeEdge> path = BidirectionalDijkstraShortestPath.findPathBetween(graph, source, target);
+        if (path != null) {
+            return path.getLength();
+        } else {
+            return -1;
+        }
+    }
+
+    /**
+     * Initialises the BFS shortest path algorithm. Seems to be a bit slower than bi-directional dijkstra.
+     *
+     * @return Returns the BFS shortest path algorithm.
+     */
+    @SuppressWarnings("unused")
+    public ShortestPathAlgorithm<CallTreeVertex, CallTreeEdge> initBFSAlgorithm() {
+        return new BFSShortestPath<>(graph);
+    }
+
+    /**
+     * Initialises the bidirectional dijkstra algorithm. This seems to be fastest algorithm for computing the distance
+     * between two vertices.
+     *
+     * @return Returns the bi-directional dijkstra shortest path algorithm.
+     */
+    public ShortestPathAlgorithm<CallTreeVertex, CallTreeEdge> initBidirectionalDijkstraAlgorithm() {
+        return new BidirectionalDijkstraShortestPath<>(graph);
+    }
+
+    /**
+     * Initialises the CH many-to-many shortest paths algorithm on the underlying graph. This seems to be the fastest
+     * option on large graphs.
+     *
+     * @return Returns the CH many-to-many shortest paths algorithm.
+     */
+    public ManyToManyShortestPathsAlgorithm<CallTreeVertex, CallTreeEdge> initCHManyToManyShortestPathAlgorithm() {
+
+        // enable the maximal parallelism
+        final int parallelism = Runtime.getRuntime().availableProcessors();
+        final var executor = ConcurrencyUtil.createThreadPoolExecutor(parallelism);
+        final var algorithm = new CHManyToManyShortestPaths<>(graph, executor);
+
+        try {
+            ConcurrencyUtil.shutdownExecutionService(executor);
+        } catch (final InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        return algorithm;
     }
 
     @Override
