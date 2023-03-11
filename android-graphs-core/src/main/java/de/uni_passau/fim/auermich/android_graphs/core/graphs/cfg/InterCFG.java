@@ -69,6 +69,9 @@ public class InterCFG extends BaseCFG {
      */
     private final Map<String, BaseCFG> intraCFGs = new HashMap<>();
 
+    /**
+     * The APK file.
+     */
     private APK apk = null;
 
     // the set of discovered Android callbacks
@@ -85,6 +88,33 @@ public class InterCFG extends BaseCFG {
         this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
         this.apk = apk;
         constructCFG(apk);
+    }
+
+    /**
+     * Returns the class hierarchy among the application classes.
+     *
+     * @return Returns the class hierarchy.
+     */
+    public ClassHierarchy getClassHierarchy() {
+        return classHierarchy;
+    }
+
+    /**
+     * Returns the APK.
+     *
+     * @return Returns the APK.
+     */
+    public APK getApk() {
+        return apk;
+    }
+
+    /**
+     * Returns the set of discovered components.
+     *
+     * @return Returns the components.
+     */
+    public Set<Component> getComponents() {
+        return components;
     }
 
     private void constructCFG(APK apk) {
