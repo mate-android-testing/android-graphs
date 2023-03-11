@@ -114,7 +114,7 @@ public class InterCFG extends BaseCFG {
      * @return Returns the components.
      */
     public Set<Component> getComponents() {
-        return components;
+        return Collections.unmodifiableSet(components);
     }
 
     private void constructCFG(APK apk) {
