@@ -1,13 +1,13 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 
 /**
- * A converter from a {@link Vertex} to a dot node or label, respectively.
+ * A converter from a {@link CFGVertex} to a dot node or label, respectively.
  */
 public class DotConverter {
     /**
@@ -16,7 +16,7 @@ public class DotConverter {
      * @param vertex The vertex to be converted.
      * @return Returns a DOT node representing the given vertex.
      */
-    public static String convertVertexToDOTNode(final Vertex vertex) {
+    public static String convertVertexToDOTNode(final CFGVertex vertex) {
 
         /*
          * TODO: Simplify the entire conversion process. We need to comply to the following specification:
@@ -122,7 +122,7 @@ public class DotConverter {
      * @param vertex The vertex to be converted into a DOT label.
      * @return Returns the DOT label representing the given vertex.
      */
-    public static String convertVertexToDOTLabel(final Vertex vertex) {
+    public static String convertVertexToDOTLabel(final CFGVertex vertex) {
 
         // TODO: handle vertices used for non-basic inter CFG
 

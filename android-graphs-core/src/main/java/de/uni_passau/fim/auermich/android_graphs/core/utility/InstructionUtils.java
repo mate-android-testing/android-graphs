@@ -5,10 +5,15 @@ import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Format;
 import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
+import org.jf.dexlib2.builder.BuilderInstruction;
+import org.jf.dexlib2.builder.BuilderSwitchPayload;
+import org.jf.dexlib2.builder.instruction.BuilderInstruction31t;
+import org.jf.dexlib2.builder.instruction.BuilderSwitchElement;
 import org.jf.dexlib2.iface.instruction.Instruction;
 
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public final class InstructionUtils {
@@ -46,8 +51,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to an if or goto instruction.
      *
      * @param analyzedInstruction The instruction to be analyzed.
-     * @return Returns {@code true} if the instruction is a branch or goto instruction,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the instruction is a branch or goto instruction, otherwise {@code false} is returned.
      */
     public static boolean isJumpInstruction(final AnalyzedInstruction analyzedInstruction) {
         return isBranchingInstruction(analyzedInstruction) || isGotoInstruction(analyzedInstruction);
@@ -59,7 +63,7 @@ public final class InstructionUtils {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a parse-switch, packed-switch or array payload instruction,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isPayloadInstruction(final AnalyzedInstruction analyzedInstruction) {
         // TODO: may handle the actual parse-switch and packed-switch instructions (not the payload instructions)
@@ -78,7 +82,7 @@ public final class InstructionUtils {
      *
      * @param analyzedInstruction The instruction to be analyzed.
      * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isSwitchInstruction(final AnalyzedInstruction analyzedInstruction) {
         // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
@@ -92,11 +96,35 @@ public final class InstructionUtils {
     }
 
     /**
+     * Checks whether the given instruction refers to an parse-switch or packed-switch instruction.
+     *
+     * @param instruction The instruction to be checked.
+     * @return Returns {@code true} if the instruction is a parse-switch or packed-switch instruction,
+     *         otherwise {@code false} is returned.
+     */
+    public static boolean isSwitchInstruction(final BuilderInstruction instruction) {
+        // https://stackoverflow.com/questions/19855800/difference-between-packed-switch-and-sparse-switch-dalvik-opcode
+        EnumSet<Opcode> opcodes = EnumSet.of(Opcode.PACKED_SWITCH, Opcode.SPARSE_SWITCH);
+        return opcodes.contains(instruction.getOpcode());
+    }
+
+    /**
+     * Retrieves the list of switch elements from the given switch instruction.
+     *
+     * @param switchInstruction The given switch instruction.
+     * @return Returns the list of switch elements from the given switch instruction.
+     */
+    public static List<? extends BuilderSwitchElement> getSwitchElements(final BuilderInstruction switchInstruction) {
+        Instruction switchPayloadInstruction
+                = ((BuilderInstruction31t) switchInstruction).getTarget().getLocation().getInstruction();
+        return ((BuilderSwitchPayload) switchPayloadInstruction).getSwitchElements();
+    }
+
+    /**
      * Checks whether the given instruction refers to a goto instruction.
      *
      * @param analyzedInstruction The instruction to be analyzed.
-     * @return Returns {@code true} if the instruction is a goto instruction,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the instruction is a goto instruction, otherwise {@code false} is returned.
      */
     public static boolean isGotoInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -108,8 +136,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to an if instruction.
      *
      * @param analyzedInstruction The instruction to be analyzed.
-     * @return Returns {@code true} if the instruction is a branching instruction,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the instruction is a branching instruction, otherwise {@code false} is returned.
      */
     public static boolean isBranchingInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -121,8 +148,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to a return or throw statement.
      *
      * @param instruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is a return or throw statement,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is a return or throw statement, otherwise {@code false} is returned.
      */
     public static boolean isTerminationStatement(final AnalyzedInstruction instruction) {
         // TODO: should we handle the throw-verification-error instruction?
@@ -133,8 +159,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to a nop instruction.
      *
      * @param instruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is a nop instruction,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is a nop instruction, otherwise {@code false} is returned.
      */
     public static boolean isNOPInstruction(final AnalyzedInstruction instruction) {
         return instruction.getInstruction().getOpcode() == Opcode.NOP;
@@ -144,8 +169,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction refers to a return statement.
      *
      * @param analyzedInstruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is a return statement, otherwise
-     * {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is a return statement, otherwise {@code false} is returned.
      */
     public static boolean isReturnInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -158,8 +182,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction is any sort of invoke statement.
      *
      * @param analyzedInstruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is an invoke statement,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is an invoke statement, otherwise {@code false} is returned.
      */
     public static boolean isInvokeInstruction(final AnalyzedInstruction analyzedInstruction) {
         Instruction instruction = analyzedInstruction.getInstruction();
@@ -170,8 +193,7 @@ public final class InstructionUtils {
      * Checks whether the given instruction is any sort of invoke statement.
      *
      * @param instruction The instruction to be inspected.
-     * @return Returns {@code true} if the given instruction is an invoke statement,
-     * otherwise {@code false} is returned.
+     * @return Returns {@code true} if the given instruction is an invoke statement, otherwise {@code false} is returned.
      */
     public static boolean isInvokeInstruction(final Instruction instruction) {
         return INVOKE_OPCODES.contains(instruction.getOpcode());

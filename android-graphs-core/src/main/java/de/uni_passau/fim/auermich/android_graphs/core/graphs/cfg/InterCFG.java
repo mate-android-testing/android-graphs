@@ -8,9 +8,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.LayoutFile;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ReturnStatement;
@@ -39,6 +37,7 @@ import java.io.File;
 import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents an inter procedural control flow graph.
@@ -70,6 +69,9 @@ public class InterCFG extends BaseCFG {
      */
     private final Map<String, BaseCFG> intraCFGs = new HashMap<>();
 
+    /**
+     * The APK file.
+     */
     private APK apk = null;
 
     // the set of discovered Android callbacks
@@ -88,6 +90,33 @@ public class InterCFG extends BaseCFG {
         constructCFG(apk);
     }
 
+    /**
+     * Returns the class hierarchy among the application classes.
+     *
+     * @return Returns the class hierarchy.
+     */
+    public ClassHierarchy getClassHierarchy() {
+        return classHierarchy;
+    }
+
+    /**
+     * Returns the APK.
+     *
+     * @return Returns the APK.
+     */
+    public APK getApk() {
+        return apk;
+    }
+
+    /**
+     * Returns the set of discovered components.
+     *
+     * @return Returns the components.
+     */
+    public Set<Component> getComponents() {
+        return Collections.unmodifiableSet(components);
+    }
+
     private void constructCFG(APK apk) {
 
         // decode APK to access manifest and other resource files
@@ -96,11 +125,14 @@ public class InterCFG extends BaseCFG {
         // parse manifest
         apk.setManifest(Manifest.parse(new File(apk.getDecodingOutputPath(), "AndroidManifest.xml")));
 
+        // parse the resource strings
+        apk.setResourceStrings(ResourceUtils.parseStringsXMLFile(apk.getDecodingOutputPath()));
+
         // create the individual intraCFGs and add them as sub graphs
         constructIntraCFGs(apk, properties.useBasicBlocks);
 
         // track relations between components
-        ComponentUtils.checkComponentRelations(apk, components);
+        ComponentUtils.checkComponentRelations(apk, components, classHierarchy);
 
         // add for each component a callback graph
         Map<String, BaseCFG> callbackGraphs = addCallbackGraphs();
@@ -132,7 +164,7 @@ public class InterCFG extends BaseCFG {
         final String packageName = apk.getManifest().getPackageName();
 
         // resolve the invoke vertices and connect the sub graphs with each other
-        for (Vertex invokeVertex : getInvokeVertices()) {
+        for (CFGVertex invokeVertex : getInvokeVertices()) {
 
             BlockStatement blockStatement = (BlockStatement) invokeVertex.getStatement();
 
@@ -148,21 +180,21 @@ public class InterCFG extends BaseCFG {
             LOGGER.debug("Invoke Vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]");
 
             // save the predecessors and successors as we remove the vertex
-            Set<Vertex> predecessors = getIncomingEdges(invokeVertex).stream().map(Edge::getSource).collect(Collectors.toSet());
-            Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
+            Set<CFGVertex> predecessors = getIncomingEdges(invokeVertex).stream().map(CFGEdge::getSource).collect(Collectors.toSet());
+            Set<CFGVertex> successors = getOutgoingEdges(invokeVertex).stream().map(CFGEdge::getTarget).collect(Collectors.toSet());
 
             // remove original vertex, inherently removes edges
             removeVertex(invokeVertex);
 
-            List<Vertex> blockVertices = new ArrayList<>();
-            List<List<Vertex>> exitVertices = new ArrayList<>();
+            List<CFGVertex> blockVertices = new ArrayList<>();
+            List<List<CFGVertex>> exitVertices = new ArrayList<>();
 
             for (int i = 0; i < blocks.size(); i++) {
 
                 // create a new vertex for each block
                 List<Statement> block = blocks.get(i);
                 Statement blockStmt = new BlockStatement(invokeVertex.getMethod(), block);
-                Vertex blockVertex = new Vertex(blockStmt);
+                CFGVertex blockVertex = new CFGVertex(blockStmt);
                 blockVertices.add(blockVertex);
 
                 // add modified block vertex to graph
@@ -170,7 +202,7 @@ public class InterCFG extends BaseCFG {
 
                 // first block, add original predecessors to first block
                 if (i == 0) {
-                    for (Vertex predecessor : predecessors) {
+                    for (CFGVertex predecessor : predecessors) {
                         // handle self-references afterwards
                         if (!predecessor.equals(invokeVertex)) {
                             addEdge(predecessor, blockVertex);
@@ -181,7 +213,7 @@ public class InterCFG extends BaseCFG {
                 // last block, add original successors to the last block
                 if (i == blocks.size() - 1) {
                     // LOGGER.debug("Number of successors: " + successors.size());
-                    for (Vertex successor : successors) {
+                    for (CFGVertex successor : successors) {
                         // handle self-references afterwards
                         if (!successor.equals(invokeVertex)) {
                             addEdge(blockVertex, successor);
@@ -204,7 +236,7 @@ public class InterCFG extends BaseCFG {
 
             // connect each target CFC's exit with the corresponding virtual return vertex
             for (int i = 0; i < exitVertices.size(); i++) {
-                for (Vertex exitVertex : exitVertices.get(i)) {
+                for (CFGVertex exitVertex : exitVertices.get(i)) {
                     addEdge(exitVertex, blockVertices.get(i + 1));
                 }
             }
@@ -372,7 +404,7 @@ public class InterCFG extends BaseCFG {
 
                 String className = MethodUtils.getClassName(overriddenMethod);
                 BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
-                Vertex last = asyncTaskCFG.getEntry();
+                CFGVertex last = asyncTaskCFG.getEntry();
 
                 // optional
                 String onPreExecuteMethod = classHierarchy
@@ -498,6 +530,16 @@ public class InterCFG extends BaseCFG {
             addAndroidApplicationLifecycle(application, callbackGraphs.get(application.getName()));
             addGlobalEntryPoint(application);
         });
+    }
+
+    /**
+     * Retrieves the main activity.
+     *
+     * @return Returns the main activity.
+     */
+    public Activity getMainActivity() {
+        String mainActivityName = apk.getManifest().getMainActivity();
+        return ComponentUtils.getActivityByName(components, ClassUtils.convertDottedClassName(mainActivityName)).orElseThrow();
     }
 
     /**
@@ -992,28 +1034,88 @@ public class InterCFG extends BaseCFG {
             BaseCFG callbackGraph = callbackGraphs.get(activity.getName());
 
             // callbacks directly declared in activity
-            callbacks.get(activity.getName()).forEach(callback -> {
-                addEdge(callbackGraph.getEntry(), callback.getEntry());
-                addEdge(callback.getExit(), callbackGraph.getExit());
-            });
-            callbacksXML.get(activity.getName()).forEach(callback -> {
-                addEdge(callbackGraph.getEntry(), callback.getEntry());
-                addEdge(callback.getExit(), callbackGraph.getExit());
-            });
+            attachCallbacks(callbacks.get(activity.getName()), callbacksXML.get(activity.getName()), callbackGraph);
 
             // callbacks declared in hosted fragments
             Set<Fragment> fragments = ((Activity) activity).getHostingFragments();
             for (Fragment fragment : fragments) {
-                callbacks.get(fragment.getName()).forEach(callback -> {
-                    addEdge(callbackGraph.getEntry(), callback.getEntry());
-                    addEdge(callback.getExit(), callbackGraph.getExit());
-                });
-                callbacksXML.get(fragment.getName()).forEach(callback -> {
-                    addEdge(callbackGraph.getEntry(), callback.getEntry());
-                    addEdge(callback.getExit(), callbackGraph.getExit());
-                });
+                attachCallbacks(callbacks.get(fragment.getName()), callbacksXML.get(fragment.getName()), callbackGraph);
             }
         });
+
+        Set<Fragment> fragmentsWithoutHost = ComponentUtils.getFragmentsWithoutHost(components);
+
+        if (!fragmentsWithoutHost.isEmpty()) {
+            LOGGER.warn("There are fragments without a host! Callbacks will be lost for " + fragmentsWithoutHost);
+        }
+    }
+
+    /**
+     * Attaches the derived callbacks both from code and XML to the callback sub graph.
+     *
+     * @param callbacks The callbacks derived from the code.
+     * @param callbacksXML The callbacks derived from the XML files.
+     * @param callbackGraph The component's virtual callback sub graph, i.e. the entry point of all callbacks of the
+     *                      component.
+     */
+    private void attachCallbacks(Collection<BaseCFG> callbacks, Collection<BaseCFG> callbacksXML, BaseCFG callbackGraph) {
+
+        List<BaseCFG> allCallbacks = Stream.concat(callbacks.stream(), callbacksXML.stream()).collect(Collectors.toList());
+
+        allCallbacks.forEach(callback -> {
+            /*
+            * Menu callbacks call each other in a specific sequence. We try to accurately model this in the callbacks
+            * subgraph by stitching those callbacks together in the right order. Every other callback is attached to
+            * the callbacks entry point directly.
+             */
+            BaseCFG callbackRoot = getCallbackParentRecursively(callback, allCallbacks).orElse(callbackGraph);
+            addEdge(callbackRoot.getEntry(), callback.getEntry());
+            addEdge(callback.getExit(), callbackRoot.getExit());
+        });
+    }
+
+    /**
+     * Retrieves the next present callback parent from the callback parent sequence. This is only relevant for menu
+     * callbacks, which form a callback sequence, e.g.:
+     * onOptionsItemSelected -> onMenuOpened -> onPrepareOptionsMenu -> onCreateOptionsMenu.
+     *
+     * @param callback The child callback.
+     * @param allCallbacks The list of all callbacks.
+     * @return Returns the next callback parent if present, otherwise an empty optional.
+     */
+    private Optional<BaseCFG> getCallbackParentRecursively(BaseCFG callback, Collection<BaseCFG> allCallbacks) {
+
+        String callbackClass = MethodUtils.getClassName(callback.getMethodName());
+
+        // iterate over the parent chain
+        return Stream.iterate(MethodUtils.getMethodName(callback.getMethodName()), MethodUtils.ANDROID_CALLBACK_TO_PARENT::get)
+                .skip(1) // skip the child callback
+                .takeWhile(Objects::nonNull) // reached root of parent chain
+                .map(parentMethod -> getGraphByMethodName(callbackClass + "->" + parentMethod, allCallbacks))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
+    }
+
+    /**
+     * Retrieves the graph corresponding to the given fully-qualified method name if present.
+     *
+     * @param fullyQualifiedMethodName The given method name.
+     * @param graphs The list of graphs.
+     * @return Returns the graph corresponding to the method name or an empty optional if not present.
+     */
+    private Optional<BaseCFG> getGraphByMethodName(String fullyQualifiedMethodName, final Collection<BaseCFG> graphs) {
+
+        Set<BaseCFG> candidates = graphs.stream()
+                .filter(b -> b.getMethodName().equals(fullyQualifiedMethodName)).collect(Collectors.toSet());
+
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        } else if (candidates.size() > 1) {
+            throw new IllegalStateException("Method name is not unique, multiple graphs found: " + fullyQualifiedMethodName);
+        } else {
+            return candidates.stream().findAny();
+        }
     }
 
     /**
@@ -1233,6 +1335,28 @@ public class InterCFG extends BaseCFG {
 
                     if (layoutFile != null) {
                         componentCallbacks.putAll(component, layoutFile.parseCallbacks());
+
+                        Set<Fragment> hostedFragments = layoutFile.parseFragments().stream()
+                                .map(dottedFragmentName -> {
+                                    var fragment = ComponentUtils.getFragmentByName(components, ClassUtils.convertDottedClassName(dottedFragmentName));
+
+                                    if (fragment.isEmpty()) {
+                                        LOGGER.warn("Was not able to find fragment " + dottedFragmentName);
+                                    }
+                                    return fragment;
+                                })
+                                .flatMap(Optional::stream)
+                                .collect(Collectors.toSet());
+
+                        if (!hostedFragments.isEmpty()) {
+                            Optional<Activity> activity = ComponentUtils.getActivityByName(components, component);
+
+                            if (activity.isPresent()) {
+                                hostedFragments.forEach(activity.get()::addHostingFragment);
+                            } else {
+                                LOGGER.warn("Cannot attach " + hostedFragments.size() + " hosted fragments to any " + component);
+                            }
+                        }
                     }
                 });
 
@@ -1411,7 +1535,7 @@ public class InterCFG extends BaseCFG {
         final String packageName = apk.getManifest().getPackageName();
 
         // resolve the invoke vertices and connect the sub graphs with each other
-        for (Vertex invokeVertex : getInvokeVertices()) {
+        for (CFGVertex invokeVertex : getInvokeVertices()) {
 
             // every (invoke) statement is a basic statement (no basic blocks here)
             BasicStatement invokeStmt = (BasicStatement) invokeVertex.getStatement();
@@ -1442,7 +1566,7 @@ public class InterCFG extends BaseCFG {
             }
 
             // save the original successor vertices
-            Set<Vertex> successors = getOutgoingEdges(invokeVertex).stream().map(Edge::getTarget).collect(Collectors.toSet());
+            Set<CFGVertex> successors = getOutgoingEdges(invokeVertex).stream().map(CFGEdge::getTarget).collect(Collectors.toSet());
 
             // get the CFGs matching the invocation target (multiple for overriden methods)
             Set<BaseCFG> targetCFGs = lookupTargetCFGs(apk, invokeStmt);
@@ -1459,14 +1583,14 @@ public class InterCFG extends BaseCFG {
             // insert virtual return vertex
             ReturnStatement returnStmt = new ReturnStatement(invokeVertex.getMethod(), targetMethod,
                     invokeStmt.getInstructionIndex());
-            Vertex returnVertex = new Vertex(returnStmt);
+            CFGVertex returnVertex = new CFGVertex(returnStmt);
             addVertex(returnVertex);
 
             // add edge from exit of each target CFG to virtual return vertex
             targetCFGs.forEach(targetCFG -> addEdge(targetCFG.getExit(), returnVertex));
 
             // add edge from virtual return vertex to each original successor
-            for (Vertex successor : successors) {
+            for (CFGVertex successor : successors) {
                 addEdge(returnVertex, successor);
             }
         }
@@ -1493,6 +1617,7 @@ public class InterCFG extends BaseCFG {
 
         // track binder classes and attach them to the corresponding service
         Set<String> binderClasses = new HashSet<>();
+        List<ClassDef> classes = apk.getDexFiles().stream().map(DexFile::getClasses).flatMap(Collection::stream).collect(Collectors.toList());
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
@@ -1516,17 +1641,17 @@ public class InterCFG extends BaseCFG {
                     // re-assemble the class hierarchy
                     updateClassHierarchy(dexFile, classDef);
 
-                    if (ComponentUtils.isActivity(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    if (ComponentUtils.isActivity(classes, classDef)) {
                         components.add(new Activity(classDef, ComponentType.ACTIVITY));
-                    } else if (ComponentUtils.isFragment(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isFragment(classes, classDef)) {
                         components.add(new Fragment(classDef, ComponentType.FRAGMENT));
-                    } else if (ComponentUtils.isService(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isService(classes, classDef)) {
                         components.add(new Service(classDef, ComponentType.SERVICE));
-                    } else if (ComponentUtils.isBinder(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isBinder(classes, classDef)) {
                         binderClasses.add(classDef.toString());
-                    } else if (ComponentUtils.isApplication(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isApplication(classes, classDef)) {
                         components.add(new Application(classDef, ComponentType.APPLICATION));
-                    } else if (ComponentUtils.isBroadcastReceiver(Lists.newArrayList(dexFile.getClasses()), classDef)) {
+                    } else if (ComponentUtils.isBroadcastReceiver(classes, classDef)) {
                         components.add(new BroadcastReceiver(classDef, ComponentType.BROADCAST_RECEIVER));
                     }
                 }
@@ -1538,6 +1663,21 @@ public class InterCFG extends BaseCFG {
                     // track the Android callbacks
                     if (MethodUtils.isCallback(methodSignature)) {
                         callbacks.add(methodSignature);
+                    }
+
+                    if (MenuUtils.isOnCreateMenu(methodSignature)) {
+                        List<MenuItemWithResolvedTitle> menuItems = MenuUtils.getDefinedMenuItems(apk, dexFile, method).collect(Collectors.toList());
+                        var component = ComponentUtils.getComponentByName(components, classDef.toString());
+
+                        if (component.isPresent()) {
+                            if (component.get() instanceof Activity) {
+                                ((Activity) component.get()).addMenu(method, menuItems);
+                            } else {
+                                LOGGER.warn("Found menu that belongs to " + component.get().getComponentType());
+                            }
+                        } else {
+                            LOGGER.warn("Failed to find component owning menu at " + methodSignature);
+                        }
                     }
 
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
@@ -1680,22 +1820,22 @@ public class InterCFG extends BaseCFG {
     public BaseCFG copy() {
         BaseCFG clone = new InterCFG(getMethodName());
 
-        Graph<Vertex, Edge> graphClone = GraphTypeBuilder
-                .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
-                .edgeClass(Edge.class).buildGraph();
+        Graph<CFGVertex, CFGEdge> graphClone = GraphTypeBuilder
+                .<CFGVertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                .edgeClass(CFGEdge.class).buildGraph();
 
-        Set<Vertex> vertices = graph.vertexSet();
-        Set<Edge> edges = graph.edgeSet();
+        Set<CFGVertex> vertices = graph.vertexSet();
+        Set<CFGEdge> edges = graph.edgeSet();
 
         Cloner cloner = new Cloner();
 
-        for (Vertex vertex : vertices) {
+        for (CFGVertex vertex : vertices) {
             graphClone.addVertex(cloner.deepClone(vertex));
         }
 
-        for (Edge edge : edges) {
-            Vertex src = cloner.deepClone(edge.getSource());
-            Vertex dest = cloner.deepClone(edge.getTarget());
+        for (CFGEdge edge : edges) {
+            CFGVertex src = cloner.deepClone(edge.getSource());
+            CFGVertex dest = cloner.deepClone(edge.getTarget());
             graphClone.addEdge(src, dest);
         }
 
@@ -1714,7 +1854,7 @@ public class InterCFG extends BaseCFG {
      * @return Returns the vertex corresponding to the given trace.
      */
     @Override
-    public Vertex lookUpVertex(String trace) {
+    public CFGVertex lookUpVertex(String trace) {
 
         /*
          * A trace has the following form:
@@ -1745,7 +1885,7 @@ public class InterCFG extends BaseCFG {
             } else {
                 // lookup of a branch
                 int instructionIndex = Integer.parseInt(tokens[2]);
-                Vertex entry = intraCFGs.get(method).getEntry();
+                CFGVertex entry = intraCFGs.get(method).getEntry();
                 return lookUpVertex(method, instructionIndex, entry);
             }
 
@@ -1753,7 +1893,7 @@ public class InterCFG extends BaseCFG {
 
             // String instructionType = tokens[2];
             int instructionIndex = Integer.parseInt(tokens[3]);
-            Vertex entry = intraCFGs.get(method).getEntry();
+            CFGVertex entry = intraCFGs.get(method).getEntry();
             return lookUpVertex(method, instructionIndex, entry);
 
         } else {
@@ -1772,7 +1912,7 @@ public class InterCFG extends BaseCFG {
      * a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
-    private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry, Vertex exit) {
+    private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry, CFGVertex exit) {
 
         /*
          * If the 'AllDirectedPaths' algorithm appears to be too slow, we could alternatively use
@@ -1786,20 +1926,20 @@ public class InterCFG extends BaseCFG {
          * the entry of the different method.
          */
 
-        AllDirectedPaths<Vertex, Edge> allDirectedPaths = new AllDirectedPaths<>(graph);
+        AllDirectedPaths<CFGVertex, CFGEdge> allDirectedPaths = new AllDirectedPaths<>(graph);
 
         /*
          * In general this algorithm is really fast, however, when dealing with cycles in the graph, the algorithm
          * fails to find the desired vertex. If we adjust the 'simplePathsOnly' parameter to handle cycles the
          * algorithm can be really slow.
          */
-        List<GraphPath<Vertex, Edge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
+        List<GraphPath<CFGVertex, CFGEdge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
 
         // https://stackoverflow.com/questions/64929090/nested-parallel-stream-execution-in-java-findany-randomly-fails
         return paths.parallelStream().flatMap(path -> path.getEdgeList().parallelStream()
                 .map(edge -> {
-                    Vertex source = edge.getSource();
-                    Vertex target = edge.getTarget();
+                    CFGVertex source = edge.getSource();
+                    CFGVertex target = edge.getTarget();
 
                     LOGGER.debug("Inspecting source vertex: " + source);
                     LOGGER.debug("Inspecting target vertex: " + target);
@@ -1826,12 +1966,12 @@ public class InterCFG extends BaseCFG {
      * a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
-    private Vertex lookUpVertexDFS(String method, int instructionIndex, Vertex entry) {
+    private CFGVertex lookUpVertexDFS(String method, int instructionIndex, CFGVertex entry) {
 
-        DepthFirstIterator<Vertex, Edge> dfs = new DepthFirstIterator<>(graph, entry);
+        DepthFirstIterator<CFGVertex, CFGEdge> dfs = new DepthFirstIterator<>(graph, entry);
 
         while (dfs.hasNext()) {
-            Vertex vertex = dfs.next();
+            CFGVertex vertex = dfs.next();
             if (vertex.containsInstruction(method, instructionIndex)) {
                 return vertex;
             }
@@ -1849,12 +1989,12 @@ public class InterCFG extends BaseCFG {
      * @return Returns the vertex described by the given method and the instruction index, otherwise
      * a {@link IllegalArgumentException} is thrown.
      */
-    private Vertex lookUpVertex(String method, int instructionIndex, Vertex entry) {
+    private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry) {
 
-        BreadthFirstIterator<Vertex, Edge> bfs = new BreadthFirstIterator<>(graph, entry);
+        BreadthFirstIterator<CFGVertex, CFGEdge> bfs = new BreadthFirstIterator<>(graph, entry);
 
         while (bfs.hasNext()) {
-            Vertex vertex = bfs.next();
+            CFGVertex vertex = bfs.next();
             if (vertex.containsInstruction(method, instructionIndex)) {
                 return vertex;
             }

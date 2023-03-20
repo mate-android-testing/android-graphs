@@ -39,6 +39,16 @@ public enum GraphType {
         public String toString() {
             return "sgd";
         }
+    },
+
+    /**
+     * A call tree.
+     */
+    CALLTREE {
+        @Override
+        public String toString() {
+            return "calltree";
+        }
     };
 
     /**

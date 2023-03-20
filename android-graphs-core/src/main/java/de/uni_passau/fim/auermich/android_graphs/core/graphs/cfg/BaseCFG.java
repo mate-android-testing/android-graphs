@@ -6,9 +6,7 @@ import com.mxgraph.model.mxICell;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxConstants;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Edge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.Vertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.EntryStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.DotConverter;
@@ -51,15 +49,15 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
 
     private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
-    protected Graph<Vertex, Edge> graph = GraphTypeBuilder
-            .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
-            .edgeClass(Edge.class).buildGraph();
+    protected Graph<CFGVertex, CFGEdge> graph = GraphTypeBuilder
+            .<CFGVertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+            .edgeClass(CFGEdge.class).buildGraph();
 
-    private Vertex entry;
-    private Vertex exit;
+    private CFGVertex entry;
+    private CFGVertex exit;
 
     // save vertices that include an invoke statement
-    private Set<Vertex> invokeVertices = new HashSet<>();
+    private Set<CFGVertex> invokeVertices = new HashSet<>();
 
     /*
      * Contains the full-qualified name of the method,
@@ -75,28 +73,35 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      */
     public BaseCFG(String methodName) {
         this.methodName = methodName;
-        entry = new Vertex(new EntryStatement(methodName));
-        exit = new Vertex(new ExitStatement(methodName));
+        entry = new CFGVertex(new EntryStatement(methodName));
+        exit = new CFGVertex(new ExitStatement(methodName));
         graph.addVertex(entry);
         graph.addVertex(exit);
     }
 
-    public abstract Vertex lookUpVertex(String trace);
+    public abstract CFGVertex lookUpVertex(String trace);
 
-    public void addInvokeVertices(Set<Vertex> vertices) {
+    public void addInvokeVertices(Set<CFGVertex> vertices) {
         invokeVertices.addAll(vertices);
     }
 
-    public void addInvokeVertex(Vertex vertex) {
+    public void addInvokeVertex(CFGVertex vertex) {
         invokeVertices.add(vertex);
     }
 
-    public Set<Vertex> getInvokeVertices() {
+    public Set<CFGVertex> getInvokeVertices() {
         return invokeVertices;
     }
 
-    public int getShortestDistance(Vertex source, Vertex target) {
-        GraphPath<Vertex, Edge> path = BidirectionalDijkstraShortestPath.findPathBetween(graph, source, target);
+    /**
+     * Retrieves the shortest distance between the given source and target vertex.
+     *
+     * @param source The given source vertex.
+     * @param target The given target vertex.
+     * @return Returns the shortest distance between the given source and target vertex, or {@code -1} if no path exists.
+     */
+    public int getShortestDistance(CFGVertex source, CFGVertex target) {
+        GraphPath<CFGVertex, CFGEdge> path = BidirectionalDijkstraShortestPath.findPathBetween(graph, source, target);
         if (path != null) {
             return path.getLength();
         } else {
@@ -110,7 +115,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @return Returns the BFS shortest path algorithm.
      */
     @SuppressWarnings("unused")
-    public ShortestPathAlgorithm<Vertex, Edge> initBFSAlgorithm() {
+    public ShortestPathAlgorithm<CFGVertex, CFGEdge> initBFSAlgorithm() {
         return new BFSShortestPath<>(graph);
     }
 
@@ -120,7 +125,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      *
      * @return Returns the bi-directional dijkstra shortest path algorithm.
      */
-    public ShortestPathAlgorithm<Vertex, Edge> initBidirectionalDijkstraAlgorithm() {
+    public ShortestPathAlgorithm<CFGVertex, CFGEdge> initBidirectionalDijkstraAlgorithm() {
         return new BidirectionalDijkstraShortestPath<>(graph);
     }
 
@@ -130,7 +135,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      *
      * @return Returns the CH many-to-many shortest paths algorithm.
      */
-    public ManyToManyShortestPathsAlgorithm<Vertex, Edge> initCHManyToManyShortestPathAlgorithm() {
+    public ManyToManyShortestPathsAlgorithm<CFGVertex, CFGEdge> initCHManyToManyShortestPathAlgorithm() {
 
         // enable the maximal parallelism
         final int parallelism = Runtime.getRuntime().availableProcessors();
@@ -153,22 +158,22 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @return Returns the dijkstra many-to-many shortest paths algorithm.
      */
     @SuppressWarnings("unused")
-    public ManyToManyShortestPathsAlgorithm<Vertex, Edge> initDijkstraManyToManyShortestPathAlgorithm() {
+    public ManyToManyShortestPathsAlgorithm<CFGVertex, CFGEdge> initDijkstraManyToManyShortestPathAlgorithm() {
         return new DijkstraManyToManyShortestPaths<>(graph);
     }
 
-    public void addEdge(Vertex src, Vertex dest) {
-        Edge e = graph.addEdge(src, dest);
+    public void addEdge(CFGVertex src, CFGVertex dest) {
+        CFGEdge e = graph.addEdge(src, dest);
         if (e == null) {
             LOGGER.debug("Edge already existing in graph!");
         }
     }
 
-    public Set<Edge> getOutgoingEdges(Vertex vertex) {
+    public Set<CFGEdge> getOutgoingEdges(CFGVertex vertex) {
         return graph.outgoingEdgesOf(vertex);
     }
 
-    public Set<Edge> getIncomingEdges(Vertex vertex) {
+    public Set<CFGEdge> getIncomingEdges(CFGVertex vertex) {
         return graph.incomingEdgesOf(vertex);
     }
 
@@ -178,7 +183,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      *
      * @param vertex The vertex to be added to the graph.
      */
-    public void addVertex(Vertex vertex) {
+    public void addVertex(CFGVertex vertex) {
 
         boolean succeeded = graph.addVertex(vertex);
 
@@ -188,16 +193,16 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     }
 
     @SuppressWarnings("unused")
-    public void removeEdge(Edge edge) {
+    public void removeEdge(CFGEdge edge) {
         graph.removeEdge(edge);
     }
 
     @SuppressWarnings("unused")
-    public Edge getEdge(Vertex source, Vertex target) {
+    public CFGEdge getEdge(CFGVertex source, CFGVertex target) {
         return graph.getEdge(source, target);
     }
 
-    public void removeEdges(Collection<Edge> edges) {
+    public void removeEdges(Collection<CFGEdge> edges) {
         /*
         * JGraphT ends up in a ConcurrentModificationException if you don't supply
         * a copy of edges to this method. For instance:
@@ -215,28 +220,28 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         graph.removeAllEdges(new ArrayList<>(edges));
     }
 
-    public Vertex getEntry() {
+    public CFGVertex getEntry() {
         return entry;
     }
 
-    public Vertex getExit() {
+    public CFGVertex getExit() {
         return exit;
     }
 
-    public Set<Edge> getEdges() {
+    public Set<CFGEdge> getEdges() {
         return graph.edgeSet();
     }
 
-    public Set<Vertex> getVertices() {
+    public Set<CFGVertex> getVertices() {
         return graph.vertexSet();
     }
 
-    public boolean containsVertex(Vertex vertex) {
+    public boolean containsVertex(CFGVertex vertex) {
         return graph.containsVertex(vertex);
     }
 
     @SuppressWarnings("unused")
-    public boolean containsEdge(Edge edge) {
+    public boolean containsEdge(CFGEdge edge) {
         return graph.containsEdge(edge);
     }
 
@@ -244,19 +249,19 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         return methodName;
     }
 
-    public void removeVertex(Vertex vertex) {
+    public void removeVertex(CFGVertex vertex) {
         graph.removeVertex(vertex);
     }
 
     public void addSubGraph(BaseCFG subGraph) {
 
         // add all vertices
-        for (Vertex vertex : subGraph.getVertices()) {
+        for (CFGVertex vertex : subGraph.getVertices()) {
             addVertex(vertex);
         }
 
         // add all edges
-        for (Edge edge : subGraph.getEdges()) {
+        for (CFGEdge edge : subGraph.getEdges()) {
             addEdge(edge.getSource(), edge.getTarget());
         }
     }
@@ -272,9 +277,9 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      *
      * @return Returns the list of branches.
      */
-    public List<Vertex> getBranches() {
+    public List<CFGVertex> getBranches() {
         return getVertices().stream()
-                .filter(v -> v.isBranchVertex()).collect(Collectors.toList());
+                .filter(CFGVertex::isBranchVertex).collect(Collectors.toList());
     }
 
     public abstract GraphType getGraphType();
@@ -290,7 +295,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @param output The file path of the JSON file.
      */
     private void convertGraphToJSON(File output) {
-        JSONExporter<Vertex, Edge> exporter = new JSONExporter<>(Vertex::toString);
+        JSONExporter<CFGVertex, CFGEdge> exporter = new JSONExporter<>(CFGVertex::toString);
         exporter.exportGraph(graph, output);
     }
 
@@ -301,7 +306,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      */
     private void convertGraphToDOT(File output) {
 
-        DOTExporter<Vertex, Edge> exporter = new DOTExporter<>(DotConverter::convertVertexToDOTNode);
+        DOTExporter<CFGVertex, CFGEdge> exporter = new DOTExporter<>(DotConverter::convertVertexToDOTNode);
         exporter.setVertexAttributeProvider((vertex) -> {
             // the label is what we see when we render the graph
             Map<String, Attribute> map = new LinkedHashMap<>();
@@ -321,9 +326,9 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @param visitedVertices The set of visited vertices.
      * @param targetVertices The set of target vertices.
      */
-    private void convertGraphToSVG(File outputFile, Set<Vertex> visitedVertices, Set<Vertex> targetVertices) {
+    private void convertGraphToSVG(File outputFile, Set<CFGVertex> visitedVertices, Set<CFGVertex> targetVertices) {
 
-        JGraphXAdapter<Vertex, Edge> graphXAdapter
+        JGraphXAdapter<CFGVertex, CFGEdge> graphXAdapter
                 = new JGraphXAdapter<>(graph);
         graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
 
@@ -361,9 +366,9 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @param visitedVertices The set of visited vertices.
      * @param targetVertices The set of target vertices.
      */
-    private void convertGraphToPNG(File output, Set<Vertex> visitedVertices, Set<Vertex> targetVertices) {
+    private void convertGraphToPNG(File output, Set<CFGVertex> visitedVertices, Set<CFGVertex> targetVertices) {
 
-        JGraphXAdapter<Vertex, Edge> graphXAdapter
+        JGraphXAdapter<CFGVertex, CFGEdge> graphXAdapter
                 = new JGraphXAdapter<>(graph);
         graphXAdapter.getStylesheet().getDefaultEdgeStyle().put(mxConstants.STYLE_NOLABEL, "1");
 
@@ -398,15 +403,15 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @param visitedVertices The set of visited vertices.
      * @param targetVertices The set of target vertices.
      */
-    private void colorVertices(JGraphXAdapter<Vertex, Edge> graphXAdapter, Set<Vertex> visitedVertices,
-                               Set<Vertex> targetVertices) {
+    private void colorVertices(JGraphXAdapter<CFGVertex, CFGEdge> graphXAdapter, Set<CFGVertex> visitedVertices,
+                               Set<CFGVertex> targetVertices) {
 
-        Map<Vertex, mxICell> vertexToCellMap = graphXAdapter.getVertexToCellMap();
+        Map<CFGVertex, mxICell> vertexToCellMap = graphXAdapter.getVertexToCellMap();
 
         /*
          * We mark the covered target vertices orange in the graph.
          */
-        Set<Vertex> coveredTargets = new HashSet<>(targetVertices);
+        Set<CFGVertex> coveredTargets = new HashSet<>(targetVertices);
         coveredTargets.retainAll(visitedVertices);
         List<Object> coveredTargetCells = new ArrayList<>();
         coveredTargets.forEach(v -> coveredTargetCells.add(vertexToCellMap.get(v)));
@@ -465,7 +470,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @param visitedVertices The set of visited vertices.
      * @param targetVertex The selected target vertices.
      */
-    public void drawGraph(File outputDir, Set<Vertex> visitedVertices, Vertex targetVertex) {
+    public void drawGraph(File outputDir, Set<CFGVertex> visitedVertices, CFGVertex targetVertex) {
         drawGraph(outputDir, visitedVertices, Collections.singleton(targetVertex));
     }
 
@@ -477,7 +482,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @param visitedVertices The set of visited vertices.
      * @param targetVertices The selected target vertices.
      */
-    public void drawGraph(File outputDir, Set<Vertex> visitedVertices, Set<Vertex> targetVertices) {
+    public void drawGraph(File outputDir, Set<CFGVertex> visitedVertices, Set<CFGVertex> targetVertices) {
 
         LOGGER.info("Number of visited vertices: " + visitedVertices.size());
         LOGGER.info("Number of target vertices: " + targetVertices.size());
@@ -515,7 +520,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      */
     public void drawGraph(File outputDir, String criterion) {
 
-        Set<Vertex> toBeMarked = getVertices()
+        Set<CFGVertex> toBeMarked = getVertices()
                 .stream()
                 .filter(vertex -> vertex.getMethod().startsWith(criterion))
                 .collect(Collectors.toSet());
@@ -544,18 +549,18 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         try {
             BaseCFG cloneCFG = (BaseCFG) super.clone();
 
-            Graph<Vertex, Edge> graphClone = GraphTypeBuilder
-                    .<Vertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
-                    .edgeClass(Edge.class).buildGraph();
+            Graph<CFGVertex, CFGEdge> graphClone = GraphTypeBuilder
+                    .<CFGVertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                    .edgeClass(CFGEdge.class).buildGraph();
 
-            Set<Vertex> vertices = graph.vertexSet();
-            Set<Edge> edges = graph.edgeSet();
+            Set<CFGVertex> vertices = graph.vertexSet();
+            Set<CFGEdge> edges = graph.edgeSet();
 
-            for (Vertex vertex : vertices) {
+            for (CFGVertex vertex : vertices) {
                 graphClone.addVertex(vertex.clone());
             }
 
-            for (Edge edge : edges) {
+            for (CFGEdge edge : edges) {
                 graphClone.addEdge(edge.getSource().clone(), edge.getTarget().clone());
             }
 

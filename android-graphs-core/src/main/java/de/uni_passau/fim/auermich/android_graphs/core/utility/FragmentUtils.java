@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.google.common.collect.Multimap;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.ComponentType;
@@ -14,9 +15,11 @@ import org.jf.dexlib2.iface.instruction.formats.Instruction11x;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class FragmentUtils {
 
@@ -55,7 +58,7 @@ public class FragmentUtils {
      *
      * @param method The method to be checked against.
      * @return Returns {@code true} if method refers to the invocation of a component,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isFragmentInvocation(final String method) {
         return FRAGMENT_INVOCATIONS.contains(method);
@@ -67,7 +70,7 @@ public class FragmentUtils {
      *
      * @param analyzedInstruction The given instruction.
      * @return Returns the name of the fragment or {@code null} if the fragment name
-     * couldn't be derived.
+     *         couldn't be derived.
      */
     public static String isFragmentInvocation(final AnalyzedInstruction analyzedInstruction) {
 
@@ -117,7 +120,7 @@ public class FragmentUtils {
     /**
      * Recursively looks up every predecessor for holding a reference to a fragment.
      *
-     * @param predecessor        The current predecessor instruction.
+     * @param predecessor The current predecessor instruction.
      * @param fragmentRegisterID The register potentially holding a fragment.
      * @return Returns a set of fragments or an empty set if no fragment was found.
      */
@@ -150,15 +153,15 @@ public class FragmentUtils {
             }
         } else if (predecessor.getInstruction().getOpcode() == Opcode.MOVE_RESULT_OBJECT) {
             /*
-            * In addition to above possibilities, a fragment can be also created through a
-            * regular method. For instance, consider the following example:
-            *
-            *   invoke-static {p1}, Lde/retujo/bierverkostung/beer/SelectBeerFragment;
-            *       ->newInstance(Landroid/view/View$OnClickListener;)Lde/retujo/bierverkostung/beer/SelectBeerFragment;
-            *   move-result-object p1
-            *
-            * We first check whether the result has been saved in the relevant register. Then we
-            * look at the direct predecessor and check the return type of the invocation.
+             * In addition to above possibilities, a fragment can be also created through a
+             * regular method. For instance, consider the following example:
+             *
+             *   invoke-static {p1}, Lde/retujo/bierverkostung/beer/SelectBeerFragment;
+             *       ->newInstance(Landroid/view/View$OnClickListener;)Lde/retujo/bierverkostung/beer/SelectBeerFragment;
+             *   move-result-object p1
+             *
+             * We first check whether the result has been saved in the relevant register. Then we
+             * look at the direct predecessor and check the return type of the invocation.
              */
             Instruction11x moveResultObject = (Instruction11x) predecessor.getInstruction();
             if (moveResultObject.getRegisterA() == fragmentRegisterID) {
@@ -182,8 +185,8 @@ public class FragmentUtils {
      * itself can have nested fragments as well, or another class that has a reference to FragmentManager or
      * FragmentTransaction could also invoke such fragment invocation.
      *
-     * @param method              The method defining the invocation.
-     * @param components          The set of components.
+     * @param method The method defining the invocation.
+     * @param components The set of components.
      * @param analyzedInstruction The fragment invocation instruction.
      */
     public static void checkForFragmentInvocation(final Set<Component> components, String method,
@@ -216,5 +219,58 @@ public class FragmentUtils {
                 }
             }
         }
+    }
+
+    /**
+     * Retrieves fragment view pager usages for activities by inspecting the given instruction. Adds to each activity
+     * the hosted fragments (described by the fragment view pager usage).
+     *
+     * @param components The set of components.
+     * @param method The given method in which the instruction is defined.
+     * @param analyzedInstruction The given instruction possible describing a view pager usage.
+     * @param classHierarchy The discovered class hierarchy.
+     * @return Returns a consumer expecting the resolved class usages.
+     */
+    public static Consumer<Multimap<String, String>> checkForFragmentViewPager(final Set<Component> components,
+                                                                               String method,
+                                                                               AnalyzedInstruction analyzedInstruction,
+                                                                               ClassHierarchy classHierarchy) {
+
+        return usages -> { // the resolved class usages are required as input
+            Instruction instruction = analyzedInstruction.getInstruction();
+            String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+
+            final Set<String> pageAdapterClasses = Set.of(
+                    "Landroid/support/v4/view/PagerAdapter;",
+                    "Landroid/support/v4/app/FragmentStatePagerAdapter;"
+            );
+
+            final Set<String> pageAdapterMethods = Set.of(
+                    "Landroid/support/v4/view/ViewPager;->setAdapter(Landroid/support/v4/view/PagerAdapter;)V",
+                    "Landroidx/viewpager/widget/ViewPager;->setAdapter(Landroidx/viewpager/widget/PagerAdapter;)V"
+            );
+
+            if (pageAdapterMethods.contains(targetMethod)) {
+
+                String callingClass = MethodUtils.getClassName(method);
+
+                // only resolve usage if surrounding class refers to an activity
+                ComponentUtils.getActivityByName(components, callingClass)
+                        .ifPresent(activity -> usages.get(callingClass).stream()
+                                // only consider page adapters used on the given activity
+                                .filter(clazz -> classHierarchy.getSuperClasses(clazz).stream()
+                                        .anyMatch(pageAdapterClasses::contains))
+                                // get usages of page adapters
+                                .map(usages::get)
+                                .flatMap(Collection::stream)
+                                // map page adapter usages to fragments if possible
+                                .map(pageAdapterUsage -> ComponentUtils.getFragmentByName(components, pageAdapterUsage))
+                                .filter(Optional::isPresent)
+                                .map(Optional::get)
+                                // add all page adapter fragments to the given activity
+                                .forEach(activity::addHostingFragment)
+                        );
+            }
+        };
     }
 }

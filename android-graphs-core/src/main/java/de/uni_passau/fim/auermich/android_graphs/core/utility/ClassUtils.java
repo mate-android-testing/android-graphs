@@ -324,7 +324,7 @@ public class ClassUtils {
      * @param classDef The class for which the constructors should be retrieved.
      * @return Returns the constructors of the given class.
      */
-    public static Set<String> getConstructors(ClassDef classDef) {
+    public static Set<String> getConstructors(final ClassDef classDef) {
         return StreamSupport.stream(classDef.getDirectMethods().spliterator(), false)
                 .filter(method -> method.getName().startsWith("<init>"))
                 .map(Method::toString)
@@ -337,7 +337,7 @@ public class ClassUtils {
      * @param classDef The class to be checked.
      * @return Returns {@code true} if the class is final, otherwise {@code false} is returned.
      */
-    public static boolean isFinalClass(ClassDef classDef) {
+    public static boolean isFinalClass(final ClassDef classDef) {
         int accessFlags = classDef.getAccessFlags();
         return Arrays.stream(AccessFlags.getAccessFlagsForClass(accessFlags)).anyMatch(flag -> flag == AccessFlags.FINAL);
     }

@@ -9,7 +9,6 @@ import org.dom4j.Node;
 import org.dom4j.io.SAXReader;
 
 import java.io.File;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -96,6 +95,10 @@ public class Manifest {
                         Element activityTag = (Element) activityNode;
                         String activityName = activityTag.attributeValue("name");
                         if (activityName != null) {
+                            if (activityName.startsWith(".")) {
+                                // make it a fully-qualified name
+                                activityName = packageName + activityName;
+                            }
                             LOGGER.debug("MainActivity: " + activityName);
                             mainActivity.set(activityName);
                         }
@@ -141,6 +144,10 @@ public class Manifest {
                             // the activity alias tag defines a reference via targetActivity
                             String activityName = activityAliasTag.attributeValue("targetActivity");
                             if (activityName != null) {
+                                if (activityName.startsWith(".")) {
+                                    // make it a fully-qualified name
+                                    activityName = packageName + activityName;
+                                }
                                 LOGGER.debug("MainActivity: " + activityName);
                                 mainActivity.set(activityName);
                             }

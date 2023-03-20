@@ -16,10 +16,22 @@ import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.util.MethodUtil;
 
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MethodUtils {
 
     private static final Logger LOGGER = LogManager.getLogger(MethodUtils.class);
+
+    public static final Map<String, String> ANDROID_CALLBACK_TO_PARENT = new HashMap<>() {{
+        // https://developer.android.com/reference/android/app/Activity#onContextItemSelected(android.view.MenuItem)
+        put("onContextItemSelected(Landroid/view/MenuItem;)Z", "onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V");
+        // https://developer.android.com/guide/topics/ui/menus#options-menu
+        put("onPrepareOptionsMenu(Landroid/view/Menu;)Z", "onCreateOptionsMenu(Landroid/view/Menu;)Z");
+        // https://developer.android.com/reference/android/app/Activity#onMenuOpened(int,%20android.view.Menu)
+        put("onMenuOpened(ILandroid/view/Menu;)Z", "onPrepareOptionsMenu(Landroid/view/Menu;)Z");
+        put("onOptionsItemSelected(Landroid/view/MenuItem;)Z", "onMenuOpened(ILandroid/view/Menu;)Z");
+    }};
 
     private static final Set<String> ANDROID_CALLBACKS = new HashSet<>() {{
         add("onClick(Landroid/view/View;)V");
@@ -57,12 +69,17 @@ public class MethodUtils {
 
         // Landroid/support/v7/preference/Preference$OnPreferenceClickListener;
         add("onPreferenceClick(Landroid/support/v7/preference/Preference;)Z");
+        add("onPreferenceClick(Landroid/preference/Preference;)Z");
+        add("onPreferenceClick(Landroidx/preference/Preference;)Z");
 
         // Landroid/content/SharedPreferences$OnSharedPreferenceChangeListener;
         add("onSharedPreferenceChanged(Landroid/content/SharedPreferences;Ljava/lang/String;)V");
 
         // https://developer.android.com/reference/android/app/Activity#onCreateOptionsMenu(android.view.Menu)
         add("onCreateOptionsMenu(Landroid/view/Menu;)Z");
+
+        // https://developer.android.com/reference/android/app/Activity#onPrepareOptionsMenu(android.view.Menu)
+        add("onPrepareOptionsMenu(Landroid/view/Menu;)Z");
 
         add("onDraw(Landroid/graphics/Canvas;)V");
         add("onSizeChanged(IIII)V");
@@ -79,6 +96,12 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/app/Activity#dispatchTouchEvent(android.view.MotionEvent)
         add("dispatchTouchEvent(Landroid/view/MotionEvent;)Z");
+
+        // https://developer.android.com/reference/android/app/Activity#dispatchKeyEvent(android.view.KeyEvent)
+        add("dispatchKeyEvent(Landroid/view/KeyEvent;)Z");
+
+        // https://developer.android.com/reference/android/app/DatePickerDialog.OnDateSetListener#onDateSet(android.widget.DatePicker,%20int,%20int,%20int)
+        add("onDateSet(Landroid/widget/DatePicker;III)V");
 
         // https://developer.android.com/reference/android/widget/Adapter#getView(int,%20android.view.View,%20android.view.ViewGroup)
         add("getView(ILandroid/view/View;Landroid/view/ViewGroup;)Landroid/view/View;");
@@ -100,6 +123,30 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/webkit/WebViewClient#onPageFinished(android.webkit.WebView,%20java.lang.String)
         add("onPageFinished(Landroid/webkit/WebView;Ljava/lang/String;)V");
+
+        // https://developer.android.com/reference/android/app/Activity#onContextItemSelected(android.view.MenuItem)
+        add("onContextItemSelected(Landroid/view/MenuItem;)Z");
+
+        // https://developer.android.com/reference/com/google/android/material/navigation/NavigationView.OnNavigationItemSelectedListener#onNavigationItemSelected(android.view.MenuItem)
+        add("onNavigationItemSelected(Landroid/view/MenuItem;)Z");
+
+        // https://developer.android.com/reference/androidx/viewpager/widget/ViewPager.OnPageChangeListener
+        add("onPageScrollStateChanged(I)V");
+        add("onPageScrolled(IFI)V");
+        add("onPageSelected(I)V");
+
+        // https://developer.android.com/reference/android/widget/SeekBar.OnSeekBarChangeListener#onProgressChanged(android.widget.SeekBar,%20int,%20boolean)
+        add("onProgressChanged(Landroid/widget/SeekBar;IZ)V");
+
+        // https://developer.android.com/reference/android/app/ListActivity#onListItemClick(android.widget.ListView,%20android.view.View,%20int,%20long)
+        add("onListItemClick(Landroid/widget/ListView;Landroid/view/View;IJ)V");
+
+        add("handleMessage(Landroid/os/Message;)V");
+
+        ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
+            add(child);
+            add(parent);
+        });
     }};
 
     /**
@@ -154,9 +201,9 @@ public class MethodUtils {
      *
      * @param methodSignature The method to be checked.
      * @return Returns {@code true} if the method is an android callback,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
-    public static boolean isCallback(String methodSignature) {
+    public static boolean isCallback(final String methodSignature) {
         return ANDROID_CALLBACKS.contains(getMethodName(methodSignature));
     }
 
@@ -165,9 +212,9 @@ public class MethodUtils {
      *
      * @param methodSignature The given method.
      * @return Returns {@code true} if the method is a constructor call of a lambda class,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
-    public static boolean isLambdaClassConstructorCall(String methodSignature) {
+    public static boolean isLambdaClassConstructorCall(final String methodSignature) {
         String className = MethodUtils.getClassName(methodSignature);
         return className.contains("$Lambda$") && isConstructorCall(methodSignature);
     }
@@ -177,9 +224,9 @@ public class MethodUtils {
      *
      * @param methodSignature The given method.
      * @return Returns {@code true} if the method is a constructor call,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
-    public static boolean isConstructorCall(String methodSignature) {
+    public static boolean isConstructorCall(final String methodSignature) {
         String method = MethodUtils.getMethodName(methodSignature);
         return method.startsWith("<init>(") && method.endsWith(")V");
     }
@@ -189,9 +236,9 @@ public class MethodUtils {
      *
      * @param method The method to be checked.
      * @return Returns {@code true} if the method is a private constructor,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
-    public static boolean isPrivateConstructor(Method method) {
+    public static boolean isPrivateConstructor(final Method method) {
         int accessFlags = method.getAccessFlags();
         AccessFlags[] flags = AccessFlags.getAccessFlagsForMethod(accessFlags);
         return Arrays.stream(flags).anyMatch(flag -> flag == AccessFlags.CONSTRUCTOR)
@@ -204,7 +251,7 @@ public class MethodUtils {
      * @param fullyQualifiedMethodName The given method signature.
      * @return Returns the return type of the given method.
      */
-    public static String getReturnType(String fullyQualifiedMethodName) {
+    public static String getReturnType(final String fullyQualifiedMethodName) {
         return fullyQualifiedMethodName.split("\\)")[1];
     }
 
@@ -233,7 +280,7 @@ public class MethodUtils {
      *
      * @param method The method to be checked.
      * @return Returns {@code true} if the method represents a static initializer,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isStaticInitializer(String method) {
         return method.endsWith("<clinit>()V");
@@ -272,14 +319,14 @@ public class MethodUtils {
     /**
      * Checks whether the given method is contained in the dex files.
      *
-     * @param dexFiles        The dex files.
+     * @param dexFiles The dex files.
      * @param methodSignature The method to be looked up.
      * @return Returns the dex file containing the method, if possible.
      */
     public static Optional<Tuple<DexFile, Method>> containsTargetMethod(final List<DexFile> dexFiles,
                                                                         final String methodSignature) {
 
-        String className = methodSignature.split("->")[0];
+        final String className = methodSignature.split("->")[0];
 
         for (DexFile dexFile : dexFiles) {
             for (ClassDef classDef : dexFile.getClasses()) {
@@ -298,10 +345,38 @@ public class MethodUtils {
     }
 
     /**
+     * Checks whether the given method is contained in the dex files.
+     *
+     * @param dexFiles The dex files.
+     * @param methodSignature The method to be looked up.
+     * @return Returns the class and method definition of the given method, if possible.
+     */
+    public static Optional<Tuple<ClassDef, Method>> searchForTargetMethod(final List<DexFile> dexFiles,
+                                                                   final String methodSignature) {
+
+        final String className = methodSignature.split("->")[0];
+
+        for (DexFile dexFile : dexFiles) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+                if (classDef.toString().equals(className)) {
+                    for (Method method : classDef.getMethods()) {
+                        if (deriveMethodSignature(method).equals(methodSignature)) {
+                            return Optional.of(new Tuple<>(classDef, method));
+                        }
+                    }
+                    // speed up
+                    return Optional.empty();
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Convenient function to get the list of {@code AnalyzedInstruction} of a certain target method.
      *
      * @param dexFile The dex file containing the target method.
-     * @param method  The target method.
+     * @param method The target method.
      * @return Returns a list of {@code AnalyzedInstruction} included in the target method.
      */
     public static List<AnalyzedInstruction> getAnalyzedInstructions(final DexFile dexFile, final Method method) {
@@ -316,7 +391,7 @@ public class MethodUtils {
     /**
      * Searches for a target method in the given APK.
      *
-     * @param apk         The APK file.
+     * @param apk The APK file.
      * @param methodSignature The signature of the target method.
      * @return Returns an optional containing either the target method or not.
      */
@@ -343,7 +418,7 @@ public class MethodUtils {
     /**
      * Searches for a target method in the given {@code dexFile}.
      *
-     * @param dexFile         The dexFile to search in.
+     * @param dexFile The dexFile to search in.
      * @param methodSignature The signature of the target method.
      * @return Returns an optional containing either the target method or not.
      */
@@ -382,7 +457,7 @@ public class MethodUtils {
      *
      * @param fullyQualifiedMethodName The method signature.
      * @return Returns {@code true} if the given method is an ART method,
-     * otherwise {@code false}.
+     *         otherwise {@code false}.
      */
     public static boolean isARTMethod(final String fullyQualifiedMethodName) {
         String method = getMethodName(fullyQualifiedMethodName);
@@ -394,7 +469,7 @@ public class MethodUtils {
      *
      * @param fullyQualifiedMethodName The method signature.
      * @return Returns {@code true} if the given method is a java.lang.Object method,
-     * otherwise {@code false}.
+     *         otherwise {@code false}.
      */
     public static boolean isJavaObjectMethod(final String fullyQualifiedMethodName) {
         String method = getMethodName(fullyQualifiedMethodName);
@@ -433,13 +508,94 @@ public class MethodUtils {
     }
 
     /**
+     * Retrieves the class name of the method's defining class.
+     *
+     * @param method The given method.
+     * @return Returns the class name.
+     */
+    public static String getClassName(final Method method) {
+        return getClassName(method.toString());
+    }
+
+    /**
      * Checks whether the given method represents a reflection call.
      *
      * @param methodSignature The method to be checked.
      * @return Returns {@code true} if the method refers to a reflection call,
-     * otherwise {@code false} is returned.
+     *         otherwise {@code false} is returned.
      */
     public static boolean isReflectionCall(String methodSignature) {
         return methodSignature.equals("Ljava/lang/Class;->newInstance()Ljava/lang/Object;");
+    }
+
+    /**
+     * Retrieves the object parameters for the given method.
+     *
+     * @param fullyQualifiedMethod The fully-qualified method name.
+     * @return Returns the set of object parameters.
+     */
+    @SuppressWarnings("unused")
+    public static Set<String> getObjectParameters(String fullyQualifiedMethod) {
+        return getParameters(fullyQualifiedMethod)
+                .filter(p -> p.startsWith("L") && p.endsWith(";"))
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Retrieves the parameters for the given method.
+     *
+     * @param fullyQualifiedMethod The fully-qualified method name.
+     * @return Returns the parameters for the given method.
+     */
+    public static Stream<String> getParameters(String fullyQualifiedMethod) {
+
+        // the params are enclosed in parentheses
+        String parameterString = fullyQualifiedMethod.split("\\(")[1].split("\\)")[0];
+
+        if (parameterString.isBlank()) {
+            // no params
+            return Stream.empty();
+        }
+
+        Queue<Character> parameters = new LinkedList<>();
+        for (Character character : parameterString.toCharArray()) {
+            parameters.add(character);
+        }
+
+        return Stream.iterate(nextParameter(parameters), // initial parameter
+                parameter -> !parameters.isEmpty(), // until there are remaining parameters
+                parameter -> nextParameter(parameters)); // retrieve next parameter
+    }
+
+    /**
+     * Returns the next parameter (type) from the parameter list.
+     *
+     * @param parameters The parameter list.
+     * @return Returns the next parameter from the parameter list.
+     */
+    private static String nextParameter(Queue<Character> parameters) {
+
+        Character parameterPrefix = Objects.requireNonNull(parameters.poll());
+
+        if (Set.of('Z', 'B', 'S', 'C', 'I', 'J', 'F', 'D').contains(parameterPrefix)) {
+            // primitive parameter
+            return String.valueOf(parameterPrefix);
+        } else if (parameterPrefix.equals('L')) {
+            // an object param is prefixed with a 'L' and ends with a ';'
+            final StringBuilder builder = new StringBuilder();
+            builder.append(parameterPrefix);
+
+            do {
+                parameterPrefix = Objects.requireNonNull(parameters.poll());
+                builder.append(parameterPrefix);
+            } while (!parameterPrefix.equals(';'));
+
+            return builder.toString();
+        } else if (parameterPrefix.equals('[')) {
+            // array parameter
+            return "[" + nextParameter(parameters);
+        } else {
+            throw new IllegalArgumentException("Unknown type prefix: " + parameterPrefix);
+        }
     }
 }

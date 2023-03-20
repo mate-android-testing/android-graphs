@@ -4,6 +4,10 @@ plugins {
     id 'java-library'
 }
 
+repositories {
+    mavenCentral()
+}
+
 dependencies {
 
     // https://mvnrepository.com/artifact/org.jgrapht/jgrapht

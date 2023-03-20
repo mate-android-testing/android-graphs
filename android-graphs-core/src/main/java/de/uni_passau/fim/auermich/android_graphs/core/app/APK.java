@@ -12,6 +12,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.logging.Handler;
 
 /**
@@ -25,7 +27,7 @@ public class APK {
      * The default decoding directory. This conforms to the directory when you invoke
      * 'apktool d' without the optional parameter '-o <output-dir>'.
      */
-    private static final String DEFAULT_DECODING_DIR = "out";
+    private static final String DEFAULT_DECODING_DIR = "out-" + new Random().nextInt();
 
     /**
      * The path to the APK file itself.
@@ -46,6 +48,11 @@ public class APK {
      * References the AndroidManifest.xml.
      */
     private Manifest manifest;
+
+    /**
+     * Defines a mapping from resource name to actual text, e.g. 'app_name' -> 'BMI Calculator'.
+     */
+    private Map<String, String> resourceStrings;
 
     /**
      * Constructs a new APK.
@@ -78,6 +85,17 @@ public class APK {
             throw new IllegalStateException("Manifest was not (properly) parsed previously!");
         }
         return manifest;
+    }
+
+    public void setResourceStrings(Map<String, String> resourceStrings) {
+        this.resourceStrings = resourceStrings;
+    }
+
+    public Map<String, String> getResourceStrings() {
+        if (resourceStrings == null) {
+            throw new IllegalStateException("Resource strings were not parsed!");
+        }
+        return resourceStrings;
     }
 
     /**

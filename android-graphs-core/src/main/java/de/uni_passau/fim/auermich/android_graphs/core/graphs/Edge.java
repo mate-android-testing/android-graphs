@@ -4,11 +4,7 @@ import org.jgrapht.graph.DefaultEdge;
 
 import java.util.Objects;
 
-public class Edge extends DefaultEdge implements Cloneable {
-
-    public Edge() {
-        super();
-    }
+public abstract class Edge extends DefaultEdge implements Cloneable {
 
     @Override
     public Vertex getSource() {
@@ -47,8 +43,8 @@ public class Edge extends DefaultEdge implements Cloneable {
         return Objects.hash(getSource(), getTarget());
     }
 
+    @Override
     public Edge clone() {
-        Edge clone = (Edge) super.clone();
-        return clone;
+        return (Edge) super.clone();
     }
 }

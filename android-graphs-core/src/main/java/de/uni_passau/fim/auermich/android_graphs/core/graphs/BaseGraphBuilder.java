@@ -1,6 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
 import org.jf.dexlib2.iface.DexFile;
@@ -14,10 +15,10 @@ public class BaseGraphBuilder {
 
     /* REQUIRED FIELDS */
 
-    private GraphType type;
+    private final GraphType type;
 
     // may use some abstract 'source' type here
-    private List<DexFile> dexFiles;
+    private final List<DexFile> dexFiles;
 
     /* END REQUIRED FIELDS */
 
@@ -39,7 +40,7 @@ public class BaseGraphBuilder {
 
     /* END OPTIONAL FIELDS */
 
-    // used for InterCFG
+    // used for InterCFG and call tree
     public BaseGraphBuilder(GraphType type, List<DexFile> dexFiles) {
         this.type = type;
         this.dexFiles = dexFiles;
@@ -79,14 +80,23 @@ public class BaseGraphBuilder {
 
     public BaseGraph build() {
         switch (type) {
-            case INTRACFG:
+            case INTRACFG: {
                 Objects.requireNonNull(method, "Method is mandatory!");
                 return new IntraCFG(method, dexFiles.get(0), useBasicBlocks);
-            case INTERCFG:
+            }
+            case INTERCFG: {
                 Objects.requireNonNull(name, "CFG name is mandatory!");
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
                 APK apk = new APK(apkFile, dexFiles);
                 return new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+            }
+            case CALLTREE: {
+                Objects.requireNonNull(name, "Call tree name is mandatory!");
+                Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
+                APK apk = new APK(apkFile, dexFiles);
+                InterCFG interCFG = new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+                return new CallTree(interCFG);
+            }
             default:
                 throw new UnsupportedOperationException("Graph type not yet supported!");
         }
