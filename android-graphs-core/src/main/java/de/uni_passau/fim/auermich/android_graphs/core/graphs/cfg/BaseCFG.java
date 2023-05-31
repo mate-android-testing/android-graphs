@@ -1,5 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
+import com.google.common.collect.Sets;
 import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import com.mxgraph.layout.mxIGraphLayout;
 import com.mxgraph.model.mxICell;
@@ -75,6 +76,14 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
         this.methodName = methodName;
         entry = new CFGVertex(new EntryStatement(methodName));
         exit = new CFGVertex(new ExitStatement(methodName));
+        graph.addVertex(entry);
+        graph.addVertex(exit);
+    }
+
+    public BaseCFG(String methodName, CFGVertex entry, CFGVertex exit) {
+        this.methodName = methodName;
+        this.entry = entry;
+        this.exit = exit;
         graph.addVertex(entry);
         graph.addVertex(exit);
     }
@@ -287,6 +296,99 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
     @Override
     public String toString() {
         return graph.toString();
+    }
+
+    /**
+     * Reverses the given BaseCFG graph by reversing the direction of all edges.
+     *
+     * @return reversed BaseCFG
+     */
+    public BaseCFG reverseGraph() {
+        BaseCFG reversed = this.clone();
+        reversed.removeEdges(reversed.getEdges());
+
+        for (CFGVertex src : this.getVertices()) {
+            for (CFGVertex tgt : this.getSuccessors(src)) {
+                reversed.addEdge(tgt, src);
+            }
+        }
+
+        return reversed;
+    }
+
+    /**
+     * Fetches the successor vertices of a given source vertex.
+     *
+     * @param src source vertex whose successors are to be fetched.
+     * @return all successors of given src vertex.
+     */
+    public Set<CFGVertex> getSuccessors(CFGVertex src) {
+        return this.getOutgoingEdges(src).stream().map(CFGEdge::getTarget).collect(Collectors.toSet());
+    }
+
+    /**
+     * Fetches the predecessor vertices of a given source vertex.
+     *
+     * @param src source vertex whose predecessors are to be fetched.
+     * @return all predecessors of given src vertex.
+     */
+    public Set<CFGVertex> getPredecessors(CFGVertex src) {
+        return this.getIncomingEdges(src).stream().map(CFGEdge::getSource).collect(Collectors.toSet());
+    }
+
+    /**
+     * Fetch all transitive successors of the supplied vertex - i.e. any instructions that could eventually be reached
+     * from the supplied vertex.
+     *
+     * @param vertex The {@link CFGVertex} who's transitive successors we're searching for
+     * @return A collection of {@link CFGVertex}s that are transitive successors to the supplied vertex.
+     */
+    public Collection<CFGVertex> getTransitiveSuccessors(final CFGVertex vertex) {
+        return transitiveSuccessors(vertex, Sets.newHashSet());
+    }
+
+    /**
+     * Fetch all transitive successors of the supplied vertex.
+     *
+     * @param src     the source vertex whose transitive successors are to be fetched.
+     * @param doneSet the set of visited vertices.
+     * @return A collection of {@link CFGVertex}s that are transitive successors to the supplied vertex.
+     */
+    private Collection<CFGVertex> transitiveSuccessors(final CFGVertex src, final Set<CFGVertex> doneSet) {
+        final Collection<CFGVertex> successors = Sets.newHashSet();
+        for (CFGVertex vertex : getSuccessors(src)) {
+            if (!doneSet.contains(vertex)) {
+                successors.add(vertex);
+                doneSet.add(vertex);
+                successors.addAll(transitiveSuccessors(vertex, doneSet));
+            }
+        }
+        return successors;
+    }
+
+    /**
+     * For a given pair of vertices in a DAG, return the ancestor that is common to both nodes.
+     *
+     * <p>Important: This operation presumes that the graph contains no cycles.
+     *
+     * @param firstVertex A {@link CFGVertex}
+     * @param secondVertex Another {@link CFGVertex}
+     * @return The vertex that is the least common ancestor of the two parameter vertices.
+     */
+    public CFGVertex getLeastCommonAncestor(final CFGVertex firstVertex, final CFGVertex secondVertex) {
+        CFGVertex current = firstVertex;
+        while (!containsTransitiveSuccessors(current, firstVertex, secondVertex)) {
+            current = getPredecessors(current).iterator().next();
+        }
+        return current;
+    }
+
+
+    private boolean containsTransitiveSuccessors(
+            final CFGVertex pStartNode, final CFGVertex pFirstNode, final CFGVertex pSecondNode) {
+        Collection<CFGVertex> transitiveSuccessors = getTransitiveSuccessors(pStartNode);
+        transitiveSuccessors.add(pStartNode);
+        return transitiveSuccessors.contains(pFirstNode) && transitiveSuccessors.contains(pSecondNode);
     }
 
     /**

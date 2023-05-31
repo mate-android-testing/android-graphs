@@ -30,6 +30,22 @@ public enum GraphType {
         }
     },
 
+    POST_DOMINATOR_TREE {
+
+        @Override
+        public String toString() {
+            return "post_dominator_tree";
+        }
+    },
+
+    CONTROL_DEPENDENCE_GRAPH {
+
+        @Override
+        public String toString() {
+            return "control_dependence_graph";
+        }
+    },
+
     /**
      * A system dependence graph.
      */
