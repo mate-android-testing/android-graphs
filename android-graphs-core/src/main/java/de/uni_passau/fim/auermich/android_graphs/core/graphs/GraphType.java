@@ -42,7 +42,7 @@ public enum GraphType {
 
         @Override
         public String toString() {
-            return "control_dependence_graph";
+            return "cdg";
         }
     },
 

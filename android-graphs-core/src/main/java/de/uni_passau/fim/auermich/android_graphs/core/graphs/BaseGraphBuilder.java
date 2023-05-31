@@ -2,6 +2,8 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.ControlDependenceGraph;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.PostDominatorTree;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
 import org.jf.dexlib2.iface.DexFile;
@@ -89,6 +91,14 @@ public class BaseGraphBuilder {
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
                 APK apk = new APK(apkFile, dexFiles);
                 return new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+            }
+            case CONTROL_DEPENDENCE_GRAPH: {
+                Objects.requireNonNull(name, "CFG name is mandatory!");
+                Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
+                APK apk = new APK(apkFile, dexFiles);
+                InterCFG cfg = new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+                PostDominatorTree pdt = new PostDominatorTree(cfg);
+                return new ControlDependenceGraph(cfg, pdt);
             }
             case CALLTREE: {
                 Objects.requireNonNull(name, "Call tree name is mandatory!");

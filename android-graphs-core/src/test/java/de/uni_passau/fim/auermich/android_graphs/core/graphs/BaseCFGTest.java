@@ -1,4 +1,4 @@
-package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
+package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -9,6 +9,9 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.DummyCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.EntryStatement;
 
 class BaseCFGTest {

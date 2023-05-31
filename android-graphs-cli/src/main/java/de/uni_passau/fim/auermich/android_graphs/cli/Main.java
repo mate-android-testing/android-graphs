@@ -1,6 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.cli;
 
 import com.beust.jcommander.JCommander;
+import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.CDGCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.CallTreeCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.IntraCFGCommand;
@@ -47,6 +48,7 @@ public final class Main {
     private static final InterCFGCommand interCFGCmd = new InterCFGCommand();
     private static final IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
     private static final CallTreeCommand callTreeCmd = new CallTreeCommand();
+    private static final CDGCommand cdgCmd = new CDGCommand();
 
     // utility class implies private constructor
     private Main() {
@@ -76,6 +78,12 @@ public final class Main {
      *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
      *             The switch -pim specifies whether isolated methods should be printed. (optional)
      *
+     *             The 'cdg' sub commando can handle the following arguments:
+     *             The switch -b specifies whether basic blocks should be used. (optional)
+     *             The switch -art specifies whether ART classes should be resolved. (optional)
+     *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
+     *             The switch -pim specifies whether isolated methods should be printed. (optional)
+     *
      *             The 'calltree' sub commando can handle the following arguments:
      *             The switch -art specifies whether ART classes should be resolved. (optional)
      *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
@@ -100,6 +108,7 @@ public final class Main {
                 .addCommand("intra", intraCFGCmd)
                 .addCommand("inter", interCFGCmd)
                 .addCommand("calltree", callTreeCmd)
+                .addCommand("cdg", cdgCmd)
                 .build();
 
         // the program name displayed in the help/usage cmd.
@@ -141,6 +150,16 @@ public final class Main {
      */
     private static boolean checkArguments(InterCFGCommand cmd) {
         assert cmd.getGraphType() == GraphType.INTERCFG;
+        return true;
+    }
+
+    /**
+     * Verifies that the given arguments are valid.
+     *
+     * @param cmd The command line arguments.
+     */
+    private static boolean checkArguments(CDGCommand cmd) {
+        assert cmd.getGraphType() == GraphType.CONTROL_DEPENDENCE_GRAPH;
         return true;
     }
 
@@ -241,6 +260,44 @@ public final class Main {
                         BaseGraph baseGraph = builder.build();
 
                         if (interCFGCmd.printIsolatedMethods()) {
+                            ((InterCFG) baseGraph).printIsolatedSubGraphs();
+                        }
+
+                        LOGGER.info("Size of graph: " + baseGraph.size());
+
+                        if (mainCmd.isDraw()) {
+                            LOGGER.info("Drawing graph!");
+                            baseGraph.drawGraph();
+                        }
+
+                        if (mainCmd.lookup()) {
+                            LOGGER.info("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
+                        }
+                    }
+                    break;
+
+                case CONTROL_DEPENDENCE_GRAPH:
+                    if (checkArguments(cdgCmd)) {
+
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.CONTROL_DEPENDENCE_GRAPH, dexFiles)
+                                .withName("global")
+                                .withAPKFile(mainCmd.getAPKFile());
+
+                        if (cdgCmd.isUseBasicBlocks()) {
+                            builder = builder.withBasicBlocks();
+                        }
+
+                        if (!cdgCmd.resolveARTClasses()) {
+                            builder = builder.withExcludeARTClasses();
+                        }
+
+                        if (cdgCmd.resolveOnlyAUTClasses()) {
+                            builder = builder.withResolveOnlyAUTClasses();
+                        }
+
+                        BaseGraph baseGraph = builder.build();
+
+                        if (cdgCmd.printIsolatedMethods()) {
                             ((InterCFG) baseGraph).printIsolatedSubGraphs();
                         }
 
