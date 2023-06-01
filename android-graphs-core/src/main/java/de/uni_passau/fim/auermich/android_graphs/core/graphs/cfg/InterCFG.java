@@ -956,6 +956,9 @@ public class InterCFG extends BaseCFG {
         String onDestroy = activity.onDestroyMethod();
         BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
 
+        // Realise a global exit point reachable by every subgraph.
+        addEdge(onDestroyCFG.getExit(), getExit());
+
         // if there are fragments, onDestroy, onDestroyView and onDetach are invoked
         for (Fragment fragment : fragments) {
 
@@ -1614,6 +1617,9 @@ public class InterCFG extends BaseCFG {
         BaseCFG staticInitializersCFG = dummyIntraCFG("static initializers");
         addSubGraph(staticInitializersCFG);
         addEdge(getEntry(), staticInitializersCFG.getEntry());
+
+        // Realise a global exit point reachable by every subgraph.
+        addEdge(staticInitializersCFG.getExit(), getExit());
 
         // track binder classes and attach them to the corresponding service
         Set<String> binderClasses = new HashSet<>();
