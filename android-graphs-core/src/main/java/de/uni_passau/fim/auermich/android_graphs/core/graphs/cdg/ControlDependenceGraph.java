@@ -12,6 +12,8 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 
+// TODO: Even though the CDG originates from a CFG and has all the same nodes as the CFG,
+//  we should think about changing the architecture.
 public class ControlDependenceGraph extends BaseCFG {
 
     public ControlDependenceGraph(BaseCFG cfg, PostDominatorTree pdt) {
@@ -77,9 +79,6 @@ public class ControlDependenceGraph extends BaseCFG {
 
     @Override
     public CFGVertex lookUpVertex(String trace) {
-
-        // TODO: Copy from IntraCFG --> Improve Architecture
-
         // decompose trace into class, method  and instruction index
         String[] tokens = trace.split("->");
 
@@ -88,11 +87,6 @@ public class ControlDependenceGraph extends BaseCFG {
 
         // retrieve fully qualified method name (class name + method name)
         String method = tokens[0] + "->" + tokens[1];
-
-        // check whether trace refers to this graph
-        if (!method.equals(getMethodName())) {
-            throw new IllegalArgumentException("Given trace refers to a different method, thus to a different graph!");
-        }
 
         if (tokens[2].equals("entry")) {
             return getEntry();
