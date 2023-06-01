@@ -167,13 +167,15 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds synthetic edges to all nodes that are not yet connected with the global exit node.
+     * Adds synthetic edges from nodes that are not yet connected to the exit to the lowest common ancestor since
+     * the lca is probably the node that has called the respective disconnected node.
      */
     private void addEdgesToGlobalExit() {
         for (CFGVertex vertex : getVertices()) {
             if (!vertex.equals(getExit()) && getSuccessors(vertex).isEmpty()) {
-                addEdge(vertex, getExit());
-                LOGGER.debug("Added synthetic edge to Exit for " + vertex);
+                CFGVertex lca = getLeastCommonAncestor(vertex, getExit());
+                addEdge(vertex, lca);
+                LOGGER.debug("Generating missing callback edge from " + vertex + " to " + lca);
             }
         }
     }
