@@ -23,10 +23,10 @@ class PostDominatorTreeTest {
     @Test
     public void testPostDominatorGeneration() {
         PostDominatorTree pdt = new PostDominatorTree(cfg);
+        pdt.drawGraph(DRAW_FILE);
         assertEquals(pdt.getOutgoingEdges(pdt.getEntry()).size(), 0);
         assertEquals(pdt.getIncomingEdges(pdt.getEntry()).size(), 1);
         assertEquals(pdt.getOutgoingEdges(pdt.getExit()).size(), 1);
         assertEquals(pdt.getIncomingEdges(pdt.getExit()).size(), 0);
-        pdt.drawGraph(DRAW_FILE);
     }
 }

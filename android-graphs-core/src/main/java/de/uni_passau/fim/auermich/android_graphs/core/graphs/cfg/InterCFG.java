@@ -88,6 +88,8 @@ public class InterCFG extends BaseCFG {
         this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
         this.apk = apk;
         constructCFG(apk);
+        removeDisconnectedSubgraphs();
+        addEdgesToGlobalExit();
     }
 
     /**
@@ -149,6 +151,30 @@ public class InterCFG extends BaseCFG {
             constructCFGWithBasicBlocks(apk);
         } else {
             constructCFGNoBasicBlocks(apk);
+        }
+    }
+
+    /**
+     * Removes all subgraphs that are not reachable, i.e. are not connected with the entry node of the CFG.
+     */
+    private void removeDisconnectedSubgraphs() {
+        Set<CFGVertex> reachableByEntry = (Set<CFGVertex>) getTransitiveSuccessors(getEntry());
+        Set<CFGVertex> toDelete = getVertices()
+                .stream()
+                .filter(vertex -> !vertex.equals(getEntry()) && !reachableByEntry.contains(vertex))
+                .collect(Collectors.toSet());
+        graph.removeAllVertices(toDelete);
+    }
+
+    /**
+     * Adds synthetic edges to all nodes that are not yet connected with the global exit node.
+     */
+    private void addEdgesToGlobalExit() {
+        for (CFGVertex vertex : getVertices()) {
+            if (!vertex.equals(getExit()) && getSuccessors(vertex).isEmpty()) {
+                addEdge(vertex, getExit());
+                LOGGER.debug("Added synthetic edge to Exit for " + vertex);
+            }
         }
     }
 

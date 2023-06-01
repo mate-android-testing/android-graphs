@@ -62,18 +62,6 @@ public class ControlDependenceGraph extends BaseCFG {
             }
         }
 
-        // All nonDependent nodes are dependent on entry
-        for (CFGVertex vertex : graph.vertexSet()) {
-            if (vertex.equals(this.getEntry())) {
-                continue;
-            }
-            Set<CFGVertex> incomingEdges = getPredecessors(vertex);
-            incomingEdges.remove(vertex);
-            if (incomingEdges.isEmpty()) {
-                graph.addEdge(this.getEntry(), vertex);
-            }
-        }
-
     }
 
 
