@@ -548,8 +548,10 @@ public class InterCFG extends BaseCFG {
         });
 
         // add service lifecycle
-        components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(service -> {
-            addAndroidServiceLifecycle((Service) service, callbackGraphs.get(service.getName()));
+        components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(serviceComponent -> {
+            Service service = (Service) serviceComponent;
+            addAndroidServiceLifecycle(service, callbackGraphs.get(service.getName()));
+            addGlobalEntryAndExitPoint(service);
         });
 
         // add global entry point for application class
@@ -791,6 +793,22 @@ public class InterCFG extends BaseCFG {
     private void addGlobalEntryPoint(Activity activity) {
         BaseCFG activityConstructor = intraCFGs.get(activity.getDefaultConstructor());
         addEdge(getEntry(), activityConstructor.getEntry());
+    }
+
+    /**
+     * Adds for each component (service) a global entry point and exit point to the respective constructor's
+     * entry and exit if the service gets not directly invoked from an activity, i.e.
+     * the service's entry point is not connected to the cfg. This may happen if the given application provides
+     * a service that is only accessible from other applications using intents.
+     *
+     * @param service The service for which a global entry point should be defined.
+     */
+    private void addGlobalEntryAndExitPoint(Service service) {
+        BaseCFG serviceConstructor = intraCFGs.get(service.getDefaultConstructor());
+        if (getPredecessors(serviceConstructor.getEntry()).isEmpty()) {
+            addEdge(getEntry(), serviceConstructor.getEntry());
+            addEdge(serviceConstructor.getExit(), getExit());
+        }
     }
 
     /**
