@@ -71,19 +71,17 @@ public class InterCDG extends BaseCFG {
         // decompose trace into class, method  and instruction index
         String[] tokens = trace.split("->");
 
-        // class + method + entry|exit|instruction-index
-        assert tokens.length == 3;
-
-        // retrieve fully qualified method name (class name + method name)
-        String method = tokens[0] + "->" + tokens[1];
-
         if (tokens[2].equals("entry")) {
             return getEntry();
         } else if (tokens[2].equals("exit")) {
             return getExit();
         } else {
-            // brute force search
-            int instructionIndex = Integer.parseInt(tokens[2]);
+            int instructionIndex;
+            if (tokens.length == 3) {       // branch lookup
+                instructionIndex = Integer.parseInt(tokens[2]);
+            } else {
+                instructionIndex = Integer.parseInt(tokens[3]);
+            }
 
             for (CFGVertex vertex : getVertices()) {
 
@@ -102,14 +100,13 @@ public class InterCDG extends BaseCFG {
                 } else if (statement.getType() == Statement.StatementType.BLOCK_STATEMENT) {
                     // basic blocks
                     BlockStatement blockStmt = (BlockStatement) statement;
-
-                    // check if index is in range [firstStmt,lastStmt]
-                    BasicStatement firstStmt = (BasicStatement) blockStmt.getFirstStatement();
-                    BasicStatement lastStmt = (BasicStatement) blockStmt.getLastStatement();
-
-                    if (firstStmt.getInstructionIndex() <= instructionIndex &&
-                            instructionIndex <= lastStmt.getInstructionIndex()) {
-                        return vertex;
+                    for (Statement stmt : blockStmt.getStatements()) {
+                        if (stmt instanceof BasicStatement) {
+                            BasicStatement basicStatement = (BasicStatement) stmt;
+                            if (basicStatement.getInstructionIndex() == instructionIndex) {
+                                return vertex;
+                            }
+                        }
                     }
                 }
             }
