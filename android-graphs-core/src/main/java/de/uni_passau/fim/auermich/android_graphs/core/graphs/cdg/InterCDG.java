@@ -14,10 +14,11 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 
 // TODO: Even though the CDG originates from a CFG and has all the same nodes as the CFG,
 //  we should think about changing the architecture.
-public class ControlDependenceGraph extends BaseCFG {
+public class InterCDG extends BaseCFG {
 
-    public ControlDependenceGraph(BaseCFG cfg, PostDominatorTree pdt) {
+    public InterCDG(BaseCFG cfg) {
         super(cfg.getMethodName() + "-CDG", cfg.getEntry(), cfg.getExit());
+        PostDominatorTree pdt = new PostDominatorTree(cfg);
         this.buildCDG(cfg, pdt);
     }
 
@@ -118,7 +119,7 @@ public class ControlDependenceGraph extends BaseCFG {
 
     @Override
     public GraphType getGraphType() {
-        return GraphType.CONTROL_DEPENDENCE_GRAPH;
+        return GraphType.INTER_CDG;
     }
 
     @Override

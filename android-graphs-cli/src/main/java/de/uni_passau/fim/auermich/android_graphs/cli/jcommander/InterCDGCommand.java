@@ -8,7 +8,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 @Parameters(commandDescription = "Produces an inter-procedural CFG.")
 public class CDGCommand {
 
-    private GraphType graphType = GraphType.CONTROL_DEPENDENCE_GRAPH;
+    private GraphType graphType = GraphType.INTER_CDG;
 
     @Parameter(names = {"-art"}, description = "Whether ART classes should be resolved.")
     private boolean art = false;

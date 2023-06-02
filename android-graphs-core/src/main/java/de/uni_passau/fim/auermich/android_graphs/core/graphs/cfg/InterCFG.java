@@ -88,7 +88,7 @@ public class InterCFG extends BaseCFG {
         this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
         this.apk = apk;
         constructCFG(apk);
-        removeDisconnectedSubgraphs();
+        removeDisconnectedVertices();
         addEdgesToGlobalExit();
     }
 
@@ -155,9 +155,9 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Removes all subgraphs that are not reachable, i.e. are not connected with the entry node of the CFG.
+     * Removes all vertices that are not reachable, i.e. are not connected with the entry node of the CFG.
      */
-    private void removeDisconnectedSubgraphs() {
+    private void removeDisconnectedVertices() {
         Set<CFGVertex> reachableByEntry = (Set<CFGVertex>) getTransitiveSuccessors(getEntry());
         Set<CFGVertex> toDelete = getVertices()
                 .stream()

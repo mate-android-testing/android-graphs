@@ -4,7 +4,10 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.InterCDG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.DexFileFactory;
@@ -157,6 +160,30 @@ public class GraphUtils {
         LOGGER.info("Graph construction took: " + ((end - start) / 1000) + " seconds");
 
         return (BaseCFG) baseGraph;
+    }
+
+    /**
+     * Convenient function to construct an interCDG. Should be used
+     * for the construction requested by mate server.
+     *
+     * @param apkPath               The path to the APK file.
+     * @param useBasicBlocks        Whether to use basic blocks or not.
+     * @param excludeARTClasses     Whether to exclude ART classes or not.
+     * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
+     * @return Returns an interCDG.
+     */
+    public static InterCDG constructInterCDG(final File apkPath, final boolean useBasicBlocks,
+                                             final boolean excludeARTClasses, final boolean onlyResolveAUTClasses) {
+
+        LOGGER.info("Constructing INTER CDG for APK: " + apkPath);
+        long start = System.currentTimeMillis();
+
+        InterCFG interCFG = (InterCFG) constructInterCFG(apkPath, useBasicBlocks, excludeARTClasses, onlyResolveAUTClasses);
+        InterCDG cdg = new InterCDG(interCFG);
+
+        long end = System.currentTimeMillis();
+        LOGGER.info("Graph construction took: " + ((end - start) / 1000) + " seconds");
+        return cdg;
     }
 
     /**

@@ -38,11 +38,11 @@ public enum GraphType {
         }
     },
 
-    CONTROL_DEPENDENCE_GRAPH {
+    INTER_CDG {
 
         @Override
         public String toString() {
-            return "cdg";
+            return "inter_cdg";
         }
     },
 
