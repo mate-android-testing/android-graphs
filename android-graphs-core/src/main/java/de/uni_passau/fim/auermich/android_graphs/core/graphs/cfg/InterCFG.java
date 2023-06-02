@@ -89,7 +89,7 @@ public class InterCFG extends BaseCFG {
         this.apk = apk;
         constructCFG(apk);
         removeDisconnectedVertices();
-        addEdgesToGlobalExit();
+        addEdgesToCaller();
     }
 
     /**
@@ -170,7 +170,7 @@ public class InterCFG extends BaseCFG {
      * Adds synthetic edges from nodes that are not yet connected to the exit to the lowest common ancestor since
      * the lca is probably the node that has called the respective disconnected node.
      */
-    private void addEdgesToGlobalExit() {
+    private void addEdgesToCaller() {
         for (CFGVertex vertex : getVertices()) {
             if (!vertex.equals(getExit()) && getSuccessors(vertex).isEmpty()) {
                 CFGVertex lca = getLeastCommonAncestor(vertex, getExit());
@@ -554,11 +554,11 @@ public class InterCFG extends BaseCFG {
             addGlobalEntryAndExitPoint(service);
         });
 
-        // add global entry point for application class
+        // add global entry and exit point for application class
         components.stream().filter(c -> c.getComponentType() == ComponentType.APPLICATION).forEach(applicationComponent -> {
             Application application = (Application) applicationComponent;
             addAndroidApplicationLifecycle(application, callbackGraphs.get(application.getName()));
-            addGlobalEntryPoint(application);
+            addGlobalEntryAndExitPoint(application);
         });
     }
 
@@ -573,13 +573,14 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds the application class (constructor) as a global entry point.
+     * Connects the global entry and exit point to the application's constructor method.
      *
      * @param application The application class.
      */
-    private void addGlobalEntryPoint(Application application) {
+    private void addGlobalEntryAndExitPoint(Application application) {
         BaseCFG applicationConstructor = intraCFGs.get(application.getDefaultConstructor());
         addEdge(getEntry(), applicationConstructor.getEntry());
+        addEdge(applicationConstructor.getExit(), getExit());
     }
 
     /**
