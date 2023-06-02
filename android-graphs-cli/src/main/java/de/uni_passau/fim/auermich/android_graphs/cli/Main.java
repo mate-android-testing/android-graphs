@@ -1,7 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.cli;
 
 import com.beust.jcommander.JCommander;
-import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.CDGCommand;
+import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.InterCDGCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.CallTreeCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.InterCFGCommand;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.IntraCFGCommand;
@@ -48,7 +48,7 @@ public final class Main {
     private static final InterCFGCommand interCFGCmd = new InterCFGCommand();
     private static final IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
     private static final CallTreeCommand callTreeCmd = new CallTreeCommand();
-    private static final CDGCommand cdgCmd = new CDGCommand();
+    private static final InterCDGCommand interCDGCmd = new InterCDGCommand();
 
     // utility class implies private constructor
     private Main() {
@@ -108,7 +108,7 @@ public final class Main {
                 .addCommand("intra", intraCFGCmd)
                 .addCommand("inter", interCFGCmd)
                 .addCommand("calltree", callTreeCmd)
-                .addCommand("cdg", cdgCmd)
+                .addCommand("inter_cdg", interCDGCmd)
                 .build();
 
         // the program name displayed in the help/usage cmd.
@@ -158,8 +158,8 @@ public final class Main {
      *
      * @param cmd The command line arguments.
      */
-    private static boolean checkArguments(CDGCommand cmd) {
-        assert cmd.getGraphType() == GraphType.CONTROL_DEPENDENCE_GRAPH;
+    private static boolean checkArguments(InterCDGCommand cmd) {
+        assert cmd.getGraphType() == GraphType.INTER_CDG;
         return true;
     }
 
@@ -276,28 +276,28 @@ public final class Main {
                     }
                     break;
 
-                case CONTROL_DEPENDENCE_GRAPH:
-                    if (checkArguments(cdgCmd)) {
+                case INTER_CDG:
+                    if (checkArguments(interCDGCmd)) {
 
-                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.CONTROL_DEPENDENCE_GRAPH, dexFiles)
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTER_CDG, dexFiles)
                                 .withName("global")
                                 .withAPKFile(mainCmd.getAPKFile());
 
-                        if (cdgCmd.isUseBasicBlocks()) {
+                        if (interCDGCmd.isUseBasicBlocks()) {
                             builder = builder.withBasicBlocks();
                         }
 
-                        if (!cdgCmd.resolveARTClasses()) {
+                        if (!interCDGCmd.resolveARTClasses()) {
                             builder = builder.withExcludeARTClasses();
                         }
 
-                        if (cdgCmd.resolveOnlyAUTClasses()) {
+                        if (interCDGCmd.resolveOnlyAUTClasses()) {
                             builder = builder.withResolveOnlyAUTClasses();
                         }
 
                         BaseGraph baseGraph = builder.build();
 
-                        if (cdgCmd.printIsolatedMethods()) {
+                        if (interCDGCmd.printIsolatedMethods()) {
                             ((InterCFG) baseGraph).printIsolatedSubGraphs();
                         }
 

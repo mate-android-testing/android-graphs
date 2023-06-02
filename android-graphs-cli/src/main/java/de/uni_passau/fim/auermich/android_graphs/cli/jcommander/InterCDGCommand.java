@@ -6,7 +6,7 @@ import com.beust.jcommander.Parameters;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 
 @Parameters(commandDescription = "Produces an inter-procedural CFG.")
-public class CDGCommand {
+public class InterCDGCommand {
 
     private GraphType graphType = GraphType.INTER_CDG;
 
