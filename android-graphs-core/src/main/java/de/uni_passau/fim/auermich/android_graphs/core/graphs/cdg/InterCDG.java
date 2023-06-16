@@ -2,15 +2,14 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg;
 
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.Var;
-
-import java.util.Set;
-
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+
+import java.util.Set;
 
 // TODO: Even though the CDG originates from a CFG and has all the same nodes as the CFG,
 //  we should think about changing the architecture.
@@ -116,7 +115,7 @@ public class InterCDG extends BaseCFG {
 
     @Override
     public GraphType getGraphType() {
-        return GraphType.INTER_CDG;
+        return GraphType.INTERCDG;
     }
 
     @Override

@@ -3,17 +3,16 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
-
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
 
 public class PostDominatorTree extends BaseCFG {
 
@@ -158,7 +157,7 @@ public class PostDominatorTree extends BaseCFG {
 
     @Override
     public GraphType getGraphType() {
-        return GraphType.POST_DOMINATOR_TREE;
+        return GraphType.PDT;
     }
 
     @Override

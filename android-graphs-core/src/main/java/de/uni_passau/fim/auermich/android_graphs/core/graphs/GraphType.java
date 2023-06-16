@@ -3,8 +3,7 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 import java.util.Optional;
 
 /**
- * Describes the various graph types the program
- * can generate.
+ * Describes the various graph types the program can generate.
  */
 public enum GraphType {
 
@@ -30,19 +29,25 @@ public enum GraphType {
         }
     },
 
-    POST_DOMINATOR_TREE {
+    /**
+     * A post dominator tree.
+     */
+    PDT {
 
         @Override
         public String toString() {
-            return "post_dominator_tree";
+            return "pdt";
         }
     },
 
-    INTER_CDG {
+    /**
+     * An inter-procedural CDG.
+     */
+    INTERCDG {
 
         @Override
         public String toString() {
-            return "inter_cdg";
+            return "cdg";
         }
     },
 

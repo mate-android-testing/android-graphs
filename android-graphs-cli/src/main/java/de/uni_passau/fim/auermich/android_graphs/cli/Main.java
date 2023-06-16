@@ -1,11 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.cli;
 
 import com.beust.jcommander.JCommander;
-import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.InterCDGCommand;
-import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.CallTreeCommand;
-import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.InterCFGCommand;
-import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.IntraCFGCommand;
-import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.MainCommand;
+import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.*;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
@@ -108,7 +104,7 @@ public final class Main {
                 .addCommand("intra", intraCFGCmd)
                 .addCommand("inter", interCFGCmd)
                 .addCommand("calltree", callTreeCmd)
-                .addCommand("inter_cdg", interCDGCmd)
+                .addCommand("cdg", interCDGCmd)
                 .build();
 
         // the program name displayed in the help/usage cmd.
@@ -159,7 +155,7 @@ public final class Main {
      * @param cmd The command line arguments.
      */
     private static boolean checkArguments(InterCDGCommand cmd) {
-        assert cmd.getGraphType() == GraphType.INTER_CDG;
+        assert cmd.getGraphType() == GraphType.INTERCDG;
         return true;
     }
 
@@ -276,10 +272,10 @@ public final class Main {
                     }
                     break;
 
-                case INTER_CDG:
+                case INTERCDG:
                     if (checkArguments(interCDGCmd)) {
 
-                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTER_CDG, dexFiles)
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCDG, dexFiles)
                                 .withName("global")
                                 .withAPKFile(mainCmd.getAPKFile());
 

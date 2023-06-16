@@ -91,11 +91,11 @@ public class BaseGraphBuilder {
                 APK apk = new APK(apkFile, dexFiles);
                 return new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
             }
-            case INTER_CDG: {
+            case INTERCDG: {
                 Objects.requireNonNull(name, "CFG name is mandatory!");
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
                 APK apk = new APK(apkFile, dexFiles);
-                InterCFG cfg = new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+                final InterCFG cfg = new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
                 return new InterCDG(cfg);
             }
             case CALLTREE: {

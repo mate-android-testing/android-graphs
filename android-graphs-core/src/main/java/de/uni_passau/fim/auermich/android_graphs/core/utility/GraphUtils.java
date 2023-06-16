@@ -7,7 +7,6 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.InterCDG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.DexFileFactory;
@@ -97,8 +96,7 @@ public class GraphUtils {
     }
 
     /**
-     * Convenient function to construct an interCFG. Should be used
-     * for the construction requested by mate server.
+     * Convenient function to construct an interCFG. Should be used for the construction requested by mate server.
      *
      * @param apkPath           The path to the APK file.
      * @param useBasicBlocks    Whether to use basic blocks or not.
@@ -163,8 +161,7 @@ public class GraphUtils {
     }
 
     /**
-     * Convenient function to construct an interCDG. Should be used
-     * for the construction requested by mate server.
+     * Convenient function to construct an interCDG. Should be used for the construction requested by mate server.
      *
      * @param apkPath               The path to the APK file.
      * @param useBasicBlocks        Whether to use basic blocks or not.
@@ -179,11 +176,11 @@ public class GraphUtils {
         long start = System.currentTimeMillis();
 
         InterCFG interCFG = (InterCFG) constructInterCFG(apkPath, useBasicBlocks, excludeARTClasses, onlyResolveAUTClasses);
-        InterCDG cdg = new InterCDG(interCFG);
+        final InterCDG interCDG = new InterCDG(interCFG);
 
         long end = System.currentTimeMillis();
         LOGGER.info("Graph construction took: " + ((end - start) / 1000) + " seconds");
-        return cdg;
+        return interCDG;
     }
 
     /**
