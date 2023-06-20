@@ -127,7 +127,7 @@ public class PostDominatorTree extends BaseCFG {
     @Override
     public CFGVertex lookUpVertex(String trace) {
 
-        // decompose trace into class, method  and instruction index
+        // Decompose trace into class, method  and instruction index.
         String[] tokens = trace.split("->");
 
         // class + method + entry|exit|instruction-index
