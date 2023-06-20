@@ -14,29 +14,44 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 
+/**
+ * Represents a post-dominator tree.
+ */
 public class PostDominatorTree extends BaseCFG {
 
-    public PostDominatorTree(BaseCFG cfg) {
-        super(cfg.getMethodName() + "-Post-Dominator-Tree", cfg.getEntry(), cfg.getExit());
-        Map<CFGVertex, Set<CFGVertex>> postDominators = this.computePostDominators(cfg.reverseGraph());
-        this.buildDominanceTree(cfg, postDominators);
+    /**
+     * Creates a post-dominator tree from the given control flow graph.
+     *
+     * @param cfg The given control flow graph.
+     */
+    public PostDominatorTree(final BaseCFG cfg) {
+        super(cfg.getMethodName() + "-PDT", cfg.getEntry(), cfg.getExit());
+        final Map<CFGVertex, Set<CFGVertex>> postDominators = computePostDominators(cfg.reverseGraph());
+        buildDominanceTree(cfg, postDominators);
     }
 
-    private Map<CFGVertex, Set<CFGVertex>> computePostDominators(BaseCFG reversedCFG) {
-        final CFGVertex entry = reversedCFG.getExit();      // Fetch exit as entry due to reversed CFG.
+    /**
+     * Computes the post-dominators on the reversed control flow graph.
+     *
+     * @param reversedCFG The control flow graph with reversed edges.
+     * @return Returns a mapping that describes which vertex post-dominates which other vertices.
+     */
+    private Map<CFGVertex, Set<CFGVertex>> computePostDominators(final BaseCFG reversedCFG) {
+
+        final CFGVertex entry = reversedCFG.getExit(); // Entry is the exit in the original CFG.
         final Set<CFGVertex> vertices = reversedCFG.getVertices();
         final Set<CFGVertex> nodesWithoutEntry = Sets.newHashSet(reversedCFG.getVertices());
         nodesWithoutEntry.remove(entry);
 
-        // Maps a node to its dominators (the nodes that dominate it).
-        final Map<CFGVertex, Set<CFGVertex>> dominatorsOfNode = Maps.newHashMap();
+        // Maps a vertex to its dominators (the vertices that dominate it).
+        final Map<CFGVertex, Set<CFGVertex>> dominatorsOfVertex = Maps.newHashMap();
 
         // The entry dominates itself.
-        dominatorsOfNode.put(entry, Sets.newHashSet(entry));
+        dominatorsOfVertex.put(entry, Sets.newHashSet(entry));
 
-        // Initial coarse approximation: every node is dominated by every other node.
+        // Initial coarse approximation: Every vertex is dominated by every other vertex.
         for (CFGVertex n : nodesWithoutEntry) {
-            dominatorsOfNode.put(n, Sets.newHashSet(vertices));
+            dominatorsOfVertex.put(n, Sets.newHashSet(vertices));
         }
 
         // Compute dominators iteratively until we find a fixed-point.
@@ -44,19 +59,19 @@ public class PostDominatorTree extends BaseCFG {
         while (changed) {
             changed = false;
 
-            for (CFGVertex node : nodesWithoutEntry) {
-                Set<CFGVertex> currentDominators = dominatorsOfNode.get(node);
+            for (CFGVertex vertex : nodesWithoutEntry) {
+                Set<CFGVertex> currentDominators = dominatorsOfVertex.get(vertex);
 
-                // Refinement: compute intersection over dominators of all immediate predecessors.
+                // Refinement: Compute intersection over dominators of all immediate predecessors.
                 Set<CFGVertex> newDominators = Sets.newHashSet(vertices);
-                for (CFGVertex pre : reversedCFG.getPredecessors(node)) {
-                    newDominators.retainAll(dominatorsOfNode.get(pre));
+                for (CFGVertex pre : reversedCFG.getPredecessors(vertex)) {
+                    newDominators.retainAll(dominatorsOfVertex.get(pre));
                 }
-                newDominators.add(node); // Every node dominates itself.
+                newDominators.add(vertex); // Every vertex dominates itself.
 
                 // Check if fixed-point reached.
                 if (!newDominators.containsAll(currentDominators)) {
-                    dominatorsOfNode.put(node, newDominators);
+                    dominatorsOfVertex.put(vertex, newDominators);
                     changed = true;
                 }
             }
@@ -64,27 +79,34 @@ public class PostDominatorTree extends BaseCFG {
 
         // Compute strict dominators -> no reflexivity.
         for (CFGVertex node : vertices) {
-            dominatorsOfNode.get(node).remove(node);
+            dominatorsOfVertex.get(node).remove(node);
         }
 
-        return dominatorsOfNode;
+        return dominatorsOfVertex;
     }
 
+    /**
+     * Constructs the post-dominator tree (PDT) from the given post-dominator relations.
+     *
+     * @param cfg The original control flow graph.
+     * @param postDominators The post-dominator relations.
+     */
     private void buildDominanceTree(BaseCFG cfg, Map<CFGVertex, Set<CFGVertex>> postDominators) {
 
-        // Add all nodes from CFG
+        // Add all vertices from CFG.
         for (CFGVertex vertex : cfg.getVertices()) {
             graph.addVertex(vertex);
         }
 
-        Queue<CFGVertex> queue = Queues.newArrayDeque();
-        queue.add(cfg.getExit());           // Start with exit which is not dominated by any other node
+        final Queue<CFGVertex> queue = Queues.newArrayDeque();
+        queue.add(cfg.getExit()); // Start with exit which is not dominated by any other vertex.
+
         while (!queue.isEmpty()) {
             CFGVertex m = queue.poll();
 
-            // Check which nodes m dominates
+            // Check which vertices m dominates.
             for (CFGVertex n : cfg.getVertices()) {
-                Set<CFGVertex> dominators = postDominators.get(n);
+                final Set<CFGVertex> dominators = postDominators.get(n);
                 if (dominators.contains(m)) {
                     dominators.remove(m);
                     if (dominators.isEmpty()) {
@@ -96,10 +118,14 @@ public class PostDominatorTree extends BaseCFG {
         }
     }
 
+    /**
+     * Searches for the vertex described by the given trace in the graph.
+     *
+     * @param trace The trace describing the vertex, i.e. className->methodName->(entry|exit|instructionIndex).
+     * @return Returns the vertex corresponding to the given trace.
+     */
     @Override
     public CFGVertex lookUpVertex(String trace) {
-
-        // TODO: Copy from IntraCFG --> Improve Architecture
 
         // decompose trace into class, method  and instruction index
         String[] tokens = trace.split("->");
@@ -155,11 +181,19 @@ public class PostDominatorTree extends BaseCFG {
         throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
     }
 
+    /**
+     * Retrieves the graph type.
+     *
+     * @return Returns the graph type.
+     */
     @Override
     public GraphType getGraphType() {
         return GraphType.PDT;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public BaseCFG copy() {
         return super.clone();
