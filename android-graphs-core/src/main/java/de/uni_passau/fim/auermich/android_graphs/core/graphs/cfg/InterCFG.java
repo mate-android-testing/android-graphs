@@ -155,11 +155,11 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Removes all vertices that are not reachable, i.e. are not connected with the entry node of the CFG.
+     * Removes all vertices that are not reachable, i.e. that are not connected with the entry node of the CFG.
      */
     private void removeDisconnectedVertices() {
-        Set<CFGVertex> reachableByEntry = (Set<CFGVertex>) getTransitiveSuccessors(getEntry());
-        Set<CFGVertex> toDelete = getVertices()
+        final Set<CFGVertex> reachableByEntry = (Set<CFGVertex>) getTransitiveSuccessors(getEntry());
+        final Set<CFGVertex> toDelete = getVertices()
                 .stream()
                 .filter(vertex -> !vertex.equals(getEntry()) && !reachableByEntry.contains(vertex))
                 .collect(Collectors.toSet());
@@ -167,15 +167,15 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds synthetic edges from nodes that are not yet connected to the exit to the lowest common ancestor since
-     * the lca is probably the node that has called the respective disconnected node.
+     * Adds synthetic edges from nodes that are not yet connected to the exit to the lowest common ancestor (LCA) since
+     * the LCA is probably the node that has called the respective disconnected node.
      */
     private void addEdgesToCaller() {
         for (CFGVertex vertex : getVertices()) {
             if (!vertex.equals(getExit()) && getSuccessors(vertex).isEmpty()) {
-                CFGVertex lca = getLeastCommonAncestor(vertex, getExit());
-                addEdge(vertex, lca);
-                LOGGER.debug("Generating missing callback edge from " + vertex + " to " + lca);
+                final CFGVertex LCA = getLeastCommonAncestor(vertex, getExit());
+                addEdge(vertex, LCA);
+                LOGGER.debug("Generating missing callback edge from " + vertex + " to " + LCA);
             }
         }
     }
@@ -547,14 +547,14 @@ public class InterCFG extends BaseCFG {
             addGlobalEntryPoint(activity);
         });
 
-        // add service lifecycle
+        // add service lifecycle as well as global entry point for activities
         components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(serviceComponent -> {
             Service service = (Service) serviceComponent;
             addAndroidServiceLifecycle(service, callbackGraphs.get(service.getName()));
             addGlobalEntryAndExitPoint(service);
         });
 
-        // add global entry and exit point for application class
+        // add application lifecycle as well as global entry point for application class
         components.stream().filter(c -> c.getComponentType() == ComponentType.APPLICATION).forEach(applicationComponent -> {
             Application application = (Application) applicationComponent;
             addAndroidApplicationLifecycle(application, callbackGraphs.get(application.getName()));
@@ -798,9 +798,9 @@ public class InterCFG extends BaseCFG {
 
     /**
      * Adds for each component (service) a global entry point and exit point to the respective constructor's
-     * entry and exit if the service gets not directly invoked from an activity, i.e.
-     * the service's entry point is not connected to the cfg. This may happen if the given application provides
-     * a service that is only accessible from other applications using intents.
+     * entry and exit if the service gets not directly invoked from an activity, i.e. the service's entry point is not
+     * connected to the CFG. This may happen if the given application provides a service that is only accessible from
+     * other applications via intents.
      *
      * @param service The service for which a global entry point should be defined.
      */
@@ -1003,7 +1003,7 @@ public class InterCFG extends BaseCFG {
         String onDestroy = activity.onDestroyMethod();
         BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
 
-        // Realise a global exit point reachable by every subgraph.
+        // The application may terminate if the last activity has been destroyed.
         addEdge(onDestroyCFG.getExit(), getExit());
 
         // if there are fragments, onDestroy, onDestroyView and onDetach are invoked
@@ -1664,8 +1664,6 @@ public class InterCFG extends BaseCFG {
         BaseCFG staticInitializersCFG = dummyIntraCFG("static initializers");
         addSubGraph(staticInitializersCFG);
         addEdge(getEntry(), staticInitializersCFG.getEntry());
-
-        // Realise a global exit point reachable by every subgraph.
         addEdge(staticInitializersCFG.getExit(), getExit());
 
         // track binder classes and attach them to the corresponding service

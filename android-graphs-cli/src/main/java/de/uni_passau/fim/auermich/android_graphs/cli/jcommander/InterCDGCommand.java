@@ -2,13 +2,12 @@ package de.uni_passau.fim.auermich.android_graphs.cli.jcommander;
 
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
-
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 
-@Parameters(commandDescription = "Produces an inter-procedural CFG.")
+@Parameters(commandDescription = "Produces an inter-procedural CDG.")
 public class InterCDGCommand {
 
-    private GraphType graphType = GraphType.INTER_CDG;
+    private GraphType graphType = GraphType.INTERCDG;
 
     @Parameter(names = {"-art"}, description = "Whether ART classes should be resolved.")
     private boolean art = false;
