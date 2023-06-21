@@ -23,9 +23,7 @@ class InterCDGTest {
     public void testControlDependenceGraphGeneration() {
         InterCDG cdg = new InterCDG(cfg);
         cdg.drawGraph(DRAW_FILE);
-        assertEquals(cdg.getOutgoingEdges(cdg.getEntry()).size(), 8);
-        assertEquals(cdg.getIncomingEdges(cdg.getEntry()).size(), 0);
-        assertEquals(cdg.getOutgoingEdges(cdg.getExit()).size(), 0);
-        assertEquals(cdg.getIncomingEdges(cdg.getExit()).size(), 1);
+        assertEquals(cdg.size(), 19);
+        assertEquals(cdg.getEdges().size(), 12);
     }
 }

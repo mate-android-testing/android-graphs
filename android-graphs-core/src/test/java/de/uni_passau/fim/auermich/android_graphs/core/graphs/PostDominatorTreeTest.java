@@ -24,6 +24,8 @@ class PostDominatorTreeTest {
     public void testPostDominatorGeneration() {
         PostDominatorTree pdt = new PostDominatorTree(cfg);
         pdt.drawGraph(DRAW_FILE);
+        assertEquals(pdt.size(), 19);
+        assertEquals(pdt.getEdges().size(), 18);
         assertEquals(pdt.getOutgoingEdges(pdt.getEntry()).size(), 0);
         assertEquals(pdt.getIncomingEdges(pdt.getEntry()).size(), 1);
         assertEquals(pdt.getOutgoingEdges(pdt.getExit()).size(), 1);
