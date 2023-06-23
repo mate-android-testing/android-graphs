@@ -119,6 +119,15 @@ public class InterCFG extends BaseCFG {
         return Collections.unmodifiableSet(components);
     }
 
+    /**
+     * Retrieves the mapping to the intra CFGs.
+     *
+     * @return Returns a mapping to the entry and exit vertices of the individual intra CFGs.
+     */
+    public Map<String, BaseCFG> getIntraCFGs() {
+        return Collections.unmodifiableMap(intraCFGs);
+    }
+
     private void constructCFG(APK apk) {
 
         // decode APK to access manifest and other resource files
@@ -1955,12 +1964,12 @@ public class InterCFG extends BaseCFG {
     /**
      * Looks up a vertex in the graph.
      *
-     * @param method           The method the vertex belongs to.
+     * @param method The method the vertex belongs to.
      * @param instructionIndex The instruction index.
-     * @param entry            The entry vertex of the given method (bound for the look up).
-     * @param exit             The exit vertex of the given method (bound for the look up).
+     * @param entry The entry vertex of the given method (bound for the look up).
+     * @param exit The exit vertex of the given method (bound for the look up).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     * a {@link IllegalArgumentException} is thrown.
+     *         a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
     private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry, CFGVertex exit) {
@@ -2010,11 +2019,11 @@ public class InterCFG extends BaseCFG {
     /**
      * Performs a depth first search for looking up the vertex.
      *
-     * @param method           The method describing the vertex.
+     * @param method The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry            The entry vertex of the method (limits the search).
+     * @param entry The entry vertex of the method (limits the search).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     * a {@link IllegalArgumentException} is thrown.
+     *         a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
     private CFGVertex lookUpVertexDFS(String method, int instructionIndex, CFGVertex entry) {
@@ -2034,11 +2043,11 @@ public class InterCFG extends BaseCFG {
     /**
      * Performs a breadth first search for looking up the vertex.
      *
-     * @param method           The method describing the vertex.
+     * @param method The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry            The entry vertex of the method (limits the search).
+     * @param entry The entry vertex of the method (limits the search).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     * a {@link IllegalArgumentException} is thrown.
+     *         a {@link IllegalArgumentException} is thrown.
      */
     private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry) {
 
