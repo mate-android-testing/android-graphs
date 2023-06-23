@@ -82,6 +82,7 @@ public class InterCDG extends BaseCFG {
 
         // Decompose trace into class, method  and instruction index.
         String[] tokens = trace.split("->");
+        String method = tokens[0] + "->" + tokens[1];
 
         if (tokens[2].equals("entry")) {
             return getEntry();
@@ -101,6 +102,11 @@ public class InterCDG extends BaseCFG {
                     continue;
                 }
 
+                // Skip vertex if the method name does not match.
+                if (method.equals(vertex.getMethod())){
+                    continue;
+                }
+
                 Statement statement = vertex.getStatement();
 
                 if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
@@ -112,13 +118,14 @@ public class InterCDG extends BaseCFG {
                 } else if (statement.getType() == Statement.StatementType.BLOCK_STATEMENT) {
                     // basic blocks
                     BlockStatement blockStmt = (BlockStatement) statement;
-                    for (Statement stmt : blockStmt.getStatements()) {
-                        if (stmt instanceof BasicStatement) {
-                            BasicStatement basicStatement = (BasicStatement) stmt;
-                            if (basicStatement.getInstructionIndex() == instructionIndex) {
-                                return vertex;
-                            }
-                        }
+
+                    // check if index is in range [firstStmt,lastStmt]
+                    BasicStatement firstStmt = (BasicStatement) blockStmt.getFirstStatement();
+                    BasicStatement lastStmt = (BasicStatement) blockStmt.getLastStatement();
+
+                    if (firstStmt.getInstructionIndex() <= instructionIndex &&
+                            instructionIndex <= lastStmt.getInstructionIndex()) {
+                        return vertex;
                     }
                 }
             }

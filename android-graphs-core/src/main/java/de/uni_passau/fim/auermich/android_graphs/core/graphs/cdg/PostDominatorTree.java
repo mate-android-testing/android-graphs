@@ -136,11 +136,6 @@ public class PostDominatorTree extends BaseCFG {
         // retrieve fully qualified method name (class name + method name)
         String method = tokens[0] + "->" + tokens[1];
 
-        // check whether trace refers to this graph
-        if (!method.equals(getMethodName())) {
-            throw new IllegalArgumentException("Given trace refers to a different method, thus to a different graph!");
-        }
-
         if (tokens[2].equals("entry")) {
             return getEntry();
         } else if (tokens[2].equals("exit")) {
@@ -156,6 +151,11 @@ public class PostDominatorTree extends BaseCFG {
                 }
 
                 Statement statement = vertex.getStatement();
+
+                // Skip vertex if the method name does not match.
+                if (!statement.getMethod().equals(method)) {
+                    continue;
+                }
 
                 if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
                     // no basic blocks
