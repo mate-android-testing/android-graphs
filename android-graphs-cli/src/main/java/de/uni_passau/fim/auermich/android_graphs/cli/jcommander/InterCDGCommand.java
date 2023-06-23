@@ -7,7 +7,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 @Parameters(commandDescription = "Produces an inter-procedural CDG.")
 public class InterCDGCommand {
 
-    private GraphType graphType = GraphType.INTERCDG;
+    private GraphType graphType = GraphType.CDG;
 
     @Parameter(names = {"-art"}, description = "Whether ART classes should be resolved.")
     private boolean art = false;

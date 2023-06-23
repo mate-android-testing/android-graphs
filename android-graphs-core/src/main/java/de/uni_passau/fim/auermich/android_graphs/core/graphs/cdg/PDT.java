@@ -24,9 +24,9 @@ public class PDT extends BaseCFG {
     private final Map<String, BaseCFG> intraCFGs;
 
     /**
-     * Creates a post-dominator tree from the given control flow graph.
+     * Creates a post-dominator tree from the given CFG.
      *
-     * @param cfg The given control flow graph.
+     * @param cfg The given CFG.
      */
     public PDT(final BaseCFG cfg) {
         super(cfg.getMethodName() + "-PDT", cfg.getExit(), cfg.getEntry()); // entry and exit are reversed
@@ -137,19 +137,40 @@ public class PDT extends BaseCFG {
     @Override
     public CFGVertex lookUpVertex(String trace) {
 
-        // Decompose trace into class, method  and instruction index.
+        /*
+         * A trace has the following form:
+         *   className -> methodName -> ([entry|exit|if|switch])? -> (index)?
+         *
+         * The first two components are always fixed, while the instruction type and the instruction index
+         * are optional, but not both at the same time:
+         *
+         * Making the instruction type optional allows to search (by index) for a custom instruction, e.g. a branch.
+         * Making the index optional allows to look up virtual entry and exit vertices as well as if and switch vertices.
+         */
         String[] tokens = trace.split("->");
 
         // Retrieve fully qualified method name (class name + method name).
-        String method = tokens[0] + "->" + tokens[1];
+        final String method = tokens[0] + "->" + tokens[1];
 
-        if (tokens[2].equals("entry")) {
-            return intraCFGs.get(method).getEntry();
-        } else if (tokens[2].equals("exit")) {
-            return intraCFGs.get(method).getExit();
-        } else {
-            int instructionIndex = Integer.parseInt(tokens[2]);
+        if (tokens.length == 3) {
+
+            if (tokens[2].equals("entry")) {
+                return intraCFGs.get(method).getEntry();
+            } else if (tokens[2].equals("exit")) {
+                return intraCFGs.get(method).getExit();
+            } else {
+                // lookup of a branch
+                int instructionIndex = Integer.parseInt(tokens[2]);
+                return lookUpVertex(method, instructionIndex, getEntry());
+            }
+
+        } else if (tokens.length == 4) { // if or switch statement
+
+            int instructionIndex = Integer.parseInt(tokens[3]);
             return lookUpVertex(method, instructionIndex, getEntry());
+
+        } else {
+            throw new IllegalArgumentException("Unrecognized trace: " + trace);
         }
     }
 

@@ -1918,18 +1918,18 @@ public class InterCFG extends BaseCFG {
 
         /*
          * A trace has the following form:
-         *   className -> methodName -> ([entry|exit|if|return])? -> (index)?
+         *   className -> methodName -> ([entry|exit|if|switch])? -> (index)?
          *
          * The first two components are always fixed, while the instruction type and the instruction index
          * are optional, but not both at the same time:
          *
          * Making the instruction type optional allows to search (by index) for a custom instruction, e.g. a branch.
-         * Making the index optional allows to look up virtual entry and exit vertices.
+         * Making the index optional allows to look up virtual entry and exit vertices as well as if and switch vertices.
          */
         String[] tokens = trace.split("->");
 
         // retrieve fully qualified method name (class name + method name)
-        String method = tokens[0] + "->" + tokens[1];
+        final String method = tokens[0] + "->" + tokens[1];
 
         // check whether method belongs to graph
         if (!intraCFGs.containsKey(method)) {

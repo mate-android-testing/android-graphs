@@ -41,9 +41,9 @@ public enum GraphType {
     },
 
     /**
-     * An inter-procedural CDG.
+     * A control dependence graph.
      */
-    INTERCDG {
+    CDG {
 
         @Override
         public String toString() {

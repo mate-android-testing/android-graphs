@@ -155,7 +155,7 @@ public final class Main {
      * @param cmd The command line arguments.
      */
     private static boolean checkArguments(InterCDGCommand cmd) {
-        assert cmd.getGraphType() == GraphType.INTERCDG;
+        assert cmd.getGraphType() == GraphType.CDG;
         return true;
     }
 
@@ -272,10 +272,10 @@ public final class Main {
                     }
                     break;
 
-                case INTERCDG:
+                case CDG:
                     if (checkArguments(interCDGCmd)) {
 
-                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCDG, dexFiles)
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.CDG, dexFiles)
                                 .withName("global")
                                 .withAPKFile(mainCmd.getAPKFile());
 
