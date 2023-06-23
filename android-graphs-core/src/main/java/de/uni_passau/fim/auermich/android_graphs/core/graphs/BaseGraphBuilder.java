@@ -2,7 +2,7 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.InterCDG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.CDG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
 import org.jf.dexlib2.iface.DexFile;
@@ -96,7 +96,7 @@ public class BaseGraphBuilder {
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
                 APK apk = new APK(apkFile, dexFiles);
                 final InterCFG cfg = new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
-                return new InterCDG(cfg);
+                return new CDG(cfg);
             }
             case CALLTREE: {
                 Objects.requireNonNull(name, "Call tree name is mandatory!");

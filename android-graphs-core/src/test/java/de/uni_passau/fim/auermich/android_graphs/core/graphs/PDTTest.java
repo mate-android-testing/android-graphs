@@ -1,17 +1,16 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.PDT;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.PostDominatorTree;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class PostDominatorTreeTest {
+class PDTTest {
     private BaseCFG cfg;
     private final File DRAW_FILE = new File("src/test/resources");
 
@@ -22,7 +21,7 @@ class PostDominatorTreeTest {
 
     @Test
     public void testPostDominatorGeneration() {
-        PostDominatorTree pdt = new PostDominatorTree(cfg);
+        PDT pdt = new PDT(cfg);
         pdt.drawGraph(DRAW_FILE);
         assertEquals(pdt.size(), 19);
         assertEquals(pdt.getEdges().size(), 18);

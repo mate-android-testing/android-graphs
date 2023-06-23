@@ -309,11 +309,14 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
 
     /**
      * Reverses the given BaseCFG graph by reversing the direction of all edges.
+     * NOTE: Calling getEntry() or getExit() on the resulting graph returns the original entry or exit, respectively.
      *
      * @return Returns the reversed BaseCFG.
      */
     public BaseCFG reverseGraph() {
 
+        // TODO: Be careful, although the graph is reversed, getEntry() and getExit() still refer to the entry and exit
+        //  of the original graph. May use reflection to overwrite those two fields.
         BaseCFG reversed = this.clone();
         reversed.removeEdges(reversed.getEdges());
 

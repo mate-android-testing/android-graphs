@@ -4,12 +4,10 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
-import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
-import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.*;
+import org.jgrapht.traverse.BreadthFirstIterator;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -17,17 +15,29 @@ import java.util.Set;
 /**
  * Represents a post-dominator tree.
  */
-public class PostDominatorTree extends BaseCFG {
+public class PDT extends BaseCFG {
+
+    /**
+     * Maintains a reference to the individual intra CFGs.
+     * NOTE: Only a reference to the entry and exit vertex is hold!
+     */
+    private final Map<String, BaseCFG> intraCFGs;
 
     /**
      * Creates a post-dominator tree from the given control flow graph.
      *
      * @param cfg The given control flow graph.
      */
-    public PostDominatorTree(final BaseCFG cfg) {
-        super(cfg.getMethodName() + "-PDT", cfg.getEntry(), cfg.getExit());
+    public PDT(final BaseCFG cfg) {
+        super(cfg.getMethodName() + "-PDT", cfg.getExit(), cfg.getEntry()); // entry and exit are reversed
         final Map<CFGVertex, Set<CFGVertex>> postDominators = computePostDominators(cfg.reverseGraph());
         buildDominanceTree(cfg, postDominators);
+        if (cfg instanceof InterCFG) {
+            intraCFGs = ((InterCFG) cfg).getIntraCFGs();
+        } else { // intra
+            intraCFGs = new HashMap<>();
+            intraCFGs.put(cfg.getMethodName(), new DummyCFG(cfg));
+        }
     }
 
     /**
@@ -130,54 +140,39 @@ public class PostDominatorTree extends BaseCFG {
         // Decompose trace into class, method  and instruction index.
         String[] tokens = trace.split("->");
 
-        // class + method + entry|exit|instruction-index
-        assert tokens.length == 3;
-
-        // retrieve fully qualified method name (class name + method name)
+        // Retrieve fully qualified method name (class name + method name).
         String method = tokens[0] + "->" + tokens[1];
 
         if (tokens[2].equals("entry")) {
-            return getEntry();
+            return intraCFGs.get(method).getEntry();
         } else if (tokens[2].equals("exit")) {
-            return getExit();
+            return intraCFGs.get(method).getExit();
         } else {
-            // brute force search
             int instructionIndex = Integer.parseInt(tokens[2]);
+            return lookUpVertex(method, instructionIndex, getEntry());
+        }
+    }
 
-            for (CFGVertex vertex : getVertices()) {
+    /**
+     * Performs a breadth first search for looking up the vertex.
+     *
+     * @param method The method describing the vertex.
+     * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
+     * @param entry The entry vertex of the graph.
+     * @return Returns the vertex described by the given method and the instruction index, otherwise
+     *         a {@link IllegalArgumentException} is thrown.
+     */
+    private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry) {
 
-                if (vertex.isEntryVertex() || vertex.isExitVertex()) {
-                    continue;
-                }
+        BreadthFirstIterator<CFGVertex, CFGEdge> bfs = new BreadthFirstIterator<>(graph, entry);
 
-                Statement statement = vertex.getStatement();
-
-                // Skip vertex if the method name does not match.
-                if (!statement.getMethod().equals(method)) {
-                    continue;
-                }
-
-                if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
-                    // no basic blocks
-                    BasicStatement basicStmt = (BasicStatement) statement;
-                    if (basicStmt.getInstructionIndex() == instructionIndex) {
-                        return vertex;
-                    }
-                } else if (statement.getType() == Statement.StatementType.BLOCK_STATEMENT) {
-                    // basic blocks
-                    BlockStatement blockStmt = (BlockStatement) statement;
-
-                    // check if index is in range [firstStmt,lastStmt]
-                    BasicStatement firstStmt = (BasicStatement) blockStmt.getFirstStatement();
-                    BasicStatement lastStmt = (BasicStatement) blockStmt.getLastStatement();
-
-                    if (firstStmt.getInstructionIndex() <= instructionIndex &&
-                            instructionIndex <= lastStmt.getInstructionIndex()) {
-                        return vertex;
-                    }
-                }
+        while (bfs.hasNext()) {
+            CFGVertex vertex = bfs.next();
+            if (vertex.containsInstruction(method, instructionIndex)) {
+                return vertex;
             }
         }
+
         throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
     }
 

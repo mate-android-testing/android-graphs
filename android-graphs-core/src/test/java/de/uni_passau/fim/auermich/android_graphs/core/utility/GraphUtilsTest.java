@@ -1,12 +1,12 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
-import static org.junit.jupiter.api.Assertions.*;
-
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.CDG;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
 
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.InterCDG;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GraphUtilsTest {
 
@@ -15,7 +15,7 @@ class GraphUtilsTest {
 
     @Test
     void constructInterCDG() {
-        InterCDG cdg = GraphUtils.constructInterCDG(APK_FILE, true, false, true);
+        CDG cdg = GraphUtils.constructInterCDG(APK_FILE, true, false, true);
         cdg.drawGraph(DRAW_FILE);
         assertTrue(cdg.getVertices().size() > 0);
         assertTrue(cdg.getEdges().size() > 0);

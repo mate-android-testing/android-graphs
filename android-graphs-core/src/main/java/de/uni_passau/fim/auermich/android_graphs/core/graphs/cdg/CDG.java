@@ -3,19 +3,17 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg;
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.Var;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGEdge;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.*;
 import org.jgrapht.traverse.BreadthFirstIterator;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * Represents an inter-procedural control dependence graph (CDG).
+ * Represents a control dependence graph (CDG).
  */
-public class InterCDG extends BaseCFG {
+public class CDG extends BaseCFG {
 
     /**
      * Maintains a reference to the individual intra CFGs.
@@ -24,15 +22,21 @@ public class InterCDG extends BaseCFG {
     private final Map<String, BaseCFG> intraCFGs;
 
     /**
-     * Constructs an inter-procedural CDG from the inter-procedural CFG.
+     * Constructs a CDG from the given CFG.
      *
-     * @param cfg The inter-procedural CFG.
+     * @param cfg The given CFG.
      */
-    public InterCDG(BaseCFG cfg) {
+    public CDG(BaseCFG cfg) {
         super(cfg.getMethodName() + "-CDG", cfg.getEntry(), cfg.getExit());
-        final PostDominatorTree pdt = new PostDominatorTree(cfg);
+        final PDT pdt = new PDT(cfg);
         buildCDG(cfg, pdt);
-        intraCFGs = ((InterCFG) cfg).getIntraCFGs();
+
+        if (cfg instanceof InterCFG) {
+            intraCFGs = ((InterCFG) cfg).getIntraCFGs();
+        } else { // intra
+            intraCFGs = new HashMap<>();
+            intraCFGs.put(cfg.getMethodName(), new DummyCFG(cfg));
+        }
     }
 
     /**
@@ -41,7 +45,7 @@ public class InterCDG extends BaseCFG {
      * @param cfg The given inter-procedural CFG.
      * @param pdt The given PDT.
      */
-    private void buildCDG(final BaseCFG cfg, final PostDominatorTree pdt) {
+    private void buildCDG(final BaseCFG cfg, final PDT pdt) {
 
         final Set<CFGVertex> vertices = cfg.getVertices();
 
