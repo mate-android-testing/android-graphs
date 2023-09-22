@@ -112,8 +112,11 @@ public class LayoutFile {
      * @return Returns the fragment names contained in the layout file.
      */
     private Stream<String> parseFragmentNames(Element element) {
+        // https://stackoverflow.com/questions/10162983/activity-layout-fragment-class-vs-androidname-attributes
         Stream<String> thisElement = element.getName().equals("fragment")
-                ? Stream.of(element.attributeValue("name")) : Stream.empty();
+                ? element.attributeValue("name") != null
+                ? Stream.of(element.attributeValue("name")) : Stream.of(element.attributeValue("class"))
+                : Stream.empty();
         return Stream.concat(thisElement, element.elements().stream().flatMap(this::parseFragmentNames));
     }
 
@@ -263,5 +266,12 @@ public class LayoutFile {
 
         LOGGER.warn("Couldn't find a layout file for the resource id: " + resourceID);
         return null;
+    }
+
+    @Override
+    public String toString() {
+        return "LayoutFile{" +
+                "layoutFile=" + layoutFile +
+                '}';
     }
 }
