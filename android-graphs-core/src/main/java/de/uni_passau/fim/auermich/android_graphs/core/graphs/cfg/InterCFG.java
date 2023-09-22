@@ -366,6 +366,9 @@ public class InterCFG extends BaseCFG {
                         LOGGER.warn("Constructor " + constructor + " not contained in dex files!");
                         targetCFGs.add(dummyCFG(overriddenMethod));
                     }
+                } else {
+                    LOGGER.warn("Couldn't backtrack reflection call within method: " + invokeStmt.getMethod());
+                    targetCFGs.add(dummyCFG(overriddenMethod));
                 }
             } else if (DialogUtils.isDialogInvocation(overriddenMethod)) {
                 LOGGER.debug("Dialog invocation detected: " + overriddenMethod);
