@@ -2,8 +2,6 @@ package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
 import org.jf.dexlib2.iface.ClassDef;
 
-import java.util.Objects;
-
 public class BroadcastReceiver extends AbstractComponent {
 
     private boolean isDynamicReceiver;
@@ -26,7 +24,8 @@ public class BroadcastReceiver extends AbstractComponent {
 
     // AppWidgetProvider -> https://developer.android.com/reference/android/appwidget/AppWidgetProvider
     public boolean isAppWidgetProvider() {
-        return Objects.equals(getClazz().getSuperclass(), "Landroid/appwidget/AppWidgetProvider;");
+        return getSuperClasses().stream()
+                .anyMatch(superClass -> superClass.equals("Landroid/appwidget/AppWidgetProvider;"));
     }
 
     public String onEnabledMethod() {

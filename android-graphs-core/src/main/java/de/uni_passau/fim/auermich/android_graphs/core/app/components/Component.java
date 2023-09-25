@@ -18,4 +18,8 @@ public interface Component {
     String getDefaultConstructor();
 
     List<String> getConstructors();
+
+    List<String> getSuperClasses();
+
+    void setSuperClasses(List<String> superClasses);
 }

@@ -1788,6 +1788,12 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("List of broadcast receivers: " + components.stream()
                 .filter(c -> c.getComponentType() == ComponentType.BROADCAST_RECEIVER).collect(Collectors.toList()));
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
+
+        for (Component component : components) {
+            final List<String> superClasses = classHierarchy.getSuperClasses(component.getClazz());
+            LOGGER.debug("Super classes of component " + component + " are: " + superClasses);
+            component.setSuperClasses(superClasses);
+        }
     }
 
     /**

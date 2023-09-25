@@ -13,6 +13,7 @@ public abstract class AbstractComponent implements Component {
     private final String name;
     private final ComponentType type;
     private final List<String> constructors;
+    private List<String> superClasses;
 
     public AbstractComponent(ClassDef clazz, ComponentType type) {
         this.clazz = clazz;
@@ -24,6 +25,24 @@ public abstract class AbstractComponent implements Component {
             if (MethodUtils.isConstructorCall(methodSignature)) {
                 constructors.add(methodSignature);
             }
+        }
+    }
+
+    @Override
+    public List<String> getSuperClasses() {
+        if (superClasses == null) {
+            throw new IllegalStateException("Retrieving super classes before being set!");
+        } else {
+            return superClasses;
+        }
+    }
+
+    @Override
+    public void setSuperClasses(List<String> superClasses) {
+        if (this.superClasses == null) {
+            this.superClasses = superClasses;
+        } else {
+            throw new IllegalStateException("The super classes can be only set once!");
         }
     }
 
