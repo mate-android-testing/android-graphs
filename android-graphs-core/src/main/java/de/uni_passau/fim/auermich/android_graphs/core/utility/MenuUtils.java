@@ -111,6 +111,7 @@ public class MenuUtils {
 
                     return Stream.empty();
                 })
+                .filter(Objects::nonNull)
                 .map(item -> resolveMenuItemTitle(apk, item));
     }
 
@@ -263,12 +264,16 @@ public class MenuUtils {
      * @param apk The APK file.
      * @param menuItemId The menu item id.
      * @param menuItemTitleId The menu item title id.
-     * @return Returns a menu item.
+     * @return Returns the menu item or {@code null} if the menu item could not be resolved.
      */
-    private static MenuItem buildMenuItem(APK apk, int menuItemId, Long menuItemTitleId) {
-        String titleId = ResourceUtils.lookupStringIdName(apk.getDexFiles(), menuItemTitleId).orElseThrow();
-        String id = ResourceUtils.lookupIdName(apk.getDexFiles(), menuItemId).orElse(String.valueOf(menuItemId));
-        return new MenuItem(id, titleId);
+    private static MenuItem buildMenuItem(final APK apk, final int menuItemId, final Long menuItemTitleId) {
+        Optional<String> titleId = ResourceUtils.lookupStringIdName(apk.getDexFiles(), menuItemTitleId);
+        if (titleId.isPresent()) {
+            String id = ResourceUtils.lookupIdName(apk.getDexFiles(), menuItemId).orElse(String.valueOf(menuItemId));
+            return new MenuItem(id, titleId.get());
+        } else { // the app might use an outdated resource id
+            return null;
+        }
     }
 
     /**

@@ -1712,7 +1712,8 @@ public class InterCFG extends BaseCFG {
                     }
 
                     if (MenuUtils.isOnCreateMenu(methodSignature)) {
-                        List<MenuItemWithResolvedTitle> menuItems = MenuUtils.getDefinedMenuItems(apk, dexFile, method).collect(Collectors.toList());
+                        List<MenuItemWithResolvedTitle> menuItems = MenuUtils.getDefinedMenuItems(apk, dexFile, method)
+                                .collect(Collectors.toList());
                         var component = ComponentUtils.getComponentByName(components, classDef.toString());
 
                         if (component.isPresent()) {
