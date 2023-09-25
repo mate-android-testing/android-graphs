@@ -2,6 +2,8 @@ package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
 import org.jf.dexlib2.iface.ClassDef;
 
+import java.util.List;
+
 /**
  * The interface for an android component, e.g. activity.
  */
@@ -14,4 +16,6 @@ public interface Component {
     ComponentType getComponentType();
 
     String getDefaultConstructor();
+
+    List<String> getConstructors();
 }

@@ -807,8 +807,9 @@ public class InterCFG extends BaseCFG {
      * @param activity The activity for which a global entry point should be defined.
      */
     private void addGlobalEntryPoint(Activity activity) {
-        BaseCFG activityConstructor = intraCFGs.get(activity.getDefaultConstructor());
-        addEdge(getEntry(), activityConstructor.getEntry());
+        for (String constructor: activity.getConstructors()) {
+            addEdge(getEntry(), intraCFGs.get(constructor).getEntry());
+        }
     }
 
     /**
@@ -833,8 +834,10 @@ public class InterCFG extends BaseCFG {
 
         BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
 
-        // connect onCreate with the default constructor
-        addEdge(intraCFGs.get(activity.getDefaultConstructor()).getExit(), onCreateCFG.getEntry());
+        for (String constructor : activity.getConstructors()) {
+            // connect onCreate with the each constructor
+            addEdge(intraCFGs.get(constructor).getExit(), onCreateCFG.getEntry());
+        }
 
         // if there are fragments, onCreate invokes onAttach, onCreate and onCreateView
         for (Fragment fragment : fragments) {
