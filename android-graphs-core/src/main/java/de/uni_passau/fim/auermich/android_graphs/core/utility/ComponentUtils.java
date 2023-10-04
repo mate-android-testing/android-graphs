@@ -157,14 +157,17 @@ public class ComponentUtils {
                     return null;
                 }
 
-                // go back until we find const-class instruction which holds the activity name
+                // go back until we find const-class / static invocation instruction which holds the activity name
                 AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                // TODO: Consider the used register when backtracking instructions!
 
                 // TODO: check that we don't miss activities, go back recursively if there are several predecessors
                 // upper bound to avoid resolving external activities or activities defined in a different method
                 while (pred.getInstructionIndex() != -1) {
-                    Instruction predecessor = pred.getInstruction();
+                    final Instruction predecessor = pred.getInstruction();
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
+                        // This is the most common pattern - the activity name is encoded in the const-class instruction.
 
                         String activityName = ((Instruction21c) predecessor).getReference().toString();
                         Optional<Component> activity = getComponentByName(components, activityName);
@@ -172,19 +175,31 @@ public class ComponentUtils {
                         if (activity.isPresent()) {
                             // return the full-qualified name of the constructor
                             return activity.get().getDefaultConstructor();
-                        } else {
-                            LOGGER.warn("Potentially not recognized activity name: " + activityName);
-                            // only inspect the closest const_class instruction for the activity name
-                            return null;
                         }
+                    } else if (predecessor.getOpcode() == Opcode.INVOKE_STATIC) {
+                        /*
+                        * In some cases the intent for startActivity() is supplied by the target activity through a
+                        * static method. We can retrieve then the activity name from the static invocation, e.g.,
+                        * consider the following example:
+                        *
+                        * Intent intent = TargetActivity.newIntent(CurrentActivity.this);
+                        * startActivity(intent);
+                         */
+                        String reference = ((ReferenceInstruction) pred.getInstruction()).getReference().toString();
+                        String activityName = reference.split("->")[0];
+                        Optional<Component> activity = getComponentByName(components, activityName);
+                        boolean returnTypeIsIntent = reference.endsWith("Landroid/content/Intent;");
+                        if (activity.isPresent() && returnTypeIsIntent) {
+                            return activity.get().getDefaultConstructor();
+                        }
+                    }
+
+                    if (pred.getPredecessors().isEmpty()) {
+                        // there is no predecessor -> target activity name might be defined somewhere else or external
+                        return null;
                     } else {
-                        if (pred.getPredecessors().isEmpty()) {
-                            // there is no predecessor -> target activity name might be defined somewhere else or external
-                            return null;
-                        } else {
-                            // TODO: may use recursive search over all predecessors
-                            pred = pred.getPredecessors().first();
-                        }
+                        // TODO: may use recursive search over all predecessors
+                        pred = pred.getPredecessors().first();
                     }
                 }
 
