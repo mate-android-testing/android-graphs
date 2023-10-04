@@ -1917,7 +1917,7 @@ public class InterCFG extends BaseCFG {
 
         /*
          * A trace has the following form:
-         *   className -> methodName -> ([entry|exit|if|return])? -> (index)?
+         *   className -> methodName -> ([entry|exit|if|switch])? -> (index)?
          *
          * The first two components are always fixed, while the instruction type and the instruction index
          * are optional, but not both at the same time:
@@ -1952,6 +1952,12 @@ public class InterCFG extends BaseCFG {
 
             // String instructionType = tokens[2];
             int instructionIndex = Integer.parseInt(tokens[3]);
+            CFGVertex entry = intraCFGs.get(method).getEntry();
+            return lookUpVertex(method, instructionIndex, entry);
+
+        } else if (tokens.length == 5) { // basic block coverage trace
+
+            int instructionIndex = Integer.parseInt(tokens[2]);
             CFGVertex entry = intraCFGs.get(method).getEntry();
             return lookUpVertex(method, instructionIndex, entry);
 
