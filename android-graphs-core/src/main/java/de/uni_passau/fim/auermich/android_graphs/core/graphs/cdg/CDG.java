@@ -129,6 +129,12 @@ public class CDG extends BaseCFG {
             int instructionIndex = Integer.parseInt(tokens[3]);
             return lookUpVertex(method, instructionIndex, getEntry());
 
+        } else if (tokens.length == 5) { // basic block coverage trace
+
+            int instructionIndex = Integer.parseInt(tokens[2]);
+            CFGVertex entry = intraCFGs.get(method).getEntry();
+            return lookUpVertex(method, instructionIndex, entry);
+
         } else {
             throw new IllegalArgumentException("Unrecognized trace: " + trace);
         }
