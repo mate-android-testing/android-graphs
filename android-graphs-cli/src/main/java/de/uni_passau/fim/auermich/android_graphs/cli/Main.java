@@ -45,6 +45,7 @@ public final class Main {
     private static final IntraCFGCommand intraCFGCmd = new IntraCFGCommand();
     private static final CallTreeCommand callTreeCmd = new CallTreeCommand();
     private static final InterCDGCommand interCDGCmd = new InterCDGCommand();
+    private static final IntraCDGCommand intraCDGCmd = new IntraCDGCommand();
 
     // utility class implies private constructor
     private Main() {
@@ -74,11 +75,15 @@ public final class Main {
      *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
      *             The switch -pim specifies whether isolated methods should be printed. (optional)
      *
-     *             The 'cdg' sub commando can handle the following arguments:
+     *             The 'intercdg' sub commando can handle the following arguments:
      *             The switch -b specifies whether basic blocks should be used. (optional)
      *             The switch -art specifies whether ART classes should be resolved. (optional)
      *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
      *             The switch -pim specifies whether isolated methods should be printed. (optional)
+     *
+     *             The 'intracdg' sub commando can handle the following arguments:
+     *             The switch -t specifies the FQN of the method for which the intraCDG should be constructed.
+     *             The switch -b specifies whether basic blocks should be used. (optional)
      *
      *             The 'calltree' sub commando can handle the following arguments:
      *             The switch -art specifies whether ART classes should be resolved. (optional)
@@ -104,7 +109,8 @@ public final class Main {
                 .addCommand("intra", intraCFGCmd)
                 .addCommand("inter", interCFGCmd)
                 .addCommand("calltree", callTreeCmd)
-                .addCommand("cdg", interCDGCmd)
+                .addCommand("intercdg", interCDGCmd)
+                .addCommand("intracdg", intraCDGCmd)
                 .build();
 
         // the program name displayed in the help/usage cmd.
@@ -154,8 +160,18 @@ public final class Main {
      *
      * @param cmd The command line arguments.
      */
+    private static boolean checkArguments(IntraCDGCommand cmd) {
+        assert cmd.getGraphType() == GraphType.INTRACDG;
+        return true;
+    }
+
+    /**
+     * Verifies that the given arguments are valid.
+     *
+     * @param cmd The command line arguments.
+     */
     private static boolean checkArguments(InterCDGCommand cmd) {
-        assert cmd.getGraphType() == GraphType.CDG;
+        assert cmd.getGraphType() == GraphType.INTERCDG;
         return true;
     }
 
@@ -204,14 +220,14 @@ public final class Main {
 
             // determine which sub-commando was executed
             switch (graphType.get()) {
-                case INTRACFG:
+                case INTRACFG: {
                     // check that specified target method is part of some class
-                    Optional<Tuple<DexFile, Method>> optionalTuple
+                    final Optional<Tuple<DexFile, Method>> optionalTuple
                             = MethodUtils.containsTargetMethod(dexFiles, intraCFGCmd.getTarget());
 
                     if (checkArguments(intraCFGCmd) && optionalTuple.isPresent()) {
 
-                        Tuple<DexFile, Method> tuple = optionalTuple.get();
+                        final Tuple<DexFile, Method> tuple = optionalTuple.get();
 
                         BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTRACFG, tuple.getX(), tuple.getY());
 
@@ -234,7 +250,8 @@ public final class Main {
                         LOGGER.error("Target method not contained in dex file!");
                     }
                     break;
-                case INTERCFG:
+                }
+                case INTERCFG: {
                     if (checkArguments(interCFGCmd)) {
 
                         BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCFG, dexFiles)
@@ -271,11 +288,42 @@ public final class Main {
                         }
                     }
                     break;
+                }
+                case INTRACDG: {
+                    // check that specified target method is part of some class
+                    final Optional<Tuple<DexFile, Method>> optionalTuple
+                            = MethodUtils.containsTargetMethod(dexFiles, intraCDGCmd.getTarget());
 
-                case CDG:
+                    if (checkArguments(intraCDGCmd) && optionalTuple.isPresent()) {
+
+                        final Tuple<DexFile, Method> tuple = optionalTuple.get();
+
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTRACDG, tuple.getX(), tuple.getY());
+
+                        if (intraCDGCmd.isUseBasicBlocks()) {
+                            builder = builder.withBasicBlocks();
+                        }
+
+                        BaseGraph baseGraph = builder.build();
+
+                        if (mainCmd.isDraw()) {
+                            LOGGER.info("Drawing graph!");
+                            baseGraph.drawGraph();
+                        }
+
+                        if (mainCmd.lookup()) {
+                            LOGGER.info("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
+                        }
+
+                    } else {
+                        LOGGER.error("Target method not contained in dex file!");
+                    }
+                    break;
+                }
+                case INTERCDG: {
                     if (checkArguments(interCDGCmd)) {
 
-                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.CDG, dexFiles)
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.INTERCDG, dexFiles)
                                 .withName("global")
                                 .withAPKFile(mainCmd.getAPKFile());
 
@@ -309,8 +357,8 @@ public final class Main {
                         }
                     }
                     break;
-
-                case CALLTREE:
+                }
+                case CALLTREE: {
 
                     if (checkArguments(callTreeCmd)) {
 
@@ -341,6 +389,7 @@ public final class Main {
                         }
                     }
                     break;
+                }
             }
         }
     }

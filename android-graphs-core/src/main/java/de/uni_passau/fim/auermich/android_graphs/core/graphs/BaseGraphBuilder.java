@@ -2,7 +2,8 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.CDG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.InterCDG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.IntraCDG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
 import org.jf.dexlib2.iface.DexFile;
@@ -91,12 +92,17 @@ public class BaseGraphBuilder {
                 APK apk = new APK(apkFile, dexFiles);
                 return new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
             }
-            case CDG: {
+            case INTERCDG: {
                 Objects.requireNonNull(name, "CFG name is mandatory!");
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
                 APK apk = new APK(apkFile, dexFiles);
                 final InterCFG cfg = new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
-                return new CDG(cfg);
+                return new InterCDG(cfg);
+            }
+            case INTRACDG: {
+                Objects.requireNonNull(method, "Method is mandatory!");
+                final IntraCFG intraCFG = new IntraCFG(method, dexFiles.get(0), useBasicBlocks);
+                return new IntraCDG(intraCFG);
             }
             case CALLTREE: {
                 Objects.requireNonNull(name, "Call tree name is mandatory!");

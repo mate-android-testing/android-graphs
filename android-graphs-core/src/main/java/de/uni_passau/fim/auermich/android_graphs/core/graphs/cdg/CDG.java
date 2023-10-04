@@ -36,6 +36,14 @@ public class CDG extends BaseCFG {
         } else { // intra
             intraCFGs = new HashMap<>();
             intraCFGs.put(cfg.getMethodName(), new DummyCFG(cfg));
+            /*
+             * Entry and exit vertices are isolated in the intraCDG case, so we have to link them together manually. In
+             * addition, we need to link entry with the original successors in the intraCFG.
+             */
+//            addEdge(cfg.getEntry(), cfg.getExit());
+//            for (CFGVertex successor : cfg.getSuccessors(cfg.getEntry())) {
+//                addEdge(cfg.getEntry(), successor);
+//            }
         }
     }
 
@@ -170,7 +178,7 @@ public class CDG extends BaseCFG {
      */
     @Override
     public GraphType getGraphType() {
-        return GraphType.CDG;
+        return GraphType.INTERCDG;
     }
 
     /**

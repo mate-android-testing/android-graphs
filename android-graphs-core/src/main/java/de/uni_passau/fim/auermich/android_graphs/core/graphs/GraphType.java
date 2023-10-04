@@ -41,13 +41,24 @@ public enum GraphType {
     },
 
     /**
-     * A control dependence graph.
+     * An inter-procedural control dependence graph.
      */
-    CDG {
+    INTERCDG {
 
         @Override
         public String toString() {
-            return "cdg";
+            return "intercdg";
+        }
+    },
+
+    /**
+     * An intra-procedural control dependence graph.
+     */
+    INTRACDG {
+
+        @Override
+        public String toString() {
+            return "intracdg";
         }
     },
 
