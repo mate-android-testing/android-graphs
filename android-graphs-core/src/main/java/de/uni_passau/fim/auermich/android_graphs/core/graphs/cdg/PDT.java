@@ -152,6 +152,11 @@ public class PDT extends BaseCFG {
         // Retrieve fully qualified method name (class name + method name).
         final String method = tokens[0] + "->" + tokens[1];
 
+        // check whether method belongs to graph
+        if (!intraCFGs.containsKey(method)) {
+            throw new IllegalArgumentException("Given trace refers to a method not part of the graph: " + method);
+        }
+
         if (tokens.length == 3) {
 
             if (tokens[2].equals("entry")) {
