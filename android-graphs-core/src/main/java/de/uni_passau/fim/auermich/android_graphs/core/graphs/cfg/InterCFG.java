@@ -1666,7 +1666,10 @@ public class InterCFG extends BaseCFG {
 
         // track binder classes and attach them to the corresponding service
         Set<String> binderClasses = new HashSet<>();
-        List<ClassDef> classes = apk.getDexFiles().stream().map(DexFile::getClasses).flatMap(Collection::stream).collect(Collectors.toList());
+        List<ClassDef> classes = apk.getDexFiles().stream()
+                .map(DexFile::getClasses)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
