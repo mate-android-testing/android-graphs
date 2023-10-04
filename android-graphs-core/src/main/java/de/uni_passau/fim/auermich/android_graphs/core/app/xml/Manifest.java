@@ -157,6 +157,7 @@ public class Manifest {
             });
         }
 
+        // TODO: There are actually apps that do not export a launchable main activity.
         if (mainActivity.get().isEmpty()) {
             throw new IllegalStateException("Couldn't parse main activity!");
         }

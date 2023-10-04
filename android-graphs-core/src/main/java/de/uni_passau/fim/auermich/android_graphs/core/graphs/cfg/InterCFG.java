@@ -406,6 +406,9 @@ public class InterCFG extends BaseCFG {
                         LOGGER.warn("Constructor " + constructor + " not contained in dex files!");
                         targetCFGs.add(dummyCFG(overriddenMethod));
                     }
+                } else {
+                    LOGGER.warn("Couldn't backtrack reflection call within method: " + invokeStmt.getMethod());
+                    targetCFGs.add(dummyCFG(overriddenMethod));
                 }
             } else if (DialogUtils.isDialogInvocation(overriddenMethod)) {
                 LOGGER.debug("Dialog invocation detected: " + overriddenMethod);
@@ -513,10 +516,53 @@ public class InterCFG extends BaseCFG {
                     BaseCFG receiverConstructor = intraCFGs.get(receiver.getDefaultConstructor());
                     addEdge(sendBroadcastCFG.getEntry(), receiverConstructor.getEntry());
 
-                    // integrate onReceive() after constructor
-                    BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
-                    addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
-                    addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
+                    if (receiver.isAppWidgetProvider()) {
+
+                        /*
+                        * AppWidgetProvider is a special broadcast receiver that listens potentially to multiple different
+                        * broadcasts and triggers a specific listener method for each broadcast. Moreover, the onReceive()
+                        * method needs not be overridden at all. Since we can't distinguish which broadcast was sent, we
+                        * integrate each available listener method in the subgraph.
+                         */
+
+                        BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
+                        if (onReceiveCFG != null) {
+                            addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
+                            addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
+                        }
+
+                        BaseCFG onDeletedCFG = intraCFGs.get(receiver.onDeletedMethod());
+                        if (onDeletedCFG != null) {
+                            addEdge(receiverConstructor.getExit(), onDeletedCFG.getEntry());
+                            addEdge(onDeletedCFG.getExit(), sendBroadcastCFG.getExit());
+                        }
+
+                        BaseCFG onEnabledCFG = intraCFGs.get(receiver.onEnabledMethod());
+                        if (onEnabledCFG != null) {
+                            addEdge(receiverConstructor.getExit(), onEnabledCFG.getEntry());
+                            addEdge(onEnabledCFG.getExit(), sendBroadcastCFG.getExit());
+                        }
+
+                        BaseCFG onDisabledCFG = intraCFGs.get(receiver.onDisabledMethod());
+                        if (onDisabledCFG != null) {
+                            addEdge(receiverConstructor.getExit(), onDisabledCFG.getEntry());
+                            addEdge(onDisabledCFG.getExit(), sendBroadcastCFG.getExit());
+                        }
+
+                        BaseCFG onUpdateCFG = intraCFGs.get(receiver.onUpdateMethod());
+                        if (onUpdateCFG != null) {
+                            addEdge(receiverConstructor.getExit(), onUpdateCFG.getEntry());
+                            addEdge(onUpdateCFG.getExit(), sendBroadcastCFG.getExit());
+                        }
+
+                        // TODO: Add further methods of AppWidgetProvider, e.g. onAppWidgetOptionsChanged().
+
+                    } else {
+                        // integrate onReceive() after constructor
+                        BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
+                        addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
+                        addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
+                    }
 
                     targetCFGs.add(sendBroadcastCFG);
                 } else {
@@ -804,8 +850,9 @@ public class InterCFG extends BaseCFG {
      * @param activity The activity for which a global entry point should be defined.
      */
     private void addGlobalEntryPoint(Activity activity) {
-        BaseCFG activityConstructor = intraCFGs.get(activity.getDefaultConstructor());
-        addEdge(getEntry(), activityConstructor.getEntry());
+        for (String constructor: activity.getConstructors()) {
+            addEdge(getEntry(), intraCFGs.get(constructor).getEntry());
+        }
     }
 
     /**
@@ -846,8 +893,10 @@ public class InterCFG extends BaseCFG {
 
         BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
 
-        // connect onCreate with the default constructor
-        addEdge(intraCFGs.get(activity.getDefaultConstructor()).getExit(), onCreateCFG.getEntry());
+        for (String constructor : activity.getConstructors()) {
+            // connect onCreate with the each constructor
+            addEdge(intraCFGs.get(constructor).getExit(), onCreateCFG.getEntry());
+        }
 
         // if there are fragments, onCreate invokes onAttach, onCreate and onCreateView
         for (Fragment fragment : fragments) {
@@ -1680,7 +1729,10 @@ public class InterCFG extends BaseCFG {
 
         // track binder classes and attach them to the corresponding service
         Set<String> binderClasses = new HashSet<>();
-        List<ClassDef> classes = apk.getDexFiles().stream().map(DexFile::getClasses).flatMap(Collection::stream).collect(Collectors.toList());
+        List<ClassDef> classes = apk.getDexFiles().stream()
+                .map(DexFile::getClasses)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
@@ -1729,7 +1781,8 @@ public class InterCFG extends BaseCFG {
                     }
 
                     if (MenuUtils.isOnCreateMenu(methodSignature)) {
-                        List<MenuItemWithResolvedTitle> menuItems = MenuUtils.getDefinedMenuItems(apk, dexFile, method).collect(Collectors.toList());
+                        List<MenuItemWithResolvedTitle> menuItems = MenuUtils.getDefinedMenuItems(apk, dexFile, method)
+                                .collect(Collectors.toList());
                         var component = ComponentUtils.getComponentByName(components, classDef.toString());
 
                         if (component.isPresent()) {
@@ -1801,6 +1854,12 @@ public class InterCFG extends BaseCFG {
         LOGGER.debug("List of broadcast receivers: " + components.stream()
                 .filter(c -> c.getComponentType() == ComponentType.BROADCAST_RECEIVER).collect(Collectors.toList()));
         LOGGER.debug("Invoke Vertices: " + getInvokeVertices().size());
+
+        for (Component component : components) {
+            final List<String> superClasses = classHierarchy.getSuperClasses(component.getClazz());
+            LOGGER.debug("Super classes of component " + component + " are: " + superClasses);
+            component.setSuperClasses(superClasses);
+        }
     }
 
     /**
@@ -1956,6 +2015,12 @@ public class InterCFG extends BaseCFG {
 
             // String instructionType = tokens[2];
             int instructionIndex = Integer.parseInt(tokens[3]);
+            CFGVertex entry = intraCFGs.get(method).getEntry();
+            return lookUpVertex(method, instructionIndex, entry);
+
+        } else if (tokens.length == 5) { // basic block coverage trace
+
+            int instructionIndex = Integer.parseInt(tokens[2]);
             CFGVertex entry = intraCFGs.get(method).getEntry();
             return lookUpVertex(method, instructionIndex, entry);
 

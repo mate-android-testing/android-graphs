@@ -13,6 +13,7 @@ import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.NarrowLiteralInstruction;
+import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 
@@ -268,6 +269,13 @@ public final class Utility {
             if (predecessor.getInstruction().getOpcode() == Opcode.CONST_CLASS && predecessor.setsRegister(registerC)) {
                 Instruction21c constClassInstruction = (Instruction21c) predecessor.getInstruction();
                 return constClassInstruction.getReference().toString();
+            } else if (predecessor.getInstruction().getOpcode() == Opcode.MOVE_RESULT_OBJECT
+                    && predecessor.setsRegister(registerC)) {
+                // The predecessor must be an invoke instruction that returns an instance of the expected class.
+                ReferenceInstruction invokeInstruction
+                        = (ReferenceInstruction) predecessor.getPredecessors().first().getInstruction();
+                String reference = invokeInstruction.getReference().toString();
+                return MethodUtils.getReturnType(reference);
             } else {
                 predecessor = predecessor.getPredecessors().first();
             }
@@ -289,6 +297,13 @@ public final class Utility {
 
         // extract the method parameter referring to the specified register in the invoke instruction
         int localRegisters = MethodUtils.getLocalRegisterCount(targetMethod);
+
+        if (registerC < localRegisters) { // actually a local register, thus we must have overlooked the last write
+            LOGGER.warn("Last write to register v" + registerC + " must have happened within method, but we must have" +
+                    " overlooked it!");
+            return null;
+        }
+
         int paramRegisterIndex = registerC - localRegisters;
 
         // the param registers don't contain p0 (implicit parameter)

@@ -91,7 +91,7 @@ public class CallTree implements BaseGraph {
 
         this.interCFG = interCFG;
         root = new CallTreeVertex(interCFG.getEntry().getMethod());
-        String mainActivityConstructor = interCFG.getMainActivity().getDefaultConstructor();
+        String mainActivityConstructor = interCFG.getMainActivity().getConstructors().get(0);
         Set<String> methods = interCFG.getVertices().stream().map(CFGVertex::getMethod).collect(Collectors.toSet());
 
         for (String method : methods) {
