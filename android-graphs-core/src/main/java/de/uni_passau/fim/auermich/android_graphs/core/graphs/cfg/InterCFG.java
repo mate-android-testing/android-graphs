@@ -605,7 +605,7 @@ public class InterCFG extends BaseCFG {
             addGlobalEntryPoint(activity);
         });
 
-        // add service lifecycle as well as global entry point for activities
+        // add service lifecycle as well as global entry point for services
         components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(serviceComponent -> {
             Service service = (Service) serviceComponent;
             addAndroidServiceLifecycle(service, callbackGraphs.get(service.getName()));
@@ -631,14 +631,20 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Connects the global entry and exit point to the application's constructor method.
+     * Connects the global entry and exit point to the application's constructor methods.
      *
      * @param application The application class.
      */
     private void addGlobalEntryAndExitPoint(Application application) {
-        BaseCFG applicationConstructor = intraCFGs.get(application.getDefaultConstructor());
-        addEdge(getEntry(), applicationConstructor.getEntry());
-        addEdge(applicationConstructor.getExit(), getExit());
+        for (String constructor: application.getConstructors()) {
+            final BaseCFG applicationConstructor = intraCFGs.get(constructor);
+            if (applicationConstructor != null) {
+                addEdge(getEntry(), applicationConstructor.getEntry());
+                addEdge(applicationConstructor.getExit(), getExit());
+            } else {
+                LOGGER.warn("Not integrated class constructor: " + constructor);
+            }
+        }
     }
 
     /**
@@ -856,7 +862,7 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Adds for each component (service) a global entry point and exit point to the respective constructor's
+     * Adds for each component (service) a global entry point and exit point to the respective constructors'
      * entry and exit if the service gets not directly invoked from an activity, i.e. the service's entry point is not
      * connected to the CFG. This may happen if the given application provides a service that is only accessible from
      * other applications via intents.
@@ -864,10 +870,18 @@ public class InterCFG extends BaseCFG {
      * @param service The service for which a global entry point should be defined.
      */
     private void addGlobalEntryAndExitPoint(Service service) {
-        BaseCFG serviceConstructor = intraCFGs.get(service.getDefaultConstructor());
-        if (getPredecessors(serviceConstructor.getEntry()).isEmpty()) {
-            addEdge(getEntry(), serviceConstructor.getEntry());
-            addEdge(serviceConstructor.getExit(), getExit());
+        for (String constructor: service.getConstructors()) {
+            final BaseCFG serviceConstructor = intraCFGs.get(constructor);
+
+            if (serviceConstructor == null) {
+                LOGGER.warn("Not integrated service class constructor: " + constructor);
+                continue;
+            }
+
+            if (getPredecessors(serviceConstructor.getEntry()).isEmpty()) {
+                addEdge(getEntry(), serviceConstructor.getEntry());
+                addEdge(serviceConstructor.getExit(), getExit());
+            }
         }
     }
 
