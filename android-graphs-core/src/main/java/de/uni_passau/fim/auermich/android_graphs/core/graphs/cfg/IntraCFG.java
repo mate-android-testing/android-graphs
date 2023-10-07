@@ -316,8 +316,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             });
         });
 
-        LOGGER.debug("Catch Blocks located at code addresses: " + catchBlocks);
-
         int consumedCodeUnits = 0;
 
         for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
@@ -325,7 +323,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             if (!catchBlocks.isEmpty()) {
                 if (catchBlocks.contains(consumedCodeUnits)) {
                     // first instruction of a catch block is a leader instruction
-                    LOGGER.debug("First instruction within catch block at pos: " + analyzedInstruction.getInstructionIndex());
                     leaders.add(analyzedInstruction.getInstructionIndex());
                 }
                 consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
@@ -352,7 +349,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             }
         }
 
-        LOGGER.debug("Leader Instructions: " + leaders);
         return leaders;
     }
 
