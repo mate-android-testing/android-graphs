@@ -16,7 +16,7 @@ public class DummyCDG extends BaseCFG {
 
     @Override
     public CFGVertex lookUpVertex(String trace) {
-        throw new UnsupportedOperationException("Look up of vertex in dummy CFG not yet supported!");
+        throw new UnsupportedOperationException("Look up of vertex in dummy CDG not yet supported!");
     }
 
     @Override
@@ -26,6 +26,6 @@ public class DummyCDG extends BaseCFG {
 
     @Override
     public BaseCFG copy() {
-        throw new UnsupportedOperationException("Copy of dummy CFG not yet supported!");
+        throw new UnsupportedOperationException("Copy of dummy CDG not yet supported!");
     }
 }

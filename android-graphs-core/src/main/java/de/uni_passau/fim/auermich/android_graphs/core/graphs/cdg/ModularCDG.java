@@ -63,7 +63,8 @@ public class ModularCDG extends BaseCFG {
         super(graphName);
         this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
         this.apk = apk;
-        constructCFG(apk);
+        addEdge(getEntry(), getExit()); // exit is always control-dependent on entry
+        constructCDG(apk);
     }
 
     /**
@@ -84,7 +85,7 @@ public class ModularCDG extends BaseCFG {
         return Collections.unmodifiableMap(intraCDGs);
     }
 
-    private void constructCFG(APK apk) {
+    private void constructCDG(APK apk) {
 
         // decode APK to access manifest and other resource files
         apk.decodeAPK();
@@ -207,7 +208,7 @@ public class ModularCDG extends BaseCFG {
      */
     private void constructCDGWithBasicBlocks(APK apk) {
 
-        LOGGER.debug("Constructing modular CFG with basic blocks!");
+        LOGGER.debug("Constructing modular CDG with basic blocks!");
 
         final String packageName = apk.getManifest().getPackageName();
 
@@ -228,16 +229,26 @@ public class ModularCDG extends BaseCFG {
                 }
             }
         }
+
+        for (Map.Entry<String, BaseCFG> entry : intraCDGs.entrySet()) {
+            if (getIncomingEdges(entry.getValue().getEntry()).size() == 0) {
+                // connect all non-connected sub graphs with global entry
+                addEdge(getEntry(), entry.getValue().getEntry());
+            }
+        }
     }
 
     private BaseCFG lookupTargetCDG(final String packageName, final BasicStatement invokeStmt) {
+
         final Instruction instruction = invokeStmt.getInstruction().getInstruction();
         final String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
         final String className = MethodUtils.getClassName(targetMethod);
+
         if (properties.resolveOnlyAUTClasses && !ClassUtils.dottedClassName(className).startsWith(packageName)) {
             // don't resolve invocation to non AUT classes
             return null;
         }
+
         return intraCDGs.getOrDefault(targetMethod, dummyCDG(targetMethod));
     }
 

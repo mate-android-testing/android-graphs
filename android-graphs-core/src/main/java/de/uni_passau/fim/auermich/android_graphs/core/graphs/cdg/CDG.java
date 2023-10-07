@@ -27,7 +27,7 @@ public class CDG extends BaseCFG {
      * @param cfg The given CFG.
      */
     public CDG(BaseCFG cfg) {
-        super(cfg.getMethodName() + "-CDG", cfg.getEntry(), cfg.getExit());
+        super(cfg.getMethodName(), cfg.getEntry(), cfg.getExit());
         final PDT pdt = new PDT(cfg);
         buildCDG(cfg, pdt);
 

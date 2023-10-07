@@ -60,7 +60,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      * @param targetMethod The method for which we want to generate the CFG.
      */
     private void constructCFG(DexFile dexFile, Method targetMethod) {
-        
+
         MethodImplementation methodImplementation = targetMethod.getImplementation();
 
         if (methodImplementation != null) {
