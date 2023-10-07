@@ -60,9 +60,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      * @param targetMethod The method for which we want to generate the CFG.
      */
     private void constructCFG(DexFile dexFile, Method targetMethod) {
-
-        LOGGER.debug("Constructing Intra-CFG for method: " + targetMethod);
-
+        
         MethodImplementation methodImplementation = targetMethod.getImplementation();
 
         if (methodImplementation != null) {
@@ -169,8 +167,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      * @param targetMethod The method for which we want to generate the CFG.
      */
     private void constructCFGWithBasicBlocks(DexFile dexFile, Method targetMethod) {
-
-        LOGGER.debug("Constructing Intra-CFG with BasicBlocks for method: " + targetMethod);
 
         if (targetMethod.getImplementation() != null) {
 
