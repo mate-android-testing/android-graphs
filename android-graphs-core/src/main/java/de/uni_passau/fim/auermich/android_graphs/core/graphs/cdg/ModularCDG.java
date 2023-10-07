@@ -4,7 +4,13 @@ import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.*;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGEdge;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
 import org.apache.logging.log4j.LogManager;
@@ -12,6 +18,8 @@ import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
 import org.jf.dexlib2.iface.Method;
+import org.jf.dexlib2.iface.instruction.Instruction;
+import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.AllDirectedPaths;
@@ -26,7 +34,7 @@ import java.util.regex.Pattern;
 
 public class ModularCDG extends BaseCFG {
 
-    private static final Logger LOGGER = LogManager.getLogger(InterCFG.class);
+    private static final Logger LOGGER = LogManager.getLogger(ModularCDG.class);
     private static final GraphType GRAPH_TYPE = GraphType.MODULARCDG;
 
     /**
@@ -141,7 +149,7 @@ public class ModularCDG extends BaseCFG {
                             addSubGraph(intraCDG);
                             addInvokeVertices(intraCDG.getInvokeVertices());
                             // only hold a reference to the entry and exit vertex
-                            intraCDGs.put(methodSignature, new DummyCFG(intraCDG));
+                            intraCDGs.put(methodSignature, new DummyCDG(intraCDG));
                         }
                     }
                 }
@@ -175,6 +183,19 @@ public class ModularCDG extends BaseCFG {
         return cfg;
     }
 
+    /**
+     * Creates and adds a dummy CDG for the given method.
+     *
+     * @param targetMethod The method for which a dummy CFG should be generated.
+     * @return Returns the constructed dummy CFG.
+     */
+    private BaseCFG dummyCDG(String targetMethod) {
+        BaseCFG targetCDG = dummyIntraCDG(targetMethod);
+        intraCDGs.put(targetMethod, targetCDG);
+        addSubGraph(targetCDG);
+        return targetCDG;
+    }
+
     private void constructCDGNoBasicBlocks(APK apk) {
         // TODO: Implement.
     }
@@ -185,6 +206,39 @@ public class ModularCDG extends BaseCFG {
      * @param apk The APK file describing the app.
      */
     private void constructCDGWithBasicBlocks(APK apk) {
+
+        LOGGER.debug("Constructing modular CFG with basic blocks!");
+
+        final String packageName = apk.getManifest().getPackageName();
+
+        // resolve the invoke vertices and connect the sub graphs with each other
+        for (CFGVertex invokeVertex : getInvokeVertices()) {
+
+            BlockStatement blockStatement = (BlockStatement) invokeVertex.getStatement();
+
+            for (Statement statement : blockStatement.getStatements()) {
+
+                if (statement instanceof BasicStatement
+                        && InstructionUtils.isInvokeInstruction(((BasicStatement) statement).getInstruction())) {
+                    final BasicStatement invokeStmt = (BasicStatement) statement;
+                    final BaseCFG targetCDG = lookupTargetCDG(packageName, invokeStmt);
+                    if (targetCDG != null) {
+                        addEdge(invokeVertex, targetCDG.getEntry());
+                    }
+                }
+            }
+        }
+    }
+
+    private BaseCFG lookupTargetCDG(final String packageName, final BasicStatement invokeStmt) {
+        final Instruction instruction = invokeStmt.getInstruction().getInstruction();
+        final String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+        final String className = MethodUtils.getClassName(targetMethod);
+        if (properties.resolveOnlyAUTClasses && !ClassUtils.dottedClassName(className).startsWith(packageName)) {
+            // don't resolve invocation to non AUT classes
+            return null;
+        }
+        return intraCDGs.getOrDefault(targetMethod, dummyCDG(targetMethod));
     }
 
     /**

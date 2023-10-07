@@ -23,8 +23,7 @@ public class BasicStatement extends Statement implements Cloneable {
 
     @Override
     public String toString() {
-        return String.valueOf(instruction.getInstructionIndex())
-                + ": " + instruction.getInstruction().getOpcode().name;
+        return instruction.getInstructionIndex() + ": " + instruction.getInstruction().getOpcode().name;
     }
 
     @Override
