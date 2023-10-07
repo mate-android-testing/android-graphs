@@ -116,7 +116,7 @@ public class ModularCDG extends BaseCFG {
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
-                String className = ClassUtils.dottedClassName(classDef.toString());
+                final String className = ClassUtils.dottedClassName(classDef.toString());
 
                 if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
                     // don't resolve classes not belonging to AUT
@@ -131,13 +131,13 @@ public class ModularCDG extends BaseCFG {
 
                 for (Method method : classDef.getMethods()) {
 
-                    String methodSignature = MethodUtils.deriveMethodSignature(method);
+                    final String methodSignature = MethodUtils.deriveMethodSignature(method);
 
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
                             || MethodUtils.isARTMethod(methodSignature)) {
                         // only construct dummy CFG for non ART classes
                         if (!properties.excludeARTClasses) {
-                            BaseCFG intraCDG = dummyIntraCDG(method);
+                            final BaseCFG intraCDG = dummyIntraCDG(method);
                             addSubGraph(intraCDG);
                             intraCDGs.put(methodSignature, intraCDG);
                         }
@@ -146,7 +146,7 @@ public class ModularCDG extends BaseCFG {
                         if (!MethodUtils.isJavaObjectMethod(methodSignature)) {
                             LOGGER.debug("Method: " + methodSignature);
 
-                            BaseCFG intraCDG = new IntraCDG(new IntraCFG(method, dexFile, useBasicBlocks));
+                            final BaseCFG intraCDG = new IntraCDG(new IntraCFG(method, dexFile, useBasicBlocks));
                             addSubGraph(intraCDG);
                             addInvokeVertices(intraCDG.getInvokeVertices());
                             // only hold a reference to the entry and exit vertex
@@ -166,9 +166,9 @@ public class ModularCDG extends BaseCFG {
      * @return Returns a simplified CFG.
      */
     private BaseCFG dummyIntraCDG(Method targetMethod) {
-        BaseCFG cfg = new DummyCDG(MethodUtils.deriveMethodSignature(targetMethod));
-        cfg.addEdge(cfg.getEntry(), cfg.getExit());
-        return cfg;
+        final BaseCFG cdg = new DummyCDG(MethodUtils.deriveMethodSignature(targetMethod));
+        cdg.addEdge(cdg.getEntry(), cdg.getExit());
+        return cdg;
     }
 
     /**
@@ -179,9 +179,9 @@ public class ModularCDG extends BaseCFG {
      * @return Returns a simplified CFG.
      */
     private BaseCFG dummyIntraCDG(String targetMethod) {
-        BaseCFG cfg = new DummyCDG(targetMethod);
-        cfg.addEdge(cfg.getEntry(), cfg.getExit());
-        return cfg;
+        final BaseCFG cdg = new DummyCDG(targetMethod);
+        cdg.addEdge(cdg.getEntry(), cdg.getExit());
+        return cdg;
     }
 
     /**
@@ -191,7 +191,7 @@ public class ModularCDG extends BaseCFG {
      * @return Returns the constructed dummy CFG.
      */
     private BaseCFG dummyCDG(String targetMethod) {
-        BaseCFG targetCDG = dummyIntraCDG(targetMethod);
+        final BaseCFG targetCDG = dummyIntraCDG(targetMethod);
         intraCDGs.put(targetMethod, targetCDG);
         addSubGraph(targetCDG);
         return targetCDG;
@@ -249,7 +249,11 @@ public class ModularCDG extends BaseCFG {
             return null;
         }
 
-        return intraCDGs.getOrDefault(targetMethod, dummyCDG(targetMethod));
+        if (intraCDGs.containsKey(targetMethod)) {
+            return intraCDGs.get(targetMethod);
+        } else {
+            return dummyCDG(targetMethod);
+        }
     }
 
     /**

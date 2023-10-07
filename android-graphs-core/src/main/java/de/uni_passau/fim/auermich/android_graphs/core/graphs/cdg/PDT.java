@@ -29,7 +29,7 @@ public class PDT extends BaseCFG {
      * @param cfg The given CFG.
      */
     public PDT(final BaseCFG cfg) {
-        super(cfg.getMethodName() + "-PDT", cfg.getExit(), cfg.getEntry()); // entry and exit are reversed
+        super(cfg.getMethodName(), cfg.getExit(), cfg.getEntry()); // entry and exit are reversed
         final Map<CFGVertex, Set<CFGVertex>> postDominators = computePostDominators(cfg.reverseGraph());
         buildDominanceTree(cfg, postDominators);
         if (cfg instanceof InterCFG) {
