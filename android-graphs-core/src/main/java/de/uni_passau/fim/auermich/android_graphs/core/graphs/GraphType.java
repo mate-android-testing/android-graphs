@@ -63,6 +63,17 @@ public enum GraphType {
     },
 
     /**
+     * An inter-procedural control dependence graph that builds upon the individual intra-procedural CDGs.
+     */
+    MODULARCDG {
+
+        @Override
+        public String toString() {
+            return "modularcdg";
+        }
+    },
+
+    /**
      * A system dependence graph.
      */
     SGD {

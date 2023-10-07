@@ -1,0 +1,317 @@
+package de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg;
+
+import com.rits.cloning.Cloner;
+import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
+import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGEdge;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.ResourceUtils;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jgrapht.Graph;
+import org.jgrapht.GraphPath;
+import org.jgrapht.alg.shortestpath.AllDirectedPaths;
+import org.jgrapht.graph.DefaultEdge;
+import org.jgrapht.graph.builder.GraphTypeBuilder;
+import org.jgrapht.traverse.BreadthFirstIterator;
+import org.jgrapht.traverse.DepthFirstIterator;
+
+import java.io.File;
+import java.util.*;
+
+public class ModularCDG extends BaseCFG {
+
+    private static final Logger LOGGER = LogManager.getLogger(InterCFG.class);
+    private static final GraphType GRAPH_TYPE = GraphType.MODULARCDG;
+
+    /**
+     * Properties relevant for the construction process, e.g. whether basic blocks should be used.
+     */
+    private Properties properties;
+
+    /**
+     * Maintains a reference to the individual intra CDGs.
+     * NOTE: Only a reference to the entry and exit vertex is hold!
+     */
+    private final Map<String, BaseCFG> intraCDGs = new HashMap<>();
+
+    /**
+     * The APK file.
+     */
+    private APK apk = null;
+
+    // necessary for the copy constructor
+    public ModularCDG(String graphName) {
+        super(graphName);
+    }
+
+    public ModularCDG(String graphName, APK apk, boolean useBasicBlocks,
+                      boolean excludeARTClasses, boolean resolveOnlyAUTClasses) {
+        super(graphName);
+        this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+        this.apk = apk;
+        constructCFG(apk);
+    }
+
+    /**
+     * Returns the APK.
+     *
+     * @return Returns the APK.
+     */
+    public APK getApk() {
+        return apk;
+    }
+
+    /**
+     * Retrieves the mapping to the intra CDGs.
+     *
+     * @return Returns a mapping to the entry and exit vertices of the individual intra CDGs.
+     */
+    public Map<String, BaseCFG> getIntraCDGs() {
+        return Collections.unmodifiableMap(intraCDGs);
+    }
+
+    private void constructCFG(APK apk) {
+
+        // decode APK to access manifest and other resource files
+        apk.decodeAPK();
+
+        // parse manifest
+        apk.setManifest(Manifest.parse(new File(apk.getDecodingOutputPath(), "AndroidManifest.xml")));
+
+        // parse the resource strings
+        apk.setResourceStrings(ResourceUtils.parseStringsXMLFile(apk.getDecodingOutputPath()));
+
+        // create the individual intraCDGs and add them as sub graphs
+        constructIntraCDGs(apk, properties.useBasicBlocks);
+
+        LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
+
+        if (properties.useBasicBlocks) {
+            constructCDGWithBasicBlocks(apk);
+        } else {
+            constructCDGNoBasicBlocks(apk);
+        }
+    }
+
+    private void constructIntraCDGs(APK apk, boolean useBasicBlocks) {
+
+    }
+
+    private void constructCDGNoBasicBlocks(APK apk) {
+        // TODO: Implement.
+    }
+
+    /**
+     * Constructs the inter CFG using basic blocks for a given app.
+     *
+     * @param apk The APK file describing the app.
+     */
+    private void constructCDGWithBasicBlocks(APK apk) {
+    }
+
+    /**
+     * Searches for the vertex described by the given trace in the graph.
+     * <p>
+     * Searching an entry/exit vertex can be satisfied in O(1).
+     * When a search of an intermediate vertex is requested, all directed
+     * paths from the subgraph are traversed in a parallel manner.
+     *
+     * @param trace The trace describing the vertex, i.e. className->methodName->(entry|exit|instructionIndex).
+     * @return Returns the vertex corresponding to the given trace.
+     */
+    @Override
+    public CFGVertex lookUpVertex(String trace) {
+
+        /*
+         * A trace has the following form:
+         *   className -> methodName -> ([entry|exit|if|switch])? -> (index)?
+         *
+         * The first two components are always fixed, while the instruction type and the instruction index
+         * are optional, but not both at the same time:
+         *
+         * Making the instruction type optional allows to search (by index) for a custom instruction, e.g. a branch.
+         * Making the index optional allows to look up virtual entry and exit vertices as well as if and switch vertices.
+         */
+        String[] tokens = trace.split("->");
+
+        // retrieve fully qualified method name (class name + method name)
+        final String method = tokens[0] + "->" + tokens[1];
+
+        // check whether method belongs to graph
+        if (!intraCDGs.containsKey(method)) {
+            throw new IllegalArgumentException("Given trace refers to a method not part of the graph: " + method);
+        }
+
+        if (tokens.length == 3) {
+
+            if (tokens[2].equals("entry")) {
+                return intraCDGs.get(method).getEntry();
+            } else if (tokens[2].equals("exit")) {
+                return intraCDGs.get(method).getExit();
+            } else {
+                // lookup of a branch
+                int instructionIndex = Integer.parseInt(tokens[2]);
+                CFGVertex entry = intraCDGs.get(method).getEntry();
+                return lookUpVertex(method, instructionIndex, entry);
+            }
+
+        } else if (tokens.length == 4) {
+
+            // String instructionType = tokens[2];
+            int instructionIndex = Integer.parseInt(tokens[3]);
+            CFGVertex entry = intraCDGs.get(method).getEntry();
+            return lookUpVertex(method, instructionIndex, entry);
+
+        } else if (tokens.length == 5) { // basic block coverage trace
+
+            int instructionIndex = Integer.parseInt(tokens[2]);
+            CFGVertex entry = intraCDGs.get(method).getEntry();
+            return lookUpVertex(method, instructionIndex, entry);
+
+        } else {
+            throw new IllegalArgumentException("Unrecognized trace: " + trace);
+        }
+    }
+
+    /**
+     * Looks up a vertex in the graph.
+     *
+     * @param method The method the vertex belongs to.
+     * @param instructionIndex The instruction index.
+     * @param entry The entry vertex of the given method (bound for the look up).
+     * @param exit The exit vertex of the given method (bound for the look up).
+     * @return Returns the vertex described by the given method and the instruction index, otherwise
+     *         a {@link IllegalArgumentException} is thrown.
+     */
+    @SuppressWarnings("unused")
+    private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry, CFGVertex exit) {
+
+        /*
+         * If the 'AllDirectedPaths' algorithm appears to be too slow, we could alternatively use
+         * some traversal strategy supplied by JGraphT, see
+         * https://jgrapht.org/javadoc-1.4.0/org/jgrapht/traverse/package-summary.html.
+         * If this is still not good enough, we can roll out our own search algorithm. One could
+         * perform a parallel forward/backward search starting from the entry and exit vertex, respectively.
+         * If a forward/backward step falls out of the given method, i.e. a vertex of a different method is reached,
+         * we can directly jump from the entry vertex to the virtual return vertex in case of a forward step,
+         * otherwise (a backward step was performed) we can directly jump to the invoke vertex leading to
+         * the entry of the different method.
+         */
+
+        AllDirectedPaths<CFGVertex, CFGEdge> allDirectedPaths = new AllDirectedPaths<>(graph);
+
+        /*
+         * In general this algorithm is really fast, however, when dealing with cycles in the graph, the algorithm
+         * fails to find the desired vertex. If we adjust the 'simplePathsOnly' parameter to handle cycles the
+         * algorithm can be really slow.
+         */
+        List<GraphPath<CFGVertex, CFGEdge>> paths = allDirectedPaths.getAllPaths(entry, exit, true, null);
+
+        // https://stackoverflow.com/questions/64929090/nested-parallel-stream-execution-in-java-findany-randomly-fails
+        return paths.parallelStream().flatMap(path -> path.getEdgeList().parallelStream()
+                .map(edge -> {
+                    CFGVertex source = edge.getSource();
+                    CFGVertex target = edge.getTarget();
+
+                    LOGGER.debug("Inspecting source vertex: " + source);
+                    LOGGER.debug("Inspecting target vertex: " + target);
+
+
+                    if (source.containsInstruction(method, instructionIndex)) {
+                        return source;
+                    } else if (target.containsInstruction(method, instructionIndex)) {
+                        return target;
+                    } else {
+                        return null;
+                    }
+                }).filter(Objects::nonNull)).findAny()
+                .orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
+    }
+
+    /**
+     * Performs a depth first search for looking up the vertex.
+     *
+     * @param method The method describing the vertex.
+     * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
+     * @param entry The entry vertex of the method (limits the search).
+     * @return Returns the vertex described by the given method and the instruction index, otherwise
+     *         a {@link IllegalArgumentException} is thrown.
+     */
+    @SuppressWarnings("unused")
+    private CFGVertex lookUpVertexDFS(String method, int instructionIndex, CFGVertex entry) {
+
+        DepthFirstIterator<CFGVertex, CFGEdge> dfs = new DepthFirstIterator<>(graph, entry);
+
+        while (dfs.hasNext()) {
+            CFGVertex vertex = dfs.next();
+            if (vertex.containsInstruction(method, instructionIndex)) {
+                return vertex;
+            }
+        }
+
+        throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
+    }
+
+    /**
+     * Performs a breadth first search for looking up the vertex.
+     *
+     * @param method The method describing the vertex.
+     * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
+     * @param entry The entry vertex of the method (limits the search).
+     * @return Returns the vertex described by the given method and the instruction index, otherwise
+     *         a {@link IllegalArgumentException} is thrown.
+     */
+    private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry) {
+
+        BreadthFirstIterator<CFGVertex, CFGEdge> bfs = new BreadthFirstIterator<>(graph, entry);
+
+        while (bfs.hasNext()) {
+            CFGVertex vertex = bfs.next();
+            if (vertex.containsInstruction(method, instructionIndex)) {
+                return vertex;
+            }
+        }
+
+        throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
+    }
+
+    @Override
+    public GraphType getGraphType() {
+        return GRAPH_TYPE;
+    }
+
+    // TODO: check if deep copy of vertices and edges is necessary
+    @Override
+    @SuppressWarnings("unused")
+    public ModularCDG copy() {
+        ModularCDG clone = new ModularCDG(getMethodName());
+
+        Graph<CFGVertex, CFGEdge> graphClone = GraphTypeBuilder
+                .<CFGVertex, DefaultEdge>directed().allowingMultipleEdges(true).allowingSelfLoops(true)
+                .edgeClass(CFGEdge.class).buildGraph();
+
+        Set<CFGVertex> vertices = graph.vertexSet();
+        Set<CFGEdge> edges = graph.edgeSet();
+
+        Cloner cloner = new Cloner();
+
+        for (CFGVertex vertex : vertices) {
+            graphClone.addVertex(cloner.deepClone(vertex));
+        }
+
+        for (CFGEdge edge : edges) {
+            CFGVertex src = cloner.deepClone(edge.getSource());
+            CFGVertex dest = cloner.deepClone(edge.getTarget());
+            graphClone.addEdge(src, dest);
+        }
+
+        clone.graph = graphClone;
+        return clone;
+    }
+}

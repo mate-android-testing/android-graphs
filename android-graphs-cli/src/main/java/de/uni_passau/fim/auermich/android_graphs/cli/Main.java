@@ -46,6 +46,7 @@ public final class Main {
     private static final CallTreeCommand callTreeCmd = new CallTreeCommand();
     private static final InterCDGCommand interCDGCmd = new InterCDGCommand();
     private static final IntraCDGCommand intraCDGCmd = new IntraCDGCommand();
+    private static final ModularCDGCommand modularCDGCmd = new ModularCDGCommand();
 
     // utility class implies private constructor
     private Main() {
@@ -85,6 +86,12 @@ public final class Main {
      *             The switch -t specifies the FQN of the method for which the intraCDG should be constructed.
      *             The switch -b specifies whether basic blocks should be used. (optional)
      *
+     *             The 'modularcdg' sub commando can handle the following arguments:
+     *             The switch -b specifies whether basic blocks should be used. (optional)
+     *             The switch -art specifies whether ART classes should be resolved. (optional)
+     *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
+     *             The switch -pim specifies whether isolated methods should be printed. (optional)
+     *
      *             The 'calltree' sub commando can handle the following arguments:
      *             The switch -art specifies whether ART classes should be resolved. (optional)
      *             The switch -oaut specifies whether only AUT classes should be resolved. (optional)
@@ -111,6 +118,7 @@ public final class Main {
                 .addCommand("calltree", callTreeCmd)
                 .addCommand("intercdg", interCDGCmd)
                 .addCommand("intracdg", intraCDGCmd)
+                .addCommand("modularcdg", modularCDGCmd)
                 .build();
 
         // the program name displayed in the help/usage cmd.
@@ -140,9 +148,17 @@ public final class Main {
      *
      * @param cmd The command line arguments.
      */
+    private static boolean checkArguments(ModularCDGCommand cmd) {
+        return cmd.getGraphType() == GraphType.MODULARCDG;
+    }
+
+    /**
+     * Verifies that the given arguments are valid.
+     *
+     * @param cmd The command line arguments.
+     */
     private static boolean checkArguments(IntraCFGCommand cmd) {
-        assert cmd.getGraphType() == GraphType.INTRACFG;
-        return true;
+        return cmd.getGraphType() == GraphType.INTRACFG;
     }
 
     /**
@@ -151,8 +167,7 @@ public final class Main {
      * @param cmd The command line arguments.
      */
     private static boolean checkArguments(InterCFGCommand cmd) {
-        assert cmd.getGraphType() == GraphType.INTERCFG;
-        return true;
+        return cmd.getGraphType() == GraphType.INTERCFG;
     }
 
     /**
@@ -161,8 +176,7 @@ public final class Main {
      * @param cmd The command line arguments.
      */
     private static boolean checkArguments(IntraCDGCommand cmd) {
-        assert cmd.getGraphType() == GraphType.INTRACDG;
-        return true;
+        return cmd.getGraphType() == GraphType.INTRACDG;
     }
 
     /**
@@ -171,8 +185,7 @@ public final class Main {
      * @param cmd The command line arguments.
      */
     private static boolean checkArguments(InterCDGCommand cmd) {
-        assert cmd.getGraphType() == GraphType.INTERCDG;
-        return true;
+        return cmd.getGraphType() == GraphType.INTERCDG;
     }
 
     /**
@@ -181,8 +194,7 @@ public final class Main {
      * @param cmd The command line arguments.
      */
     private static boolean checkArguments(CallTreeCommand cmd) {
-        assert cmd.getGraphType() == GraphType.CALLTREE;
-        return true;
+        return cmd.getGraphType() == GraphType.CALLTREE;
     }
 
     private static void run(JCommander commander) throws IOException {
@@ -343,6 +355,44 @@ public final class Main {
 
                         if (interCDGCmd.printIsolatedMethods()) {
                             ((InterCFG) baseGraph).printIsolatedSubGraphs();
+                        }
+
+                        LOGGER.info("Size of graph: " + baseGraph.size());
+
+                        if (mainCmd.isDraw()) {
+                            LOGGER.info("Drawing graph!");
+                            baseGraph.drawGraph();
+                        }
+
+                        if (mainCmd.lookup()) {
+                            LOGGER.info("Lookup vertex: " + baseGraph.lookUpVertex(mainCmd.getTrace()));
+                        }
+                    }
+                    break;
+                }
+                case MODULARCDG: {
+                    if (checkArguments(modularCDGCmd)) {
+
+                        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.MODULARCDG, dexFiles)
+                                .withName("global")
+                                .withAPKFile(mainCmd.getAPKFile());
+
+                        if (modularCDGCmd.isUseBasicBlocks()) {
+                            builder = builder.withBasicBlocks();
+                        }
+
+                        if (!modularCDGCmd.resolveARTClasses()) {
+                            builder = builder.withExcludeARTClasses();
+                        }
+
+                        if (modularCDGCmd.resolveOnlyAUTClasses()) {
+                            builder = builder.withResolveOnlyAUTClasses();
+                        }
+
+                        BaseGraph baseGraph = builder.build();
+
+                        if (modularCDGCmd.printIsolatedMethods()) {
+                            // TODO: Implement.
                         }
 
                         LOGGER.info("Size of graph: " + baseGraph.size());
