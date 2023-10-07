@@ -7,6 +7,7 @@ public class IntraCDG extends CDG {
 
     public IntraCDG(BaseCFG intraCFG) {
         super(intraCFG);
+        addInvokeVertices(intraCFG.getInvokeVertices());
     }
 
     @Override
