@@ -4,15 +4,14 @@ import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGEdge;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.*;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.ResourceUtils;
-import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
+import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.iface.ClassDef;
+import org.jf.dexlib2.iface.DexFile;
+import org.jf.dexlib2.iface.Method;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.AllDirectedPaths;
@@ -23,6 +22,7 @@ import org.jgrapht.traverse.DepthFirstIterator;
 
 import java.io.File;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class ModularCDG extends BaseCFG {
 
@@ -101,6 +101,78 @@ public class ModularCDG extends BaseCFG {
 
     private void constructIntraCDGs(APK apk, boolean useBasicBlocks) {
 
+        LOGGER.debug("Constructing IntraCDGs!");
+        final Pattern exclusionPattern = properties.exclusionPattern;
+
+        for (DexFile dexFile : apk.getDexFiles()) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+
+                String className = ClassUtils.dottedClassName(classDef.toString());
+
+                if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
+                    // don't resolve classes not belonging to AUT
+                    continue;
+                }
+
+                if (ClassUtils.isResourceClass(classDef) || ClassUtils.isBuildConfigClass(classDef)) {
+                    LOGGER.debug("Skipping resource/build class: " + className);
+                    // skip R + BuildConfig classes
+                    continue;
+                }
+
+                for (Method method : classDef.getMethods()) {
+
+                    String methodSignature = MethodUtils.deriveMethodSignature(method);
+
+                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
+                            || MethodUtils.isARTMethod(methodSignature)) {
+                        // only construct dummy CFG for non ART classes
+                        if (!properties.excludeARTClasses) {
+                            BaseCFG intraCDG = dummyIntraCDG(method);
+                            addSubGraph(intraCDG);
+                            intraCDGs.put(methodSignature, intraCDG);
+                        }
+                    } else {
+                        // exclude methods from java.lang.Object, e.g. notify()
+                        if (!MethodUtils.isJavaObjectMethod(methodSignature)) {
+                            LOGGER.debug("Method: " + methodSignature);
+
+                            BaseCFG intraCDG = new IntraCDG(new IntraCFG(method, dexFile, useBasicBlocks));
+                            addSubGraph(intraCDG);
+                            addInvokeVertices(intraCDG.getInvokeVertices());
+                            // only hold a reference to the entry and exit vertex
+                            intraCDGs.put(methodSignature, new DummyCFG(intraCDG));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Constructs a dummy CFG only consisting of the virtual entry and exit vertices
+     * and an edge between. This CFG is used to model Android Runtime methods (ART).
+     *
+     * @param targetMethod The ART method.
+     * @return Returns a simplified CFG.
+     */
+    private BaseCFG dummyIntraCDG(Method targetMethod) {
+        BaseCFG cfg = new DummyCDG(MethodUtils.deriveMethodSignature(targetMethod));
+        cfg.addEdge(cfg.getEntry(), cfg.getExit());
+        return cfg;
+    }
+
+    /**
+     * Constructs a dummy CFG only consisting of the virtual entry and exit vertices
+     * and an edge between. This CFG is used to model Android Runtime methods (ART).
+     *
+     * @param targetMethod The ART method.
+     * @return Returns a simplified CFG.
+     */
+    private BaseCFG dummyIntraCDG(String targetMethod) {
+        BaseCFG cfg = new DummyCDG(targetMethod);
+        cfg.addEdge(cfg.getEntry(), cfg.getExit());
+        return cfg;
     }
 
     private void constructCDGNoBasicBlocks(APK apk) {

@@ -7,7 +7,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 @Parameters(commandDescription = "Produces an inter-procedural CDG based on the intra CDGs.")
 public class ModularCDGCommand {
 
-    private GraphType graphType = GraphType.INTERCDG;
+    private GraphType graphType = GraphType.MODULARCDG;
 
     @Parameter(names = {"-art"}, description = "Whether ART classes should be resolved.")
     private boolean art = false;
