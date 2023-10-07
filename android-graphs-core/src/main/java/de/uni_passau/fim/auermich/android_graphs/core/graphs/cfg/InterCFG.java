@@ -570,14 +570,19 @@ public class InterCFG extends BaseCFG {
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
             } else {
-                /*
-                 * There are some Android specific classes, e.g. android/view/View, which are
-                 * not included in the classes.dex file, or which we don't want to resolve.
-                 */
-                if (!overriddenMethod.equals(targetMethod)) {
-                    LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
+
+                if (intraCFGs.containsKey(overriddenMethod)) {
+                    targetCFGs.add(intraCFGs.get(overriddenMethod));
+                } else {
+                    /*
+                     * There are some Android specific classes, e.g. android/view/View, which are
+                     * not included in the classes.dex file, or which we don't want to resolve.
+                     */
+                    if (!overriddenMethod.equals(targetMethod)) {
+                        LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
+                    }
+                    targetCFGs.add(dummyCFG(overriddenMethod)); // create dummy if not present yet
                 }
-                targetCFGs.add(dummyCFG(overriddenMethod));
             }
         }
 
