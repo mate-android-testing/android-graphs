@@ -39,8 +39,8 @@ public class GraphUtils {
      * Convenient function to construct an intraCFG. Should be used
      * for the construction requested by mate server.
      *
-     * @param apkPath        The path to the APK file.
-     * @param method         The FQN name of the method.
+     * @param apkPath The path to the APK file.
+     * @param method The FQN name of the method.
      * @param useBasicBlocks Whether to use basic blocks or not.
      * @return Returns an intraCFG for the specified method.
      */
@@ -99,8 +99,8 @@ public class GraphUtils {
     /**
      * Convenient function to construct an interCFG. Should be used for the construction requested by mate server.
      *
-     * @param apkPath           The path to the APK file.
-     * @param useBasicBlocks    Whether to use basic blocks or not.
+     * @param apkPath The path to the APK file.
+     * @param useBasicBlocks Whether to use basic blocks or not.
      * @param excludeARTClasses Whether to exclude ART classes or not.
      * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
      * @return Returns an interCFG.
@@ -164,9 +164,9 @@ public class GraphUtils {
     /**
      * Convenient function to construct an interCDG. Should be used for the construction requested by mate server.
      *
-     * @param apkPath               The path to the APK file.
-     * @param useBasicBlocks        Whether to use basic blocks or not.
-     * @param excludeARTClasses     Whether to exclude ART classes or not.
+     * @param apkPath The path to the APK file.
+     * @param useBasicBlocks Whether to use basic blocks or not.
+     * @param excludeARTClasses Whether to exclude ART classes or not.
      * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
      * @return Returns an interCDG.
      */
@@ -187,14 +187,14 @@ public class GraphUtils {
     /**
      * Convenient function to construct a modular interCDG. Should be used for the construction requested by mate server.
      *
-     * @param apkPath               The path to the APK file.
-     * @param useBasicBlocks        Whether to use basic blocks or not.
-     * @param excludeARTClasses     Whether to exclude ART classes or not.
+     * @param apkPath The path to the APK file.
+     * @param useBasicBlocks Whether to use basic blocks or not.
+     * @param excludeARTClasses Whether to exclude ART classes or not.
      * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
      * @return Returns a modular interCDG.
      */
     public static ModularCDG constructModularCDG(final File apkPath, final boolean useBasicBlocks,
-                                          final boolean excludeARTClasses, final boolean onlyResolveAUTClasses) {
+                                                 final boolean excludeARTClasses, final boolean onlyResolveAUTClasses) {
 
         LOGGER.info("Constructing Modular Inter CDG for APK: " + apkPath);
 
@@ -250,11 +250,10 @@ public class GraphUtils {
     }
 
 
-
     /**
      * Convenient function to construct a call tree. Should be used for the construction requested by mate server.
      *
-     * @param apkPath           The path to the APK file.
+     * @param apkPath The path to the APK file.
      * @param excludeARTClasses Whether to exclude ART classes or not.
      * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
      * @return Returns a call tree.
