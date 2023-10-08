@@ -21,6 +21,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BlockStatement;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.EntryStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
@@ -379,8 +380,11 @@ public class ModularCDG extends BaseCFG {
 
         for (Map.Entry<String, BaseCFG> entry : intraCDGs.entrySet()) {
             if (getIncomingEdges(entry.getValue().getEntry()).size() == 0) {
-                // connect all non-connected sub graphs with global entry
-                addEdge(getEntry(), entry.getValue().getEntry());
+                // connect all non-connected sub graphs with global entry by inserting a virtual vertex
+                CFGVertex virtual = new CFGVertex(new EntryStatement("Connect->" + entry.getKey()));
+                addVertex(virtual);
+                addEdge(getEntry(), virtual);
+                addEdge(virtual, entry.getValue().getEntry());
             }
         }
     }
