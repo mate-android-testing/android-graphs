@@ -6,6 +6,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.*;
 import org.jgrapht.traverse.BreadthFirstIterator;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -86,6 +87,31 @@ public class CDG extends BaseCFG {
         for (CFGVertex vertex : graph.vertexSet()) {
             if (!vertex.equals(getEntry()) && graph.incomingEdgesOf(vertex).isEmpty()) {
                 graph.addEdge(getEntry(), vertex);
+            }
+        }
+
+        // Check for disconnected loops; Vertices that have no parent other than themselves.
+        // Attention: Must be executed after connecting all non control-dependent vertices.
+        for (CFGVertex vertex : graph.vertexSet()) {
+            if (!vertex.equals(getEntry()) && getPredecessors(vertex).size() == 1 && new ArrayList<>(getPredecessors(vertex)).get(0).equals(vertex)) {
+
+                // Iterate over all cfg parents of the disconnected loop.
+                Set<CFGVertex> cfgParents = cfg.getPredecessors(vertex);
+                for (CFGVertex parent : cfgParents) {
+
+                    // If the current parent is a branch, the disconnected loop is dependent on the branch
+                    // and we add an edge from the branch to the disconnected loop.
+                    if (parent.isBranchVertex()) {
+                        addEdge(parent, vertex);
+                    } else {
+                        // Otherwise, if the current parent is not a branch, the disconnected loop is dependent
+                        // on all CDG parents of the current parent.
+                        Set<CFGVertex> cfgGrandParents = getPredecessors(parent);
+                        for (CFGVertex grandParent : cfgGrandParents) {
+                            addEdge(grandParent, vertex);
+                        }
+                    }
+                }
             }
         }
     }

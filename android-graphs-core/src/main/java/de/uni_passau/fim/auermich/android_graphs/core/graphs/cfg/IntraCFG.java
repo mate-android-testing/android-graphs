@@ -211,6 +211,27 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
             // add the last basic block separately
             createBasicBlockVertex(basicBlock, basicBlocks);
+
+            // Exit is not connected to remaining intraCFG.
+            // This may happen if we encounter a while true loop without a break statement.
+            // We virtually connect the start of the while loop with the exit.
+            if (getPredecessors(getExit()).isEmpty()) {
+                Set<CFGVertex> visited = new HashSet<>();
+                Stack<CFGVertex> stack = new Stack<>();
+                CFGVertex current = getEntry();
+                // Traverse the intraCFG in the search of loops.
+                while (!visited.contains(current) && current != null) {
+                    visited.add(current);
+                    for (CFGVertex successors : getSuccessors(current)) {
+                        if (!stack.contains(successors)) {
+                            stack.add(successors);
+                        }
+                    }
+                    current = stack.pop();
+                }
+                addEdge(current, getExit());
+            }
+
         } else {
             // no method implementation found -> construct dummy CFG
             LOGGER.warn("No implementation present for method: " + targetMethod + "! Using dummy CFG.");
