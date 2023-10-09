@@ -4,6 +4,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import com.rits.cloning.Cloner;
+
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Application;
@@ -25,6 +26,7 @@ import de.uni_passau.fim.auermich.android_graphs.core.statements.EntryStatement;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.Statement;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jf.dexlib2.Opcode;
@@ -297,13 +299,127 @@ public class ModularCDG extends BaseCFG {
         });
     }
 
-    private void addAndroidActivityLifecycle(final Activity activity, BaseCFG callbackGraph){
+    /**
+     * Adds lifecycle methods to the given activity.
+     *
+     * @param activity      The activity to which lifecycle methods are to be added.
+     * @param callbackGraph The callbackGraph used for connecting some lifecycle methods.
+     */
+    private void addAndroidActivityLifecycle(final Activity activity, BaseCFG callbackGraph) {
         final Set<Fragment> fragments = activity.getHostingFragments();
         LOGGER.debug("Activity " + activity + " defines the following fragments: " + fragments);
 
-        BaseCFG onCreateCDG = intraCDGs.get(activity.onCreateMethod());
-        addEdge(getEntry(), onCreateCDG.getEntry());
 
+        // Connect onCreate() with every activity constructor
+        // since whether onCreate() is called dependents on the invocation of the constructor.
+        for (String constructor : activity.getConstructors()) {
+            addLifecycle(activity.onCreateMethod(), constructor);
+        }
+
+        // If there are fragments, onCreate invokes several fragment creation callbacks.
+        // Since they depend on the activity's onCreate(), we model them as children of the onCreate() method.
+        for (Fragment fragment : fragments) {
+            addLifecycle(fragment.onAttachMethod(), activity.onCreateMethod());
+            addLifecycle(fragment.onCreateMethod(), activity.onCreateMethod());
+            addLifecycle(fragment.onCreateDialogMethod(), activity.onCreateMethod());
+            addLifecycle(fragment.onCreatePreferencesMethod(), activity.onCreateMethod());
+            addLifecycle(fragment.onCreateViewMethod(), activity.onCreateMethod());
+            addLifecycle(fragment.onActivityCreatedMethod(), activity.onCreateMethod());
+            addLifecycle(fragment.onViewStateRestoredMethod(), activity.onCreateMethod());
+        }
+
+        // Add remaining lifecycle methods responsible for getting a running activity if implemented in the AUT.
+        // Since we assume that these lifecycle methods are called one after another as soon as the
+        // activity's constructor is invoked, we model them as children of the activity's constructor.
+        for (String constructor : activity.getConstructors()) {
+            addLifecycle(activity.onStartMethod(), constructor);
+            addLifecycle(activity.onResumeMethod(), constructor);
+            addLifecycle(activity.onRestoreInstanceStateOverloadedMethod(), constructor);
+            addLifecycle(activity.onPostCreateOverloadedMethod(), constructor);
+            addLifecycle(activity.onPostResumeMethod(), constructor);
+        }
+
+        // Activity's onStart invokes Fragment's onStart()
+        for (Fragment fragment : fragments) {
+            addLifecycle(fragment.onStartMethod(), activity.onStartMethod());
+        }
+
+        // Activity's onResume() invokes Fragment's onResume()
+        for (Fragment fragment : fragments) {
+            addLifecycle(fragment.onResumeMethod(), activity.onResumeMethod());
+        }
+
+        // Callbacks may be invoked after onResume()/onPostResume().
+        if (intraCDGs.containsKey(activity.onResumeMethod())) {
+            addEdge(intraCDGs.get(activity.onResumeMethod()).getExit(), callbackGraph.getEntry());
+        } else if (intraCDGs.containsKey(activity.onPostResumeMethod())) {
+            addEdge(intraCDGs.get(activity.onPostResumeMethod()).getExit(), callbackGraph.getEntry());
+        } else {
+            // If neither onResume() nor onPostResume() has been implemented in the AUT.
+            // We model the callbacks being dependent on the activity's constructor
+            // since we can safely assume no control dependencies in between the lifecycle methods.
+            for (String constructor : activity.getConstructors()) {
+                addEdge(intraCDGs.get(constructor).getExit(), callbackGraph.getEntry());
+            }
+        }
+
+        // We model an activity's onPause(), onStop() and onDestroy() to be dependent on the callback graph.
+        addLifecycle(activity.onPauseMethod(), callbackGraph);
+        addLifecycle(activity.onStopMethod(), callbackGraph);
+        addLifecycle(activity.onDestroyMethod(), callbackGraph);
+        addLifecycle(activity.onSaveInstanceStateOverloadedMethod(), callbackGraph);
+
+        // Activity's onPause() invokes Fragment's onPause()
+        for (Fragment fragment : fragments) {
+            addLifecycle(fragment.onPauseMethod(), activity.onPauseMethod());
+        }
+
+        // Activity's onStop() invokes Fragment's onStop() & onSaveInstanceStateMethod()
+        for (Fragment fragment : fragments) {
+            addLifecycle(fragment.onStopMethod(), activity.onStopMethod());
+            addLifecycle(fragment.onSaveInstanceStateMethod(), activity.onStopMethod());
+        }
+
+        // Activity's onDestroy() invokes Fragment's onDestroy(), onDestroyView() & onDetach()
+        for (Fragment fragment : fragments) {
+            addLifecycle(fragment.onDestroyViewMethod(), activity.onDestroyMethod());
+            addLifecycle(fragment.onDestroyMethod(), activity.onDestroyMethod());
+            addLifecycle(fragment.onDetachMethod(), activity.onDestroyMethod());
+        }
+
+    }
+
+    /**
+     * Adds a lifecycle method to the ModularCDG graph if the method is overwritten within the AUT
+     * and creates the predecessor graph if necessary.
+     *
+     * @param lifeCycleIdentifier The identifier for the lifecycle method to add.
+     * @param predecessorId       The identifier of the preceding subgraph.
+     */
+    private void addLifecycle(String lifeCycleIdentifier, String predecessorId) {
+        if (intraCDGs.containsKey(lifeCycleIdentifier)) {
+            BaseCFG lifecycleMethod = intraCDGs.get(lifeCycleIdentifier);
+            if (!intraCDGs.containsKey(predecessorId)) {
+                BaseCFG predecessorStub = dummyCDG(predecessorId);
+                intraCDGs.put(predecessorId, predecessorStub);
+                addSubGraph(predecessorStub);
+            }
+            BaseCFG predecessor = intraCDGs.get(predecessorId);
+            addEdge(predecessor.getExit(), lifecycleMethod.getEntry());
+        }
+    }
+
+    /**
+     * Adds a lifecycle method to the ModularCDG if the lifecycle method gets overwritten in the AUT.
+     *
+     * @param lifeCycleIdentifier The identifier for the lifecycle method to add.
+     * @param predecessor         The preceding subgraph.
+     */
+    private void addLifecycle(String lifeCycleIdentifier, BaseCFG predecessor) {
+        if (intraCDGs.containsKey(lifeCycleIdentifier)) {
+            BaseCFG lifecycleMethod = intraCDGs.get(lifeCycleIdentifier);
+            addEdge(predecessor.getExit(), lifecycleMethod.getEntry());
+        }
     }
 
     /**
@@ -474,12 +590,12 @@ public class ModularCDG extends BaseCFG {
     /**
      * Looks up a vertex in the graph.
      *
-     * @param method The method the vertex belongs to.
+     * @param method           The method the vertex belongs to.
      * @param instructionIndex The instruction index.
-     * @param entry The entry vertex of the given method (bound for the look up).
-     * @param exit The exit vertex of the given method (bound for the look up).
+     * @param entry            The entry vertex of the given method (bound for the look up).
+     * @param exit             The exit vertex of the given method (bound for the look up).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     *         a {@link IllegalArgumentException} is thrown.
+     * a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
     private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry, CFGVertex exit) {
@@ -507,33 +623,33 @@ public class ModularCDG extends BaseCFG {
 
         // https://stackoverflow.com/questions/64929090/nested-parallel-stream-execution-in-java-findany-randomly-fails
         return paths.parallelStream().flatMap(path -> path.getEdgeList().parallelStream()
-                .map(edge -> {
-                    CFGVertex source = edge.getSource();
-                    CFGVertex target = edge.getTarget();
+                        .map(edge -> {
+                            CFGVertex source = edge.getSource();
+                            CFGVertex target = edge.getTarget();
 
-                    LOGGER.debug("Inspecting source vertex: " + source);
-                    LOGGER.debug("Inspecting target vertex: " + target);
+                            LOGGER.debug("Inspecting source vertex: " + source);
+                            LOGGER.debug("Inspecting target vertex: " + target);
 
 
-                    if (source.containsInstruction(method, instructionIndex)) {
-                        return source;
-                    } else if (target.containsInstruction(method, instructionIndex)) {
-                        return target;
-                    } else {
-                        return null;
-                    }
-                }).filter(Objects::nonNull)).findAny()
+                            if (source.containsInstruction(method, instructionIndex)) {
+                                return source;
+                            } else if (target.containsInstruction(method, instructionIndex)) {
+                                return target;
+                            } else {
+                                return null;
+                            }
+                        }).filter(Objects::nonNull)).findAny()
                 .orElseThrow(() -> new IllegalArgumentException("Given trace refers to no vertex in graph!"));
     }
 
     /**
      * Performs a depth first search for looking up the vertex.
      *
-     * @param method The method describing the vertex.
+     * @param method           The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry The entry vertex of the method (limits the search).
+     * @param entry            The entry vertex of the method (limits the search).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     *         a {@link IllegalArgumentException} is thrown.
+     * a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
     private CFGVertex lookUpVertexDFS(String method, int instructionIndex, CFGVertex entry) {
@@ -553,11 +669,11 @@ public class ModularCDG extends BaseCFG {
     /**
      * Performs a breadth first search for looking up the vertex.
      *
-     * @param method The method describing the vertex.
+     * @param method           The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry The entry vertex of the method (limits the search).
+     * @param entry            The entry vertex of the method (limits the search).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     *         a {@link IllegalArgumentException} is thrown.
+     * a {@link IllegalArgumentException} is thrown.
      */
     private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry) {
 
