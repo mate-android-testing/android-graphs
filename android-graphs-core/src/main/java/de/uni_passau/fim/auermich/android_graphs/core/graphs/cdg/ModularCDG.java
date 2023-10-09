@@ -1,6 +1,5 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg;
 
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
 import com.rits.cloning.Cloner;
@@ -33,13 +32,10 @@ import org.jf.dexlib2.Opcode;
 import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Field;
 import org.jf.dexlib2.iface.Method;
 import org.jf.dexlib2.iface.MethodImplementation;
-import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
-import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.AllDirectedPaths;
@@ -50,7 +46,6 @@ import org.jgrapht.traverse.DepthFirstIterator;
 
 import java.io.File;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -81,6 +76,9 @@ public class ModularCDG extends BaseCFG {
      * This includes the super class, the interfaces and the sub classes of a class.
      */
     private final ClassHierarchy classHierarchy = new ClassHierarchy();
+
+    // the set of discovered Android callbacks
+    private final Set<String> callbacks = new HashSet<>();
 
     /**
      * The APK file.
@@ -139,8 +137,11 @@ public class ModularCDG extends BaseCFG {
         // add for each component a callback graph
         Map<String, BaseCFG> callbackGraphs = addCallbackGraphs();
 
-        // add lifecycle of components
-        addLifecycleAndGlobalEntryPoints(callbackGraphs);
+        // Connect component lifecycle methods.
+        connectComponentLifecycle(callbackGraphs);
+
+        // Connect callbacks specified either through XML or directly in code
+        connectCallbacks(apk, callbackGraphs);
 
         LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
 
@@ -182,6 +183,28 @@ public class ModularCDG extends BaseCFG {
                 for (Method method : classDef.getMethods()) {
 
                     final String methodSignature = MethodUtils.deriveMethodSignature(method);
+
+                    // track the Android callbacks
+                    if (MethodUtils.isCallback(methodSignature)) {
+                        callbacks.add(methodSignature);
+                    }
+
+                    // Add menus to components.
+                    if (MenuUtils.isOnCreateMenu(methodSignature)) {
+                        List<MenuItemWithResolvedTitle> menuItems = MenuUtils.getDefinedMenuItems(apk, dexFile, method)
+                                .collect(Collectors.toList());
+                        var component = ComponentUtils.getComponentByName(components, classDef.toString());
+
+                        if (component.isPresent()) {
+                            if (component.get() instanceof Activity) {
+                                ((Activity) component.get()).addMenu(method, menuItems);
+                            } else {
+                                LOGGER.warn("Found menu that belongs to " + component.get().getComponentType());
+                            }
+                        } else {
+                            LOGGER.warn("Failed to find component owning menu at " + methodSignature);
+                        }
+                    }
 
                     if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
                             || MethodUtils.isARTMethod(methodSignature)) {
@@ -284,19 +307,23 @@ public class ModularCDG extends BaseCFG {
     }
 
     /**
-     * Adds the lifecycle to the given components. In addition, the global entry points are defined for activities.
+     * Connects lifecycle methods of activities, services and application components.
      *
      * @param callbackGraphs A mapping of component to its callback graph.
      */
-    private void addLifecycleAndGlobalEntryPoints(Map<String, BaseCFG> callbackGraphs) {
+    private void connectComponentLifecycle(Map<String, BaseCFG> callbackGraphs) {
 
         LOGGER.debug("Adding lifecycle to components...");
 
         // add activity and fragment lifecycle as well as global entry point for activities
         components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activityComponent -> {
             Activity activity = (Activity) activityComponent;
-            addAndroidActivityLifecycle(activity, callbackGraphs.get(activity.getName()));
+            connectActivityLifecycle(activity, callbackGraphs.get(activity.getName()));
         });
+
+        // TODO: Service Lifecycles
+
+        // TODO: Application Lifecycles
     }
 
     /**
@@ -305,7 +332,7 @@ public class ModularCDG extends BaseCFG {
      * @param activity      The activity to which lifecycle methods are to be added.
      * @param callbackGraph The callbackGraph used for connecting some lifecycle methods.
      */
-    private void addAndroidActivityLifecycle(final Activity activity, BaseCFG callbackGraph) {
+    private void connectActivityLifecycle(final Activity activity, BaseCFG callbackGraph) {
         final Set<Fragment> fragments = activity.getHostingFragments();
         LOGGER.debug("Activity " + activity + " defines the following fragments: " + fragments);
 
@@ -433,6 +460,383 @@ public class ModularCDG extends BaseCFG {
         final BaseCFG cdg = new DummyCDG(MethodUtils.deriveMethodSignature(targetMethod));
         cdg.addEdge(cdg.getEntry(), cdg.getExit());
         return cdg;
+    }
+
+    /**
+     * Connects callbacks to the respective activity. We both consider callbacks defined via XML
+     * as well as programmatically defined callbacks. Note that an activity shares with its hosting fragments
+     * the 'callback' subgraph.
+     *
+     * @param apk            The APK file describing the app.
+     * @param callbackGraphs Maintains a mapping between a component and its callback graph.
+     */
+    private void connectCallbacks(APK apk, Map<String, BaseCFG> callbackGraphs) {
+
+        // Extract callbacks declared in code and XML
+        Multimap<String, BaseCFG> callbacks = lookUpCallbacks(apk);
+        Multimap<String, BaseCFG> callbacksXML = lookUpCallbacksXML(apk);
+
+        // Add callbacks directly from activity itself and its hosted fragments
+        components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activity -> {
+            BaseCFG callbackGraph = callbackGraphs.get(activity.getName());
+
+            // callbacks directly declared in activity
+            attachCallbacks(callbacks.get(activity.getName()), callbacksXML.get(activity.getName()), callbackGraph);
+
+            // callbacks declared in hosted fragments
+            Set<Fragment> fragments = ((Activity) activity).getHostingFragments();
+            for (Fragment fragment : fragments) {
+                attachCallbacks(callbacks.get(fragment.getName()), callbacksXML.get(fragment.getName()), callbackGraph);
+            }
+        });
+
+        Set<Fragment> fragmentsWithoutHost = ComponentUtils.getFragmentsWithoutHost(components);
+
+        if (!fragmentsWithoutHost.isEmpty()) {
+            LOGGER.warn("There are fragments without a host! Callbacks will be lost for " + fragmentsWithoutHost);
+        }
+    }
+
+    /**
+     * Attaches the derived callbacks both from code and XML to the callback sub graph.
+     *
+     * @param callbacks The callbacks derived from the code.
+     * @param callbacksXML The callbacks derived from the XML files.
+     * @param callbackGraph The component's virtual callback sub graph, i.e. the entry point of all callbacks of the
+     *                      component.
+     */
+    private void attachCallbacks(Collection<BaseCFG> callbacks, Collection<BaseCFG> callbacksXML, BaseCFG callbackGraph) {
+
+        List<BaseCFG> allCallbacks = Stream.concat(callbacks.stream(), callbacksXML.stream()).collect(Collectors.toList());
+
+        allCallbacks.forEach(callback -> {
+            /*
+             * Menu callbacks call each other in a specific sequence. We try to accurately model this in the callbacks
+             * subgraph by stitching those callbacks together in the right order. Every other callback is attached to
+             * the callbacks entry point directly.
+             */
+            BaseCFG callbackRoot = getCallbackParentRecursively(callback, allCallbacks).orElse(callbackGraph);
+            addEdge(callbackRoot.getEntry(), callback.getEntry());
+            addEdge(callback.getExit(), callbackRoot.getExit());
+        });
+    }
+
+    /**
+     * Retrieves the next present callback parent from the callback parent sequence. This is only relevant for menu
+     * callbacks, which form a callback sequence, e.g.:
+     * onOptionsItemSelected -> onMenuOpened -> onPrepareOptionsMenu -> onCreateOptionsMenu.
+     *
+     * @param callback The child callback.
+     * @param allCallbacks The list of all callbacks.
+     * @return Returns the next callback parent if present, otherwise an empty optional.
+     */
+    private Optional<BaseCFG> getCallbackParentRecursively(BaseCFG callback, Collection<BaseCFG> allCallbacks) {
+
+        String callbackClass = MethodUtils.getClassName(callback.getMethodName());
+
+        // iterate over the parent chain
+        return Stream.iterate(MethodUtils.getMethodName(callback.getMethodName()), MethodUtils.ANDROID_CALLBACK_TO_PARENT::get)
+                .skip(1) // skip the child callback
+                .takeWhile(Objects::nonNull) // reached root of parent chain
+                .map(parentMethod -> getGraphByMethodName(callbackClass + "->" + parentMethod, allCallbacks))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .findFirst();
+    }
+
+    /**
+     * Retrieves the graph corresponding to the given fully-qualified method name if present.
+     *
+     * @param fullyQualifiedMethodName The given method name.
+     * @param graphs The list of graphs.
+     * @return Returns the graph corresponding to the method name or an empty optional if not present.
+     */
+    private Optional<BaseCFG> getGraphByMethodName(String fullyQualifiedMethodName, final Collection<BaseCFG> graphs) {
+
+        Set<BaseCFG> candidates = graphs.stream()
+                .filter(b -> b.getMethodName().equals(fullyQualifiedMethodName)).collect(Collectors.toSet());
+
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        } else if (candidates.size() > 1) {
+            throw new IllegalStateException("Method name is not unique, multiple graphs found: " + fullyQualifiedMethodName);
+        } else {
+            return candidates.stream().findAny();
+        }
+    }
+
+    /**
+     * Returns for each ui component, i.e. an activity or a fragment, its associated callbacks.
+     *
+     * @param apk The APK file.
+     * @return Returns a mapping between a component and its associated callbacks (can be multiple per instance).
+     */
+    private Multimap<String, BaseCFG> lookUpCallbacks(final APK apk) {
+
+        /*
+         * Rather than backtracking calls like setOnClickListener() to a certain component, we
+         * directly search for the callback methods, e.g., onClick(), and track which class defines it.
+         * Only if the callback is not directly declared in an activity or fragment, we look up it usages.
+         */
+
+        Multimap<String, BaseCFG> classToCallbacksMapping = TreeMultimap.create();
+
+        for (String callback : callbacks) {
+
+            boolean assignedCallbackToClass = false;
+
+            BaseCFG callbackGraph = intraCDGs.get(callback);
+            String className = MethodUtils.getClassName(callback);
+
+            /*
+             * We need to check where the callback is declared. There are two options here:
+             *
+             * (1)
+             * If the class containing the callback represents an inner class, then the callback might belong
+             * to the outer class, e.g. an activity defines the OnClickListener (onClick() callback) as inner class.
+             * But, the outer class might be just a wrapper class containing multiple widgets and its callbacks.
+             * In this case, we have to backtrack the usages of the (outer) class to the respective component,
+             * i.e. the activity or fragment.
+             *
+             * (2)
+             * If the class represents a top-level class, it might be either an activity/fragment implementing
+             * a listener or a (wrapper) class representing a top-level listener. In the latter case, we need to
+             * backtrack the usages to the respective component.
+             */
+            if (ClassUtils.isInnerClass(className)) {
+
+                String outerClass = ClassUtils.getOuterClass(className);
+                Optional<Component> component = ComponentUtils.getComponentByName(components, outerClass);
+
+                if (component.isPresent()) {
+                    // component declares directly callback
+                    classToCallbacksMapping.put(outerClass, callbackGraph);
+                    assignedCallbackToClass = true;
+                } else {
+                    // callback is declared by some wrapper class
+
+                    // check which application classes make use of the wrapper class
+                    Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, outerClass);
+
+                    // check whether any found class represents a (ui) component
+                    for (UsageSearch.Usage usage : usages) {
+
+                        String clazzName = usage.getClazz().toString();
+                        Optional<Component> uiComponent = ComponentUtils.getComponentByName(components, clazzName);
+
+                        if (uiComponent.isPresent()) {
+                            /*
+                             * The class that makes use of the wrapper class represents a component, thus
+                             * the callback should be assigned to this class.
+                             */
+                            classToCallbacksMapping.put(clazzName, callbackGraph);
+                            assignedCallbackToClass = true;
+                        }
+
+                        /*
+                         * The usage may point to an inner class, e.g. an anonymous class representing
+                         * a callback. However, the ui component is typically the outer class. Thus,
+                         * we have to check whether the outer class represents a ui component.
+                         */
+                        if (ClassUtils.isInnerClass(clazzName)) {
+
+                            String outerClassName = ClassUtils.getOuterClass(clazzName);
+                            uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
+
+                            if (uiComponent.isPresent()) {
+                                classToCallbacksMapping.put(outerClassName, callbackGraph);
+                                assignedCallbackToClass = true;
+                            }
+                        }
+                    }
+                }
+            } else {
+                // top-level class
+
+                // an activity/fragment might implement a listener interface
+                Optional<Component> component = ComponentUtils.getComponentByName(components, className);
+
+                if (component.isPresent()) {
+                    // component declares directly callback
+                    classToCallbacksMapping.put(className, callbackGraph);
+                    assignedCallbackToClass = true;
+                } else {
+                    // callback is declared by some top-level listener or wrapper class
+
+                    Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, className);
+
+                    // check whether any found class represents a (ui) component
+                    for (UsageSearch.Usage usage : usages) {
+
+                        String clazzName = usage.getClazz().toString();
+                        Optional<Component> uiComponent = ComponentUtils.getComponentByName(components, clazzName);
+
+                        if (uiComponent.isPresent()) {
+                            /*
+                             * The class that makes use of the top-level listener (wrapper) class represents a
+                             * component, thus the callback should be assigned to this class.
+                             */
+                            classToCallbacksMapping.put(clazzName, callbackGraph);
+                            assignedCallbackToClass = true;
+                        }
+
+                        /*
+                         * The usage may point to an inner class, e.g. an anonymous class representing
+                         * a callback. However, the ui component is typically the outer class. Thus,
+                         * we have to check whether the outer class represents a ui component.
+                         */
+                        if (ClassUtils.isInnerClass(clazzName)) {
+
+                            String outerClassName = ClassUtils.getOuterClass(clazzName);
+                            uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
+
+                            if (uiComponent.isPresent()) {
+                                classToCallbacksMapping.put(outerClassName, callbackGraph);
+                                assignedCallbackToClass = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!assignedCallbackToClass) {
+                LOGGER.debug("Couldn't assign callback to class: " + callback);
+            }
+        }
+
+        LOGGER.debug("Callbacks declared via Code: ");
+        classToCallbacksMapping.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
+        return classToCallbacksMapping;
+    }
+
+    /**
+     * Looks up callbacks declared in XML layout files and associates them to its defining component.
+     * First, the onCreate() and/or onCreateView() methods of activities and fragments are looked up for invocations
+     * of setContentView() or inflate(), respectively. Next, the resource ids are extracted by backtracking the
+     * former invocations. Then, we map the resource ids to layout files and parse the callbacks within those files.
+     * Finally, the declared callbacks are looked up in the graph and mapped to its defining component.
+     *
+     * @return Returns a mapping between a component (its class name) and its callbacks (actually the
+     * corresponding intra CFGs). Each component may define multiple callbacks.
+     */
+    private Multimap<String, BaseCFG> lookUpCallbacksXML(APK apk) {
+
+        // stores for each component its resource id in hexadecimal representation
+        Map<String, String> componentResourceID = new HashMap<>();
+
+        Set<ClassDef> viewComponents = components.stream()
+                .filter(c -> c.getComponentType() == ComponentType.ACTIVITY || c.getComponentType() == ComponentType.FRAGMENT)
+                .map(Component::getClazz)
+                .collect(Collectors.toSet());
+
+        for (DexFile dexFile : apk.getDexFiles()) {
+            for (ClassDef classDef : dexFile.getClasses()) {
+
+                if (viewComponents.contains(classDef)) {
+                    // only activities and fragments of the application can define callbacks in XML
+
+                    for (Method method : classDef.getMethods()) {
+
+                        MethodImplementation methodImplementation = method.getImplementation();
+
+                        if (methodImplementation != null
+                                // we can speed up search for looking only for onCreate(..) and onCreateView(..)
+                                // this assumes that only these two methods declare the layout via setContentView()/inflate()!
+                                && method.getName().contains("onCreate")) {
+
+                            for (AnalyzedInstruction analyzedInstruction : MethodUtils.getAnalyzedInstructions(dexFile, method)) {
+
+                                Instruction instruction = analyzedInstruction.getInstruction();
+
+                                /*
+                                 * We need to search for calls to setContentView(..) and inflate(..).
+                                 * Both of them are of type invoke-virtual.
+                                 */
+                                if (instruction.getOpcode() == Opcode.INVOKE_VIRTUAL) {
+                                    String resourceID = Utility.getLayoutResourceID(classDef, analyzedInstruction);
+
+                                    if (resourceID != null) {
+                                        componentResourceID.put(classDef.toString(), resourceID);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        LOGGER.debug("Component-to-Resource-ID-mapping: " + componentResourceID);
+
+        /*
+         * We now need to find the layout file for a given activity or fragment. Then, we need to
+         * parse it in order to get possible callbacks.
+         */
+        Multimap<String, String> componentCallbacks = TreeMultimap.create();
+
+        // search layout file + parse callbacks
+        componentResourceID.forEach(
+                (component, resourceID) -> {
+
+                    LayoutFile layoutFile = LayoutFile.findLayoutFile(apk.getDecodingOutputPath(), resourceID);
+
+                    if (layoutFile != null) {
+                        componentCallbacks.putAll(component, layoutFile.parseCallbacks());
+
+                        Set<Fragment> hostedFragments = layoutFile.parseFragments().stream()
+                                .map(dottedFragmentName -> {
+                                    var fragment = ComponentUtils.getFragmentByName(components, ClassUtils.convertDottedClassName(dottedFragmentName));
+
+                                    if (fragment.isEmpty()) {
+                                        LOGGER.warn("Was not able to find fragment " + dottedFragmentName);
+                                    }
+                                    return fragment;
+                                })
+                                .flatMap(Optional::stream)
+                                .collect(Collectors.toSet());
+
+                        if (!hostedFragments.isEmpty()) {
+                            Optional<Activity> activity = ComponentUtils.getActivityByName(components, component);
+
+                            if (activity.isPresent()) {
+                                hostedFragments.forEach(activity.get()::addHostingFragment);
+                            } else {
+                                LOGGER.warn("Cannot attach " + hostedFragments.size() + " hosted fragments to any " + component);
+                            }
+                        }
+                    }
+                });
+
+        Multimap<String, BaseCFG> callbacks = TreeMultimap.create();
+
+        // lookup which class defines the callback method
+        for (String component : componentCallbacks.keySet()) {
+            for (String callbackName : componentCallbacks.get(component)) {
+                // callbacks can have a custom method name but the rest of the method signature is fixed
+                String callback = component + "->" + callbackName + "(Landroid/view/View;)V";
+
+                // check whether the callback is defined within the component itself
+                if (intraCDGs.containsKey(callback)) {
+                    callbacks.put(component, intraCDGs.get(callback));
+                } else {
+                    // it is possible that the outer class defines the callback
+                    if (ClassUtils.isInnerClass(component)) {
+                        String outerClassName = ClassUtils.getOuterClass(component);
+                        callback = callback.replace(component, outerClassName);
+                        if (intraCDGs.containsKey(callback)) {
+                            callbacks.put(outerClassName, intraCDGs.get(callback));
+                        } else {
+                            LOGGER.warn("Couldn't derive defining component class for callback: " + callback);
+                        }
+                    } else {
+                        LOGGER.warn("Couldn't derive defining component class for callback: " + callback);
+                    }
+                }
+            }
+        }
+        LOGGER.debug("Callbacks declared via XML: ");
+        callbacks.forEach((c, g) -> LOGGER.debug(c + " -> " + g.getMethodName()));
+        return callbacks;
     }
 
     /**
