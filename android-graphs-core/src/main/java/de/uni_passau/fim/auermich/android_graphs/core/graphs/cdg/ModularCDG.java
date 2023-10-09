@@ -1,7 +1,18 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.TreeMultimap;
 import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Application;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.BroadcastReceiver;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.ComponentType;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Fragment;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Service;
+import de.uni_passau.fim.auermich.android_graphs.core.app.xml.LayoutFile;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
@@ -15,11 +26,17 @@ import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jf.dexlib2.Opcode;
+import org.jf.dexlib2.analysis.AnalyzedInstruction;
 import org.jf.dexlib2.iface.ClassDef;
 import org.jf.dexlib2.iface.DexFile;
+import org.jf.dexlib2.iface.Field;
 import org.jf.dexlib2.iface.Method;
+import org.jf.dexlib2.iface.MethodImplementation;
+import org.jf.dexlib2.iface.MethodParameter;
 import org.jf.dexlib2.iface.instruction.Instruction;
 import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
+import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.AllDirectedPaths;
@@ -30,7 +47,10 @@ import org.jgrapht.traverse.DepthFirstIterator;
 
 import java.io.File;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ModularCDG extends BaseCFG {
 
@@ -47,6 +67,17 @@ public class ModularCDG extends BaseCFG {
      * NOTE: Only a reference to the entry and exit vertex is hold!
      */
     private final Map<String, BaseCFG> intraCDGs = new HashMap<>();
+
+    /**
+     * Maintains the set of components, i.e. activities, services and fragments.
+     */
+    private final Set<Component> components = new HashSet<>();
+
+    /**
+     * Maintains the class relation between the application classes in both directions.
+     * This includes the super class, the interfaces and the sub classes of a class.
+     */
+    private final ClassHierarchy classHierarchy = new ClassHierarchy();
 
     /**
      * The APK file.
@@ -99,6 +130,15 @@ public class ModularCDG extends BaseCFG {
         // create the individual intraCDGs and add them as sub graphs
         constructIntraCDGs(apk, properties.useBasicBlocks);
 
+        // track relations between components
+        ComponentUtils.checkComponentRelations(apk, components, classHierarchy);
+
+        // add for each component a callback graph
+        Map<String, BaseCFG> callbackGraphs = addCallbackGraphs();
+
+        // add lifecycle of components
+        addLifecycleAndGlobalEntryPoints(callbackGraphs);
+
         LOGGER.debug("Removing decoded APK files: " + Utility.removeFile(apk.getDecodingOutputPath()));
 
         if (properties.useBasicBlocks) {
@@ -112,6 +152,13 @@ public class ModularCDG extends BaseCFG {
 
         LOGGER.debug("Constructing IntraCDGs!");
         final Pattern exclusionPattern = properties.exclusionPattern;
+
+        // Track binder classes and attach them to the corresponding service
+        Set<String> binderClasses = new HashSet<>();
+        List<ClassDef> classes = apk.getDexFiles().stream()
+                .map(DexFile::getClasses)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
@@ -154,8 +201,108 @@ public class ModularCDG extends BaseCFG {
                         }
                     }
                 }
+
+                // Track whether a given class represents  an activity, service or fragment
+                if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
+
+                    // re-assemble the class hierarchy
+                    updateClassHierarchy(dexFile, classDef);
+
+                    if (ComponentUtils.isActivity(classes, classDef)) {
+                        components.add(new Activity(classDef, ComponentType.ACTIVITY));
+                    } else if (ComponentUtils.isFragment(classes, classDef)) {
+                        components.add(new Fragment(classDef, ComponentType.FRAGMENT));
+                    } else if (ComponentUtils.isService(classes, classDef)) {
+                        components.add(new Service(classDef, ComponentType.SERVICE));
+                    } else if (ComponentUtils.isBinder(classes, classDef)) {
+                        binderClasses.add(classDef.toString());
+                    } else if (ComponentUtils.isApplication(classes, classDef)) {
+                        components.add(new Application(classDef, ComponentType.APPLICATION));
+                    } else if (ComponentUtils.isBroadcastReceiver(classes, classDef)) {
+                        components.add(new BroadcastReceiver(classDef, ComponentType.BROADCAST_RECEIVER));
+                    }
+                }
             }
         }
+
+        // Assign binder class to respective service
+        for (String binderClass : binderClasses) {
+            // Typically binder classes are inner classes of the service
+            if (ClassUtils.isInnerClass(binderClass)) {
+                String serviceName = ClassUtils.getOuterClass(binderClass);
+                Optional<Component> component = ComponentUtils.getComponentByName(components, serviceName);
+                if (component.isPresent() && component.get().getComponentType() == ComponentType.SERVICE) {
+                    Service service = (Service) component.get();
+                    service.setBinder(binderClass);
+                }
+            }
+        }
+
+    }
+
+    /**
+     * Updates the class hierarchy map with information of the given class and its super class
+     * and interfaces, respectively.
+     *
+     * @param dexFile  The dex file containing the current class.
+     * @param classDef The given class.
+     */
+    private void updateClassHierarchy(final DexFile dexFile, final ClassDef classDef) {
+
+        // TODO: Speed up class hierarchy construction. At least inner classes can be derived iteratively.
+        ClassDef superClass = ClassUtils.getSuperClass(dexFile, classDef);
+        Set<ClassDef> interfaces = ClassUtils.getInterfaces(dexFile, classDef);
+        Set<ClassDef> innerClasses = ClassUtils.getInnerClasses(dexFile, classDef);
+        classHierarchy.addClass(classDef, superClass, interfaces, innerClasses);
+    }
+
+    /**
+     * Adds for each component except fragments and broadcast receivers a callback entry point.
+     *
+     * @return Returns a mapping of the components and its callback entry point.
+     */
+    private Map<String, BaseCFG> addCallbackGraphs() {
+
+        LOGGER.debug("Adding callbacks sub graphs...");
+
+        Map<String, BaseCFG> callbackGraphs = new HashMap<>();
+
+        /*
+         * Fragments share the callback entry point with the surrounding activity, while broadcast receivers
+         * do not define any callbacks at all.
+         */
+        components.stream().filter(c -> c.getComponentType() != ComponentType.FRAGMENT
+                && c.getComponentType() != ComponentType.BROADCAST_RECEIVER).forEach(component -> {
+            BaseCFG callbackGraph = dummyIntraCDG("callbacks " + component.getName());
+            addSubGraph(callbackGraph);
+            callbackGraphs.put(component.getName(), callbackGraph);
+        });
+        return callbackGraphs;
+    }
+
+    /**
+     * Adds the lifecycle to the given components. In addition, the global entry points are defined for activities.
+     *
+     * @param callbackGraphs A mapping of component to its callback graph.
+     */
+    private void addLifecycleAndGlobalEntryPoints(Map<String, BaseCFG> callbackGraphs) {
+
+        LOGGER.debug("Adding lifecycle to components...");
+
+        // add activity and fragment lifecycle as well as global entry point for activities
+        components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activityComponent -> {
+            Activity activity = (Activity) activityComponent;
+            addAndroidActivityLifecycle(activity, callbackGraphs.get(activity.getName()));
+        });
+    }
+
+    private void addAndroidActivityLifecycle(final Activity activity, BaseCFG callbackGraph){
+        final Set<Fragment> fragments = activity.getHostingFragments();
+        LOGGER.debug("Activity " + activity + " defines the following fragments: " + fragments);
+
+        BaseCFG onCreateCDG = intraCDGs.get(activity.onCreateMethod());
+        addEdge(getEntry(), onCreateCDG.getEntry());
+
     }
 
     /**
