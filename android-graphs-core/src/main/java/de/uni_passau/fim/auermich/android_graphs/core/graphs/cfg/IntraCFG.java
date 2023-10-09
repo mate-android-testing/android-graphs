@@ -212,26 +212,32 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             // add the last basic block separately
             createBasicBlockVertex(basicBlock, basicBlocks);
 
-            // Exit is not connected to remaining intraCFG.
-            // This may happen if we encounter a while true loop without a break statement.
-            // We virtually connect the start of the while loop with the exit.
+            /*
+            * A method may contain an endless loop in which case there is no return statement (even not in the bytecode)
+            * and the virtual exit is isolated. Since we need to avoid isolated vertices, we attach a virtual edge from
+            * the loop header to the virtual exit. Note that the detected loop header is not unique, this primarily
+            * depends in which order the successors of a vertex are inserted into the stack, but since the virtual exit
+            * is theoretically not reachable at all, we ignore this fact for now.
+             */
             if (getPredecessors(getExit()).isEmpty()) {
-                Set<CFGVertex> visited = new HashSet<>();
-                Stack<CFGVertex> stack = new Stack<>();
+
+                // TODO: Find an algorithm that can discover the loop header of the endless loop.
+
+                final Set<CFGVertex> visited = new HashSet<>();
+                final Deque<CFGVertex> stack = new LinkedList<>();
                 CFGVertex current = getEntry();
-                // Traverse the intraCFG in the search of loops.
+
                 while (!visited.contains(current) && current != null) {
                     visited.add(current);
                     for (CFGVertex successors : getSuccessors(current)) {
                         if (!stack.contains(successors)) {
-                            stack.add(successors);
+                            stack.push(successors);
                         }
                     }
                     current = stack.pop();
                 }
-                addEdge(current, getExit());
+                addEdge(current, getExit()); // add edge from loop header to virtual exit
             }
-
         } else {
             // no method implementation found -> construct dummy CFG
             LOGGER.warn("No implementation present for method: " + targetMethod + "! Using dummy CFG.");
