@@ -315,15 +315,23 @@ public class ModularCDG extends BaseCFG {
 
         LOGGER.debug("Adding lifecycle to components...");
 
-        // add activity and fragment lifecycle as well as global entry point for activities
+        // Connect activity and fragment lifecycles.
         components.stream().filter(c -> c.getComponentType() == ComponentType.ACTIVITY).forEach(activityComponent -> {
             Activity activity = (Activity) activityComponent;
             connectActivityLifecycle(activity, callbackGraphs.get(activity.getName()));
         });
 
-        // TODO: Service Lifecycles
+        // Connect service lifecycles.
+        components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(serviceComponent -> {
+            Service service = (Service) serviceComponent;
+            connectServiceLifecycle(service, callbackGraphs.get(service.getName()));
+        });
 
-        // TODO: Application Lifecycles
+        // Connect application lifecycles.
+        components.stream().filter(c -> c.getComponentType() == ComponentType.APPLICATION).forEach(applicationComponent -> {
+            Application application = (Application) applicationComponent;
+            connectApplicationLifecycle(application, callbackGraphs.get(application.getName()));
+        });
     }
 
     /**
@@ -336,11 +344,9 @@ public class ModularCDG extends BaseCFG {
         final Set<Fragment> fragments = activity.getHostingFragments();
         LOGGER.debug("Activity " + activity + " defines the following fragments: " + fragments);
 
-
-        // Connect onCreate() with every activity constructor
-        // since whether onCreate() is called dependents on the invocation of the constructor.
+        // Connect activity entry to global entry
         for (String constructor : activity.getConstructors()) {
-            addLifecycle(activity.onCreateMethod(), constructor);
+            addEdge(getEntry(), intraCDGs.get(constructor).getEntry());
         }
 
         // If there are fragments, onCreate invokes several fragment creation callbacks.
@@ -355,17 +361,6 @@ public class ModularCDG extends BaseCFG {
             addLifecycle(fragment.onViewStateRestoredMethod(), activity.onCreateMethod());
         }
 
-        // Add remaining lifecycle methods responsible for getting a running activity if implemented in the AUT.
-        // Since we assume that these lifecycle methods are called one after another as soon as the
-        // activity's constructor is invoked, we model them as children of the activity's constructor.
-        for (String constructor : activity.getConstructors()) {
-            addLifecycle(activity.onStartMethod(), constructor);
-            addLifecycle(activity.onResumeMethod(), constructor);
-            addLifecycle(activity.onRestoreInstanceStateOverloadedMethod(), constructor);
-            addLifecycle(activity.onPostCreateOverloadedMethod(), constructor);
-            addLifecycle(activity.onPostResumeMethod(), constructor);
-        }
-
         // Activity's onStart invokes Fragment's onStart()
         for (Fragment fragment : fragments) {
             addLifecycle(fragment.onStartMethod(), activity.onStartMethod());
@@ -374,6 +369,18 @@ public class ModularCDG extends BaseCFG {
         // Activity's onResume() invokes Fragment's onResume()
         for (Fragment fragment : fragments) {
             addLifecycle(fragment.onResumeMethod(), activity.onResumeMethod());
+        }
+
+        // Add lifecycle methods responsible for getting a running activity if implemented in the AUT.
+        // Since we assume that these lifecycle methods are called one after another as soon as the
+        // activity's constructor is invoked, we model them as children of the activity's constructor.
+        for (String constructor : activity.getConstructors()) {
+            addLifecycle(activity.onCreateMethod(), constructor);
+            addLifecycle(activity.onStartMethod(), constructor);
+            addLifecycle(activity.onResumeMethod(), constructor);
+            addLifecycle(activity.onRestoreInstanceStateOverloadedMethod(), constructor);
+            addLifecycle(activity.onPostCreateOverloadedMethod(), constructor);
+            addLifecycle(activity.onPostResumeMethod(), constructor);
         }
 
         // Callbacks may be invoked after onResume()/onPostResume().
@@ -390,11 +397,6 @@ public class ModularCDG extends BaseCFG {
             }
         }
 
-        // We model an activity's onPause(), onStop() and onDestroy() to be dependent on the callback graph.
-        addLifecycle(activity.onPauseMethod(), callbackGraph);
-        addLifecycle(activity.onStopMethod(), callbackGraph);
-        addLifecycle(activity.onDestroyMethod(), callbackGraph);
-        addLifecycle(activity.onSaveInstanceStateOverloadedMethod(), callbackGraph);
 
         // Activity's onPause() invokes Fragment's onPause()
         for (Fragment fragment : fragments) {
@@ -414,6 +416,104 @@ public class ModularCDG extends BaseCFG {
             addLifecycle(fragment.onDetachMethod(), activity.onDestroyMethod());
         }
 
+        // We model an activity's onPause(), onStop() and onDestroy() to be dependent on the callback graph.
+        addLifecycle(activity.onPauseMethod(), callbackGraph);
+        addLifecycle(activity.onStopMethod(), callbackGraph);
+        addLifecycle(activity.onDestroyMethod(), callbackGraph);
+        addLifecycle(activity.onSaveInstanceStateOverloadedMethod(), callbackGraph);
+    }
+
+    /**
+     * Adds service lifecycle methods to the given service.
+     *
+     * @param service       The service for which the lifecycle should be added.
+     * @param callbackGraph The callback sub graph of the service component.
+     */
+    private void connectServiceLifecycle(Service service, BaseCFG callbackGraph) {
+
+        String constructor = service.getDefaultConstructor();
+
+        // Connect Service entry to global entry
+        addEdge(getEntry(), intraCDGs.get(constructor).getEntry());
+
+        if (!intraCDGs.containsKey(constructor)) {
+            LOGGER.warn("Service without explicit constructor: " + service);
+        } else {
+
+            // Connect onCreate() with constructor.
+            addLifecycle(service.onCreateMethod(), constructor);
+
+            // Connect onStartCommand() and deprecated onStartMethod() with constructor
+            // since we assume no control dependencies for lifecycle methods.
+            addLifecycle(service.onStartCommandMethod(), constructor);
+            addLifecycle(service.onStartMethod(), constructor);
+
+            // Connect service callbacks
+            addEdge(intraCDGs.get(constructor).getExit(), callbackGraph.getEntry());
+
+            // Connect onBind() if implemented in AUT.
+            if (intraCDGs.containsKey(service.onBindMethod())) {
+                addEdge(callbackGraph.getEntry(), intraCDGs.get(service.onBindMethod()).getEntry());
+            }
+
+            /*
+             * If we deal with a bound service, onBind() invokes directly onServiceConnected() of
+             * the service connection object.
+             */
+            if (service.isBound() && service.getServiceConnection() != null) {
+
+                String serviceConnection = service.getServiceConnection();
+                BaseCFG serviceConnectionConstructor = intraCDGs.get(ClassUtils.getDefaultConstructor(serviceConnection));
+
+                if (serviceConnectionConstructor == null) {
+                    LOGGER.warn("Service connection '" + serviceConnection + "' for " + service.getName() + " has no intra CFG!");
+                } else {
+                    // Add callbacks subgraph
+                    BaseCFG serviceConnectionCallbacks = dummyIntraCDG("callbacks " + serviceConnection);
+                    addSubGraph(serviceConnectionCallbacks);
+
+                    // Connect constructor with callback entry point
+                    addEdge(serviceConnectionConstructor.getExit(), serviceConnectionCallbacks.getEntry());
+
+                    // integrate callback methods onServiceConnected() and onServiceDisconnected()
+                    BaseCFG onServiceConnected = intraCDGs.get(serviceConnection
+                            + "->onServiceConnected(Landroid/content/ComponentName;Landroid/os/IBinder;)V");
+                    BaseCFG onServiceDisconnected = intraCDGs.get(serviceConnection
+                            + "->onServiceDisconnected(Landroid/content/ComponentName;)V");
+                    addEdge(serviceConnectionCallbacks.getEntry(), onServiceConnected.getEntry());
+                    addEdge(serviceConnectionCallbacks.getEntry(), onServiceDisconnected.getEntry());
+
+                    // connect onBind() with onServiceConnected()
+                    BaseCFG onBind = intraCDGs.get(service.onBindMethod());
+                    addEdge(onBind.getExit(), onServiceConnected.getEntry());
+                }
+            }
+
+            // Connect onUnBind() and onDestroy()
+            addLifecycle(service.onUnbindMethod(), callbackGraph);
+            addLifecycle(service.onDestroyMethod(), callbackGraph);
+        }
+    }
+
+    /**
+     * Adds application lifecycle methods to the given application.
+     *
+     * @param application   The application class.
+     * @param callbackGraph The callbacks sub graph of the application class.
+     */
+    private void connectApplicationLifecycle(Application application, BaseCFG callbackGraph) {
+        BaseCFG constructor = intraCDGs.get(application.getDefaultConstructor());
+
+        // Connect onCreateMethod() if implemented in the AUT.
+        addLifecycle(application.onCreateMethod(), constructor);
+        addLifecycle(application.onCreateMethod(), callbackGraph);
+
+        // Connect onLowMemoryMethod(), onTerminateMethod(), onTrimMemoryMethod() and onConfigurationChangedMethod()
+        // if implemented in the AUT.
+        addLifecycle(application.onLowMemoryMethod(), callbackGraph);
+        addLifecycle(application.onTerminateMethod(), callbackGraph);
+        addLifecycle(application.onTrimMemoryMethod(), callbackGraph);
+        addLifecycle(application.onConfigurationChangedMethod(), callbackGraph);
     }
 
     /**
@@ -500,8 +600,8 @@ public class ModularCDG extends BaseCFG {
     /**
      * Attaches the derived callbacks both from code and XML to the callback sub graph.
      *
-     * @param callbacks The callbacks derived from the code.
-     * @param callbacksXML The callbacks derived from the XML files.
+     * @param callbacks     The callbacks derived from the code.
+     * @param callbacksXML  The callbacks derived from the XML files.
      * @param callbackGraph The component's virtual callback sub graph, i.e. the entry point of all callbacks of the
      *                      component.
      */
@@ -526,7 +626,7 @@ public class ModularCDG extends BaseCFG {
      * callbacks, which form a callback sequence, e.g.:
      * onOptionsItemSelected -> onMenuOpened -> onPrepareOptionsMenu -> onCreateOptionsMenu.
      *
-     * @param callback The child callback.
+     * @param callback     The child callback.
      * @param allCallbacks The list of all callbacks.
      * @return Returns the next callback parent if present, otherwise an empty optional.
      */
@@ -548,7 +648,7 @@ public class ModularCDG extends BaseCFG {
      * Retrieves the graph corresponding to the given fully-qualified method name if present.
      *
      * @param fullyQualifiedMethodName The given method name.
-     * @param graphs The list of graphs.
+     * @param graphs                   The list of graphs.
      * @return Returns the graph corresponding to the method name or an empty optional if not present.
      */
     private Optional<BaseCFG> getGraphByMethodName(String fullyQualifiedMethodName, final Collection<BaseCFG> graphs) {
@@ -901,6 +1001,7 @@ public class ModularCDG extends BaseCFG {
         for (Map.Entry<String, BaseCFG> entry : intraCDGs.entrySet()) {
             if (getIncomingEdges(entry.getValue().getEntry()).size() == 0) {
                 // connect all non-connected sub graphs with global entry by inserting a virtual vertex
+                LOGGER.warn("Connecting Method " + entry.getKey() + " virtually to Entry");
                 CFGVertex virtual = new CFGVertex(new EntryStatement("Connect->" + entry.getKey()));
                 addVertex(virtual);
                 addEdge(getEntry(), virtual);
