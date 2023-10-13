@@ -433,6 +433,13 @@ public class ModularCDG extends BaseCFG {
 
         String constructor = service.getDefaultConstructor();
 
+        // If there is not implementation present in the AUT for the service constructor, use a dummy CDG.
+        if (!intraCDGs.containsKey(constructor)){
+            BaseCFG constructorDummy = dummyCDG(constructor);
+            intraCDGs.put(constructor, constructorDummy);
+            addSubGraph(constructorDummy);
+        }
+
         // Connect Service entry to global entry
         addEdge(getEntry(), intraCDGs.get(constructor).getEntry());
 
