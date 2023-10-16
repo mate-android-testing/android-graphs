@@ -1,6 +1,5 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
-import com.google.common.collect.Sets;
 import com.mxgraph.layout.hierarchical.mxHierarchicalLayout;
 import com.mxgraph.layout.mxIGraphLayout;
 import com.mxgraph.model.mxICell;
@@ -357,7 +356,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @return Returns a collection of vertices that represent transitive successors of the supplied vertex.
      */
     public Collection<CFGVertex> getTransitiveSuccessors(final CFGVertex vertex) {
-        return transitiveSuccessors(vertex, Sets.newHashSet());
+        return transitiveSuccessors(vertex, new HashSet<>());
     }
 
     /**
@@ -368,7 +367,7 @@ public abstract class BaseCFG implements BaseGraph, Cloneable, Comparable<BaseCF
      * @return Returns a collection of vertices that are transitive successors of the supplied vertex.
      */
     private Collection<CFGVertex> transitiveSuccessors(final CFGVertex vertex, final Set<CFGVertex> visitedVertices) {
-        final Collection<CFGVertex> successors = Sets.newHashSet();
+        final Collection<CFGVertex> successors = new HashSet<>();
         for (CFGVertex successor : getSuccessors(vertex)) {
             if (!visitedVertices.contains(successor)) {
                 successors.add(successor);

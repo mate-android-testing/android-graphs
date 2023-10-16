@@ -2,19 +2,28 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg;
 
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.Var;
+
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.*;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jgrapht.traverse.BreadthFirstIterator;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Represents a control dependence graph (CDG).
  */
 public class CDG extends BaseCFG {
+
+    private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
 
     /**
      * Maintains a reference to the individual intra CFGs.
@@ -90,33 +99,62 @@ public class CDG extends BaseCFG {
             }
         }
 
-        /*
-        * There can be still disconnected loops due to self-references back to the loop header, i.e. vertices that have
-        * no parents other than themselves. In this case we look up the parents in the original CFG and add an edge
-        * from any parent if it is a branch, i.e. the loop header is essentially control-dependent on the branch or add
-        * an edge from all the grandparents otherwise.
-         */
-        for (CFGVertex vertex : graph.vertexSet()) {
-            if (!vertex.equals(getEntry()) && getPredecessors(vertex).size() == 1
-                    // check for self-reference
-                    && new ArrayList<>(getPredecessors(vertex)).get(0).equals(vertex)) {
+        findAndAddDisconnectedVertices(cfg);
+    }
 
-                // Iterate over all cfg parents of the disconnected loop.
-                final Set<CFGVertex> cfgParents = cfg.getPredecessors(vertex);
-                for (CFGVertex parent : cfgParents) {
+    /**
+     * Find disconnected vertices by traversing the CFG starting from the entry in a breadth-first manner. If we find a
+     * vertex that is not connect to the CDG entry, we add it manually to the CDG.
+     *
+     * @param cfg The {@link BaseCFG} from which the CDG is being generated.
+     */
+    private void findAndAddDisconnectedVertices(BaseCFG cfg) {
+        CFGVertex current = cfg.getEntry();
+        Set<CFGVertex> visited = new HashSet<>();
+        Queue<CFGVertex> queue = new ArrayDeque<>();
+        // Iterate over all vertices in a breadth-first manner.
+        while (current != null) {
+            visited.add(current);
+            queue.addAll(cfg.getSuccessors(current).stream().filter(s -> !visited.contains(s)).collect(Collectors.toSet()));
+            // Check if the vertex is connected to the CDG entry.
+            if (!current.equals(getEntry()) && !getTransitiveSuccessors(getEntry()).contains(current)) {
+                LOGGER.warn("Adding disconnected vertex: " + current);
+                addDisconnectedVertex(cfg, current);
+            }
+            current = queue.poll();
+        }
+    }
 
-                    // If the current parent is a branch, the disconnected loop is dependent on the branch
-                    // and we add an edge from the branch to the disconnected loop.
-                    if (parent.isBranchVertex()) {
-                        addEdge(parent, vertex);
-                    } else {
-                        // Otherwise, if the current parent is not a branch, the disconnected loop is dependent
-                        // on all parents of the current parent, i.e. all grandparents.
-                        final Set<CFGVertex> cfgGrandParents = getPredecessors(parent);
-                        for (CFGVertex grandParent : cfgGrandParents) {
-                            addEdge(grandParent, vertex);
-                        }
+    /**
+     * Add a disconnected vertex to the CDG.
+     * If the vertex's CFG parent is a control-dependency add the vertex to the CDG as a successor of the CFG parent,
+     * otherwise add it to the CDG as a successor of the the CFG grandparents.
+     *
+     * @param cfg                The {@link BaseCFG} from which the CDG is being generated.
+     * @param disconnectedVertex The vertex to be added to the CDG.
+     */
+    private void addDisconnectedVertex(BaseCFG cfg, CFGVertex disconnectedVertex) {
+        Set<CFGVertex> entryConnected = (Set<CFGVertex>) getTransitiveSuccessors(getEntry());
+        Set<CFGVertex> cfgParents = cfg.getPredecessors(disconnectedVertex);
+        for (CFGVertex parent : cfgParents) {
+
+            if (!entryConnected.contains(parent)) {
+                continue;
+            }
+
+            // If the current parent is a branch, the disconnected vertex is dependent on the branch
+            // and we add an edge from the branch to the disconnected vertex.
+            if (parent.isSwitchVertex() || parent.isIfVertex()) {
+                addEdge(parent, disconnectedVertex);
+            } else {
+                // Otherwise, if the current parent is not a branch, the disconnected vertex is dependent
+                // on all CDG parents of the current parent.
+                Set<CFGVertex> cfgGrandParents = cfg.getPredecessors(parent);
+                for (CFGVertex grandParent : cfgGrandParents) {
+                    if (!entryConnected.contains(parent)) {
+                        continue;
                     }
+                    addEdge(grandParent, disconnectedVertex);
                 }
             }
         }
@@ -182,11 +220,11 @@ public class CDG extends BaseCFG {
     /**
      * Performs a breadth first search for looking up the vertex.
      *
-     * @param method The method describing the vertex.
+     * @param method           The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry The entry vertex of the graph.
+     * @param entry            The entry vertex of the graph.
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     *         a {@link IllegalArgumentException} is thrown.
+     * a {@link IllegalArgumentException} is thrown.
      */
     private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry) {
 
