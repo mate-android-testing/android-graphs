@@ -135,6 +135,26 @@ public class MethodUtils {
         add("onPageScrolled(IFI)V");
         add("onPageSelected(I)V");
 
+        // https://developer.android.com/reference/android/view/animation/Animation.AnimationListener
+        add("onAnimationEnd(Landroid/animation/Animator;)V");
+        add("onAnimationRepeat(Landroid/animation/Animator;)V");
+        add("onAnimationStart(Landroid/animation/Animator;)V");
+
+        // https://developer.android.com/reference/android/os/FileObserver
+        add("onEvent(ILjava/lang/String;)V");
+
+        // https://developer.android.com/reference/android/view/GestureDetector.SimpleOnGestureListener
+        add("onContextClick(Landroid/view/MotionEvent;)Z");
+        add("onDoubleTap(Landroid/view/MotionEvent;)Z");
+        add("onDoubleTapEvent(Landroid/view/MotionEvent;)Z");
+        add("onDown(Landroid/view/MotionEvent;)Z");
+        add("onFlying(Landroid/view/MotionEvent;Landroid/view/MotionEvent;FF)Z");
+        add("onLongPress(Landroid/view/MotionEvent;)V");
+        add("onScroll(Landroid/view/MotionEvent;Landroid/view/MotionEvent;FF)Z");
+        add("onShowPress(Landroid/view/MotionEvent;)Z");
+        add("onSingleTapConfirmed(Landroid/view/MotionEvent;)Z");
+        add("onSingleTapUp(Landroid/view/MotionEvent;)Z");
+
         // https://developer.android.com/reference/android/widget/SeekBar.OnSeekBarChangeListener#onProgressChanged(android.widget.SeekBar,%20int,%20boolean)
         add("onProgressChanged(Landroid/widget/SeekBar;IZ)V");
 
