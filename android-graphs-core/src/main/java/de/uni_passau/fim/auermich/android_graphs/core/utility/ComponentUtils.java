@@ -166,6 +166,7 @@ public class ComponentUtils {
                 // upper bound to avoid resolving external activities or activities defined in a different method
                 while (pred.getInstructionIndex() != -1) {
                     final Instruction predecessor = pred.getInstruction();
+
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
                         // This is the most common pattern - the activity name is encoded in the const-class instruction.
 
