@@ -1,5 +1,11 @@
 package de.uni_passau.fim.auermich.android_graphs.cli;
 
+import com.android.tools.smali.dexlib2.DexFileFactory;
+import com.android.tools.smali.dexlib2.Opcodes;
+import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile;
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
+import com.android.tools.smali.dexlib2.iface.MultiDexContainer;
 import com.beust.jcommander.JCommander;
 import de.uni_passau.fim.auermich.android_graphs.cli.jcommander.*;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
@@ -12,12 +18,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.jf.dexlib2.DexFileFactory;
-import org.jf.dexlib2.Opcodes;
-import org.jf.dexlib2.dexbacked.DexBackedDexFile;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MultiDexContainer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;

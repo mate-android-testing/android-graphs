@@ -1,5 +1,13 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
+import com.android.tools.smali.dexlib2.Opcode;
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
+import com.android.tools.smali.dexlib2.iface.MethodImplementation;
+import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
@@ -17,14 +25,6 @@ import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.Opcode;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MethodImplementation;
-import org.jf.dexlib2.iface.instruction.Instruction;
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.AllDirectedPaths;

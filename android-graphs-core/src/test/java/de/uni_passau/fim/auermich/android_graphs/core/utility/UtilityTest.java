@@ -1,14 +1,14 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.Opcodes;
+import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
+import com.android.tools.smali.dexlib2.immutable.ImmutableDexFile;
+import com.android.tools.smali.smali.SmaliTestUtils;
 import com.google.common.base.Charsets;
 import com.google.common.io.ByteSource;
 import org.antlr.runtime.RecognitionException;
-import org.jf.dexlib2.Opcodes;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.immutable.ImmutableDexFile;
-import org.jf.smali.SmaliTestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

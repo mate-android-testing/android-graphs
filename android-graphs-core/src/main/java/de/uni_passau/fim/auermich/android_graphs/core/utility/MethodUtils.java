@@ -1,19 +1,19 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.AccessFlags;
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.analysis.ClassPath;
+import com.android.tools.smali.dexlib2.analysis.DexClassProvider;
+import com.android.tools.smali.dexlib2.analysis.MethodAnalyzer;
+import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
+import com.android.tools.smali.dexlib2.iface.MethodParameter;
+import com.android.tools.smali.dexlib2.util.MethodUtil;
 import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.AccessFlags;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.analysis.ClassPath;
-import org.jf.dexlib2.analysis.DexClassProvider;
-import org.jf.dexlib2.analysis.MethodAnalyzer;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MethodParameter;
-import org.jf.dexlib2.util.MethodUtil;
 
 import java.util.*;
 import java.util.stream.Collectors;

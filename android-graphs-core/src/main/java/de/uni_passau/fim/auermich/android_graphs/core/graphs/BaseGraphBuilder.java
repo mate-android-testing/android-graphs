@@ -1,5 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.InterCDG;
@@ -7,8 +9,6 @@ import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.IntraCDG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.ModularCDG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
 
 import java.io.File;
 import java.util.List;

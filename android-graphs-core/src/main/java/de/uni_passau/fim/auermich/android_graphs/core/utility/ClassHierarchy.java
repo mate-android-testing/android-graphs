@@ -1,9 +1,9 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.Method;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.Method;
 
 import javax.annotation.Nonnull;
 import java.util.*;

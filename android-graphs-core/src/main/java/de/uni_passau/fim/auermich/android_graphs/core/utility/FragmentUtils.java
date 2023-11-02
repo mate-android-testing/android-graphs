@@ -1,5 +1,12 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.Opcode;
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction;
+import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction11x;
+import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c;
+import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction35c;
 import com.google.common.collect.Multimap;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
@@ -7,13 +14,6 @@ import de.uni_passau.fim.auermich.android_graphs.core.app.components.ComponentTy
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Fragment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.Opcode;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.iface.instruction.Instruction;
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
-import org.jf.dexlib2.iface.instruction.formats.Instruction11x;
-import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
-import org.jf.dexlib2.iface.instruction.formats.Instruction35c;
 
 import java.util.Collection;
 import java.util.HashSet;
