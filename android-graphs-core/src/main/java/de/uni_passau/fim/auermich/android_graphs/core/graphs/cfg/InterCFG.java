@@ -336,6 +336,10 @@ public class InterCFG extends BaseCFG {
         final String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
         final String callingClass = MethodUtils.getClassName(invokeStmt.getMethod());
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         LOGGER.debug("Lookup target CFGs for " + targetMethod);
 
         /*
@@ -344,7 +348,7 @@ public class InterCFG extends BaseCFG {
          * and connect the invoke with each overridden method (CFG) as well.
          */
         final Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(callingClass, targetMethod,
-                apk.getManifest().getPackageName(), properties);
+                apk.getManifest().getPackageName(), mainActivityPackage, properties);
 
         for (String overriddenMethod : overriddenMethods) {
 
@@ -632,7 +636,11 @@ public class InterCFG extends BaseCFG {
      */
     public Activity getMainActivity() {
         String mainActivityName = apk.getManifest().getMainActivity();
-        return ComponentUtils.getActivityByName(components, ClassUtils.convertDottedClassName(mainActivityName)).orElseThrow();
+        if (mainActivityName == null) {
+            return null;
+        } else {
+            return ComponentUtils.getActivityByName(components, ClassUtils.convertDottedClassName(mainActivityName)).orElseThrow();
+        }
     }
 
     /**
@@ -1558,6 +1566,10 @@ public class InterCFG extends BaseCFG {
         final String method = blockStatement.getMethod();
         final Pattern exclusionPattern = properties.exclusionPattern;
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         for (Statement statement : statements) {
 
             BasicStatement basicStatement = (BasicStatement) statement;
@@ -1582,7 +1594,8 @@ public class InterCFG extends BaseCFG {
                  * However, we need to resolve component invocation, reflection calls, and
                  * overridden methods in any case.
                  */
-                if (((properties.resolveOnlyAUTClasses && !className.startsWith(packageName))
+                if (((properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
+                        && !className.startsWith(mainActivityPackage))
                         || ClassUtils.isArrayType(className)
                         || (MethodUtils.isARTMethod(targetMethod) && properties.excludeARTClasses)
                         || MethodUtils.isJavaObjectMethod(targetMethod)
@@ -1664,6 +1677,10 @@ public class InterCFG extends BaseCFG {
 
         final String packageName = apk.getManifest().getPackageName();
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         // resolve the invoke vertices and connect the sub graphs with each other
         for (CFGVertex invokeVertex : getInvokeVertices()) {
 
@@ -1675,8 +1692,11 @@ public class InterCFG extends BaseCFG {
             String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
             String className = ClassUtils.dottedClassName(MethodUtils.getClassName(targetMethod));
 
+            // TODO: Update exclusion rules to be consistent with basic block interCFG!
+
             // don't resolve non AUT classes if requested
             if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
+                    && !className.startsWith(mainActivityPackage)
                     // we have to resolve component invocations in any case, see the code below
                     && !ComponentUtils.isComponentInvocation(components, targetMethod)
                     // we have to resolve reflection calls in any case
@@ -1753,12 +1773,17 @@ public class InterCFG extends BaseCFG {
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
                 String className = ClassUtils.dottedClassName(classDef.toString());
 
-                if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
+                if (properties.resolveOnlyAUTClasses && (!className.startsWith(apk.getManifest().getPackageName())
+                        && !className.startsWith(mainActivityPackage))) {
                     // don't resolve classes not belonging to AUT
                     continue;
                 }
@@ -2162,9 +2187,15 @@ public class InterCFG extends BaseCFG {
         int callbacks = 0;
         int resourceClassMethods = 0;
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         for (BaseCFG cfg : intraCFGs.values()) {
             String className = ClassUtils.dottedClassName(MethodUtils.getClassName(cfg.getMethodName()));
-            if (getIncomingEdges(cfg.getEntry()).isEmpty() && className.startsWith(apk.getManifest().getPackageName())) {
+            if (getIncomingEdges(cfg.getEntry()).isEmpty()
+                    && (className.startsWith(apk.getManifest().getPackageName())
+            || className.startsWith(mainActivityPackage))) {
 
                 String methodName = cfg.getMethodName();
 

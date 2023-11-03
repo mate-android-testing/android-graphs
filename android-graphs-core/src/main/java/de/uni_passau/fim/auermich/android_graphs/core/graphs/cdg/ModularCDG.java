@@ -156,12 +156,17 @@ public class ModularCDG extends BaseCFG {
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
                 final String className = ClassUtils.dottedClassName(classDef.toString());
 
-                if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
+                if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())
+                        && !className.startsWith(mainActivityPackage)) {
                     // don't resolve classes not belonging to AUT
                     continue;
                 }
@@ -979,6 +984,10 @@ public class ModularCDG extends BaseCFG {
 
         final String packageName = apk.getManifest().getPackageName();
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         // resolve the invoke vertices and connect the sub graphs with each other
         for (CFGVertex invokeVertex : getInvokeVertices()) {
 
@@ -989,7 +998,7 @@ public class ModularCDG extends BaseCFG {
                 if (statement instanceof BasicStatement
                         && InstructionUtils.isInvokeInstruction(((BasicStatement) statement).getInstruction())) {
                     final BasicStatement invokeStmt = (BasicStatement) statement;
-                    final BaseCFG targetCDG = lookupTargetCDG(packageName, invokeStmt);
+                    final BaseCFG targetCDG = lookupTargetCDG(packageName, mainActivityPackage, invokeStmt);
                     if (targetCDG != null) {
                         addEdge(invokeVertex, targetCDG.getEntry());
                     }
@@ -1009,13 +1018,14 @@ public class ModularCDG extends BaseCFG {
         }
     }
 
-    private BaseCFG lookupTargetCDG(final String packageName, final BasicStatement invokeStmt) {
+    private BaseCFG lookupTargetCDG(final String packageName, final String mainActivityPackage, final BasicStatement invokeStmt) {
 
         final Instruction instruction = invokeStmt.getInstruction().getInstruction();
         final String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
         final String className = MethodUtils.getClassName(targetMethod);
 
-        if (properties.resolveOnlyAUTClasses && !ClassUtils.dottedClassName(className).startsWith(packageName)) {
+        if (properties.resolveOnlyAUTClasses && !ClassUtils.dottedClassName(className).startsWith(packageName)
+                && !ClassUtils.dottedClassName(className).startsWith(mainActivityPackage)) {
             // don't resolve invocation to non AUT classes
             return null;
         }

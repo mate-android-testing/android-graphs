@@ -60,13 +60,13 @@ public class Manifest {
             LOGGER.debug("Package name: " + packageName);
         }
 
-        AtomicReference<String> mainActivity = new AtomicReference<>("");
+        AtomicReference<String> mainActivity = new AtomicReference<>(null);
 
         List<Node> activities = rootElement.selectNodes("application/activity");
         activities.forEach(activityNode -> {
 
             // only traverse activities unless we found main activity
-            if (mainActivity.get().isEmpty()) {
+            if (mainActivity.get() == null) {
 
                 activityNode.selectNodes("intent-filter").forEach(intentFilterNode -> {
 
@@ -108,13 +108,13 @@ public class Manifest {
         });
 
         // if main activity not yet found, then parse activity-alias tags
-        if (mainActivity.get().isEmpty()) {
+        if (mainActivity.get() == null) {
 
             List<Node> activityAliases = rootElement.selectNodes("application/activity-alias");
             activityAliases.forEach(activityAliasNode -> {
 
                 // only traverse activity-aliases unless we found main activity
-                if (mainActivity.get().isEmpty()) {
+                if (mainActivity.get() == null) {
 
                     activityAliasNode.selectNodes("intent-filter").forEach(intentFilterNode -> {
 
@@ -157,11 +157,7 @@ public class Manifest {
             });
         }
 
-        // TODO: There are actually apps that do not export a launchable main activity.
-        if (mainActivity.get().isEmpty()) {
-            throw new IllegalStateException("Couldn't parse main activity!");
-        }
-
+        // NOTE: There can be apps without a dedicated main activity.
         return new Manifest(packageName, mainActivity.get());
     }
 
