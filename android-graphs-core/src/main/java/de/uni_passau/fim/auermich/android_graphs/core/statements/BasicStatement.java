@@ -1,7 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.statements;
 
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
 import com.rits.cloning.Cloner;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
 
 import java.util.Objects;
 
@@ -23,8 +23,7 @@ public class BasicStatement extends Statement implements Cloneable {
 
     @Override
     public String toString() {
-        return String.valueOf(instruction.getInstructionIndex())
-                + ": " + instruction.getInstruction().getOpcode().name;
+        return instruction.getInstructionIndex() + ": " + instruction.getInstruction().getOpcode().name;
     }
 
     @Override

@@ -3,8 +3,7 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 import java.util.Optional;
 
 /**
- * Describes the various graph types the program
- * can generate.
+ * Describes the various graph types the program can generate.
  */
 public enum GraphType {
 
@@ -27,6 +26,50 @@ public enum GraphType {
         @Override
         public String toString() {
             return "inter";
+        }
+    },
+
+    /**
+     * A post dominator tree.
+     */
+    PDT {
+
+        @Override
+        public String toString() {
+            return "pdt";
+        }
+    },
+
+    /**
+     * An inter-procedural control dependence graph.
+     */
+    INTERCDG {
+
+        @Override
+        public String toString() {
+            return "intercdg";
+        }
+    },
+
+    /**
+     * An intra-procedural control dependence graph.
+     */
+    INTRACDG {
+
+        @Override
+        public String toString() {
+            return "intracdg";
+        }
+    },
+
+    /**
+     * An inter-procedural control dependence graph that builds upon the individual intra-procedural CDGs.
+     */
+    MODULARCDG {
+
+        @Override
+        public String toString() {
+            return "modularcdg";
         }
     },
 

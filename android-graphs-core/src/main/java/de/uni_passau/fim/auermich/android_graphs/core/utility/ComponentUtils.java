@@ -1,18 +1,18 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.AccessFlags;
+import com.android.tools.smali.dexlib2.Opcode;
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.iface.*;
+import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction;
+import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.AccessFlags;
-import org.jf.dexlib2.Opcode;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.iface.*;
-import org.jf.dexlib2.iface.instruction.Instruction;
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
-import org.jf.dexlib2.iface.instruction.formats.Instruction21c;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -166,6 +166,7 @@ public class ComponentUtils {
                 // upper bound to avoid resolving external activities or activities defined in a different method
                 while (pred.getInstructionIndex() != -1) {
                     final Instruction predecessor = pred.getInstruction();
+
                     if (predecessor.getOpcode() == Opcode.CONST_CLASS) {
                         // This is the most common pattern - the activity name is encoded in the const-class instruction.
 

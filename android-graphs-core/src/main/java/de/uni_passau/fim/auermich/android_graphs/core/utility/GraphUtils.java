@@ -1,17 +1,20 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.DexFileFactory;
+import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile;
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
+import com.android.tools.smali.dexlib2.iface.MultiDexContainer;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraphBuilder;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.CDG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.ModularCDG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.DexFileFactory;
-import org.jf.dexlib2.dexbacked.DexBackedDexFile;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MultiDexContainer;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,8 +39,8 @@ public class GraphUtils {
      * Convenient function to construct an intraCFG. Should be used
      * for the construction requested by mate server.
      *
-     * @param apkPath        The path to the APK file.
-     * @param method         The FQN name of the method.
+     * @param apkPath The path to the APK file.
+     * @param method The FQN name of the method.
      * @param useBasicBlocks Whether to use basic blocks or not.
      * @return Returns an intraCFG for the specified method.
      */
@@ -94,11 +97,10 @@ public class GraphUtils {
     }
 
     /**
-     * Convenient function to construct an interCFG. Should be used
-     * for the construction requested by mate server.
+     * Convenient function to construct an interCFG. Should be used for the construction requested by mate server.
      *
-     * @param apkPath           The path to the APK file.
-     * @param useBasicBlocks    Whether to use basic blocks or not.
+     * @param apkPath The path to the APK file.
+     * @param useBasicBlocks Whether to use basic blocks or not.
      * @param excludeARTClasses Whether to exclude ART classes or not.
      * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
      * @return Returns an interCFG.
@@ -160,9 +162,98 @@ public class GraphUtils {
     }
 
     /**
+     * Convenient function to construct an interCDG. Should be used for the construction requested by mate server.
+     *
+     * @param apkPath The path to the APK file.
+     * @param useBasicBlocks Whether to use basic blocks or not.
+     * @param excludeARTClasses Whether to exclude ART classes or not.
+     * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
+     * @return Returns an interCDG.
+     */
+    public static CDG constructInterCDG(final File apkPath, final boolean useBasicBlocks,
+                                        final boolean excludeARTClasses, final boolean onlyResolveAUTClasses) {
+
+        LOGGER.info("Constructing INTER CDG for APK: " + apkPath);
+        long start = System.currentTimeMillis();
+
+        InterCFG interCFG = (InterCFG) constructInterCFG(apkPath, useBasicBlocks, excludeARTClasses, onlyResolveAUTClasses);
+        final CDG interCDG = new CDG(interCFG);
+
+        long end = System.currentTimeMillis();
+        LOGGER.info("Graph construction took: " + ((end - start) / 1000) + " seconds");
+        return interCDG;
+    }
+
+    /**
+     * Convenient function to construct a modular interCDG. Should be used for the construction requested by mate server.
+     *
+     * @param apkPath The path to the APK file.
+     * @param useBasicBlocks Whether to use basic blocks or not.
+     * @param excludeARTClasses Whether to exclude ART classes or not.
+     * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
+     * @return Returns a modular interCDG.
+     */
+    public static ModularCDG constructModularCDG(final File apkPath, final boolean useBasicBlocks,
+                                                 final boolean excludeARTClasses, final boolean onlyResolveAUTClasses) {
+
+        LOGGER.info("Constructing Modular Inter CDG for APK: " + apkPath);
+
+        long start = System.currentTimeMillis();
+
+        MultiDexContainer<? extends DexBackedDexFile> apk = null;
+
+        try {
+            apk = DexFileFactory.loadDexContainer(apkPath, Utility.API_OPCODE);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        List<DexFile> dexFiles = new ArrayList<>();
+        List<String> dexEntries = new ArrayList<>();
+
+        try {
+            dexEntries = apk.getDexEntryNames();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        for (String dexEntry : dexEntries) {
+            try {
+                dexFiles.add(apk.getEntry(dexEntry).getDexFile());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        BaseGraphBuilder builder = new BaseGraphBuilder(GraphType.MODULARCDG, dexFiles)
+                .withName("global")
+                .withAPKFile(apkPath);
+
+        if (useBasicBlocks) {
+            builder = builder.withBasicBlocks();
+        }
+
+        if (excludeARTClasses) {
+            builder = builder.withExcludeARTClasses();
+        }
+
+        if (onlyResolveAUTClasses) {
+            builder = builder.withResolveOnlyAUTClasses();
+        }
+
+        BaseGraph baseGraph = builder.build();
+
+        long end = System.currentTimeMillis();
+        LOGGER.info("Graph construction took: " + ((end - start) / 1000) + " seconds");
+
+        return (ModularCDG) baseGraph;
+    }
+
+
+    /**
      * Convenient function to construct a call tree. Should be used for the construction requested by mate server.
      *
-     * @param apkPath           The path to the APK file.
+     * @param apkPath The path to the APK file.
      * @param excludeARTClasses Whether to exclude ART classes or not.
      * @param onlyResolveAUTClasses Whether only AUT classes should be resolved.
      * @return Returns a call tree.

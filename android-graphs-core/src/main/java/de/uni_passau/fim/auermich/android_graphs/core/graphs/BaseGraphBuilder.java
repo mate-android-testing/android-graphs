@@ -1,11 +1,14 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.calltree.CallTree;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.InterCDG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.IntraCDG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg.ModularCDG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.IntraCFG;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
 
 import java.io.File;
 import java.util.List;
@@ -89,6 +92,24 @@ public class BaseGraphBuilder {
                 Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
                 APK apk = new APK(apkFile, dexFiles);
                 return new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+            }
+            case INTERCDG: {
+                Objects.requireNonNull(name, "CFG name is mandatory!");
+                Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
+                APK apk = new APK(apkFile, dexFiles);
+                final InterCFG cfg = new InterCFG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
+                return new InterCDG(cfg);
+            }
+            case INTRACDG: {
+                Objects.requireNonNull(method, "Method is mandatory!");
+                final IntraCFG intraCFG = new IntraCFG(method, dexFiles.get(0), useBasicBlocks);
+                return new IntraCDG(intraCFG);
+            }
+            case MODULARCDG: {
+                Objects.requireNonNull(name, "CFG name is mandatory!");
+                Objects.requireNonNull(apkFile, "The path to the APK file is mandatory!");
+                APK apk = new APK(apkFile, dexFiles);
+                return new ModularCDG(name, apk, useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
             }
             case CALLTREE: {
                 Objects.requireNonNull(name, "Call tree name is mandatory!");

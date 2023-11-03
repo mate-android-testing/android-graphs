@@ -5,6 +5,7 @@ import com.mxgraph.layout.mxIGraphLayout;
 import com.mxgraph.model.mxICell;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxConstants;
+import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGEdge;
@@ -91,8 +92,14 @@ public class CallTree implements BaseGraph {
 
         this.interCFG = interCFG;
         root = new CallTreeVertex(interCFG.getEntry().getMethod());
-        String mainActivityConstructor = interCFG.getMainActivity().getConstructors().get(0);
-        Set<String> methods = interCFG.getVertices().stream().map(CFGVertex::getMethod).collect(Collectors.toSet());
+        final Activity mainActivity = interCFG.getMainActivity();
+
+        if (mainActivity == null) {
+            throw new UnsupportedOperationException("Cannot construct call tree from APK without dedicated main activity!");
+        }
+
+        final String mainActivityConstructor = interCFG.getMainActivity().getConstructors().get(0);
+        final Set<String> methods = interCFG.getVertices().stream().map(CFGVertex::getMethod).collect(Collectors.toSet());
 
         for (String method : methods) {
 

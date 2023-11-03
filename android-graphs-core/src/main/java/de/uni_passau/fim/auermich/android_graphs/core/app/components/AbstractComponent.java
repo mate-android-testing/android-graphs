@@ -1,8 +1,8 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
+import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.Method;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.Method;
 
 import java.util.ArrayList;
 import java.util.List;

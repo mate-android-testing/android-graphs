@@ -1,19 +1,19 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.AccessFlags;
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.analysis.ClassPath;
+import com.android.tools.smali.dexlib2.analysis.DexClassProvider;
+import com.android.tools.smali.dexlib2.analysis.MethodAnalyzer;
+import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
+import com.android.tools.smali.dexlib2.iface.MethodParameter;
+import com.android.tools.smali.dexlib2.util.MethodUtil;
 import com.google.common.collect.Lists;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.AccessFlags;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.analysis.ClassPath;
-import org.jf.dexlib2.analysis.DexClassProvider;
-import org.jf.dexlib2.analysis.MethodAnalyzer;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MethodParameter;
-import org.jf.dexlib2.util.MethodUtil;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -134,6 +134,26 @@ public class MethodUtils {
         add("onPageScrollStateChanged(I)V");
         add("onPageScrolled(IFI)V");
         add("onPageSelected(I)V");
+
+        // https://developer.android.com/reference/android/view/animation/Animation.AnimationListener
+        add("onAnimationEnd(Landroid/animation/Animator;)V");
+        add("onAnimationRepeat(Landroid/animation/Animator;)V");
+        add("onAnimationStart(Landroid/animation/Animator;)V");
+
+        // https://developer.android.com/reference/android/os/FileObserver
+        add("onEvent(ILjava/lang/String;)V");
+
+        // https://developer.android.com/reference/android/view/GestureDetector.SimpleOnGestureListener
+        add("onContextClick(Landroid/view/MotionEvent;)Z");
+        add("onDoubleTap(Landroid/view/MotionEvent;)Z");
+        add("onDoubleTapEvent(Landroid/view/MotionEvent;)Z");
+        add("onDown(Landroid/view/MotionEvent;)Z");
+        add("onFlying(Landroid/view/MotionEvent;Landroid/view/MotionEvent;FF)Z");
+        add("onLongPress(Landroid/view/MotionEvent;)V");
+        add("onScroll(Landroid/view/MotionEvent;Landroid/view/MotionEvent;FF)Z");
+        add("onShowPress(Landroid/view/MotionEvent;)Z");
+        add("onSingleTapConfirmed(Landroid/view/MotionEvent;)Z");
+        add("onSingleTapUp(Landroid/view/MotionEvent;)Z");
 
         // https://developer.android.com/reference/android/widget/SeekBar.OnSeekBarChangeListener#onProgressChanged(android.widget.SeekBar,%20int,%20boolean)
         add("onProgressChanged(Landroid/widget/SeekBar;IZ)V");

@@ -1,5 +1,13 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
+import com.android.tools.smali.dexlib2.Opcode;
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.DexFile;
+import com.android.tools.smali.dexlib2.iface.Method;
+import com.android.tools.smali.dexlib2.iface.MethodImplementation;
+import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.TreeMultimap;
@@ -17,14 +25,6 @@ import de.uni_passau.fim.auermich.android_graphs.core.utility.Properties;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.Opcode;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.DexFile;
-import org.jf.dexlib2.iface.Method;
-import org.jf.dexlib2.iface.MethodImplementation;
-import org.jf.dexlib2.iface.instruction.Instruction;
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 import org.jgrapht.Graph;
 import org.jgrapht.GraphPath;
 import org.jgrapht.alg.shortestpath.AllDirectedPaths;
@@ -88,6 +88,8 @@ public class InterCFG extends BaseCFG {
         this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
         this.apk = apk;
         constructCFG(apk);
+        removeDisconnectedVertices();
+        addEdgesToCaller();
     }
 
     /**
@@ -115,6 +117,15 @@ public class InterCFG extends BaseCFG {
      */
     public Set<Component> getComponents() {
         return Collections.unmodifiableSet(components);
+    }
+
+    /**
+     * Retrieves the mapping to the intra CFGs.
+     *
+     * @return Returns a mapping to the entry and exit vertices of the individual intra CFGs.
+     */
+    public Map<String, BaseCFG> getIntraCFGs() {
+        return Collections.unmodifiableMap(intraCFGs);
     }
 
     private void constructCFG(APK apk) {
@@ -149,6 +160,35 @@ public class InterCFG extends BaseCFG {
             constructCFGWithBasicBlocks(apk);
         } else {
             constructCFGNoBasicBlocks(apk);
+        }
+    }
+
+    /**
+     * Removes all vertices that are not reachable, i.e. that are not connected with the entry node of the CFG.
+     */
+    private void removeDisconnectedVertices() {
+        final Set<CFGVertex> reachableByEntry = (Set<CFGVertex>) getTransitiveSuccessors(getEntry());
+        final Set<CFGVertex> toDelete = getVertices()
+                .stream()
+                .filter(vertex -> !vertex.equals(getEntry()) && !reachableByEntry.contains(vertex))
+                .collect(Collectors.toSet());
+        // We basically remove here a complete subgraph and thus need to update the intraCFGs reference, otherwise a
+        // lookup of a trace will succeed although the actual vertex has been removed.
+        toDelete.stream().forEach(vertex -> intraCFGs.remove(vertex.getMethod()));
+        graph.removeAllVertices(toDelete);
+    }
+
+    /**
+     * Adds synthetic edges from nodes that are not yet connected to the exit to the lowest common ancestor (LCA) since
+     * the LCA is probably the node that has called the respective disconnected node.
+     */
+    private void addEdgesToCaller() {
+        for (CFGVertex vertex : getVertices()) {
+            if (!vertex.equals(getExit()) && getSuccessors(vertex).isEmpty()) {
+                final CFGVertex LCA = getLeastCommonAncestor(vertex, getExit());
+                addEdge(vertex, LCA);
+                LOGGER.debug("Generating missing callback edge from " + vertex + " to " + LCA);
+            }
         }
     }
 
@@ -290,11 +330,15 @@ public class InterCFG extends BaseCFG {
      */
     private Set<BaseCFG> lookupTargetCFGs(final APK apk, final BasicStatement invokeStmt) {
 
-        Set<BaseCFG> targetCFGs = new HashSet<>();
+        final Set<BaseCFG> targetCFGs = new HashSet<>();
 
-        Instruction instruction = invokeStmt.getInstruction().getInstruction();
-        String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-        String callingClass = MethodUtils.getClassName(invokeStmt.getMethod());
+        final Instruction instruction = invokeStmt.getInstruction().getInstruction();
+        final String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+        final String callingClass = MethodUtils.getClassName(invokeStmt.getMethod());
+
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
 
         LOGGER.debug("Lookup target CFGs for " + targetMethod);
 
@@ -303,8 +347,8 @@ public class InterCFG extends BaseCFG {
          * that overrides the given method. Thus, we need to over-approximate in this case
          * and connect the invoke with each overridden method (CFG) as well.
          */
-        Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(callingClass, targetMethod,
-                apk.getManifest().getPackageName(), properties);
+        final Set<String> overriddenMethods = classHierarchy.getOverriddenMethods(callingClass, targetMethod,
+                apk.getManifest().getPackageName(), mainActivityPackage, properties);
 
         for (String overriddenMethod : overriddenMethods) {
 
@@ -530,14 +574,19 @@ public class InterCFG extends BaseCFG {
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
             } else {
-                /*
-                 * There are some Android specific classes, e.g. android/view/View, which are
-                 * not included in the classes.dex file, or which we don't want to resolve.
-                 */
-                if (!overriddenMethod.equals(targetMethod)) {
-                    LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
+
+                if (intraCFGs.containsKey(overriddenMethod)) {
+                    targetCFGs.add(intraCFGs.get(overriddenMethod));
+                } else {
+                    /*
+                     * There are some Android specific classes, e.g. android/view/View, which are
+                     * not included in the classes.dex file, or which we don't want to resolve.
+                     */
+                    if (!overriddenMethod.equals(targetMethod)) {
+                        LOGGER.warn("Method " + overriddenMethod + " not contained in dex files!");
+                    }
+                    targetCFGs.add(dummyCFG(overriddenMethod)); // create dummy if not present yet
                 }
-                targetCFGs.add(dummyCFG(overriddenMethod));
             }
         }
 
@@ -565,16 +614,18 @@ public class InterCFG extends BaseCFG {
             addGlobalEntryPoint(activity);
         });
 
-        // add service lifecycle
-        components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(service -> {
-            addAndroidServiceLifecycle((Service) service, callbackGraphs.get(service.getName()));
+        // add service lifecycle as well as global entry point for services
+        components.stream().filter(c -> c.getComponentType() == ComponentType.SERVICE).forEach(serviceComponent -> {
+            Service service = (Service) serviceComponent;
+            addAndroidServiceLifecycle(service, callbackGraphs.get(service.getName()));
+            addGlobalEntryAndExitPoint(service);
         });
 
-        // add global entry point for application class
+        // add application lifecycle as well as global entry point for application class
         components.stream().filter(c -> c.getComponentType() == ComponentType.APPLICATION).forEach(applicationComponent -> {
             Application application = (Application) applicationComponent;
             addAndroidApplicationLifecycle(application, callbackGraphs.get(application.getName()));
-            addGlobalEntryPoint(application);
+            addGlobalEntryAndExitPoint(application);
         });
     }
 
@@ -585,17 +636,28 @@ public class InterCFG extends BaseCFG {
      */
     public Activity getMainActivity() {
         String mainActivityName = apk.getManifest().getMainActivity();
-        return ComponentUtils.getActivityByName(components, ClassUtils.convertDottedClassName(mainActivityName)).orElseThrow();
+        if (mainActivityName == null) {
+            return null;
+        } else {
+            return ComponentUtils.getActivityByName(components, ClassUtils.convertDottedClassName(mainActivityName)).orElseThrow();
+        }
     }
 
     /**
-     * Adds the application class (constructor) as a global entry point.
+     * Connects the global entry and exit point to the application's constructor methods.
      *
      * @param application The application class.
      */
-    private void addGlobalEntryPoint(Application application) {
-        BaseCFG applicationConstructor = intraCFGs.get(application.getDefaultConstructor());
-        addEdge(getEntry(), applicationConstructor.getEntry());
+    private void addGlobalEntryAndExitPoint(Application application) {
+        for (String constructor: application.getConstructors()) {
+            final BaseCFG applicationConstructor = intraCFGs.get(constructor);
+            if (applicationConstructor != null) {
+                addEdge(getEntry(), applicationConstructor.getEntry());
+                addEdge(applicationConstructor.getExit(), getExit());
+            } else {
+                LOGGER.warn("Not integrated class constructor: " + constructor);
+            }
+        }
     }
 
     /**
@@ -813,6 +875,30 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
+     * Adds for each component (service) a global entry point and exit point to the respective constructors'
+     * entry and exit if the service gets not directly invoked from an activity, i.e. the service's entry point is not
+     * connected to the CFG. This may happen if the given application provides a service that is only accessible from
+     * other applications via intents.
+     *
+     * @param service The service for which a global entry point should be defined.
+     */
+    private void addGlobalEntryAndExitPoint(Service service) {
+        for (String constructor: service.getConstructors()) {
+            final BaseCFG serviceConstructor = intraCFGs.get(constructor);
+
+            if (serviceConstructor == null) {
+                LOGGER.warn("Not integrated service class constructor: " + constructor);
+                continue;
+            }
+
+            if (getPredecessors(serviceConstructor.getEntry()).isEmpty()) {
+                addEdge(getEntry(), serviceConstructor.getEntry());
+                addEdge(serviceConstructor.getExit(), getExit());
+            }
+        }
+    }
+
+    /**
      * Connects all lifecycle methods with each other for a given activity. Also
      * integrates the fragment lifecycle.
      *
@@ -1004,6 +1090,9 @@ public class InterCFG extends BaseCFG {
 
         String onDestroy = activity.onDestroyMethod();
         BaseCFG onDestroyCFG = addLifecycle(onDestroy, onStopCFG);
+
+        // The application may terminate if the last activity has been destroyed.
+        addEdge(onDestroyCFG.getExit(), getExit());
 
         // if there are fragments, onDestroy, onDestroyView and onDetach are invoked
         for (Fragment fragment : fragments) {
@@ -1477,6 +1566,10 @@ public class InterCFG extends BaseCFG {
         final String method = blockStatement.getMethod();
         final Pattern exclusionPattern = properties.exclusionPattern;
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         for (Statement statement : statements) {
 
             BasicStatement basicStatement = (BasicStatement) statement;
@@ -1501,7 +1594,8 @@ public class InterCFG extends BaseCFG {
                  * However, we need to resolve component invocation, reflection calls, and
                  * overridden methods in any case.
                  */
-                if (((properties.resolveOnlyAUTClasses && !className.startsWith(packageName))
+                if (((properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
+                        && !className.startsWith(mainActivityPackage))
                         || ClassUtils.isArrayType(className)
                         || (MethodUtils.isARTMethod(targetMethod) && properties.excludeARTClasses)
                         || MethodUtils.isJavaObjectMethod(targetMethod)
@@ -1583,6 +1677,10 @@ public class InterCFG extends BaseCFG {
 
         final String packageName = apk.getManifest().getPackageName();
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         // resolve the invoke vertices and connect the sub graphs with each other
         for (CFGVertex invokeVertex : getInvokeVertices()) {
 
@@ -1594,8 +1692,11 @@ public class InterCFG extends BaseCFG {
             String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
             String className = ClassUtils.dottedClassName(MethodUtils.getClassName(targetMethod));
 
+            // TODO: Update exclusion rules to be consistent with basic block interCFG!
+
             // don't resolve non AUT classes if requested
             if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
+                    && !className.startsWith(mainActivityPackage)
                     // we have to resolve component invocations in any case, see the code below
                     && !ComponentUtils.isComponentInvocation(components, targetMethod)
                     // we have to resolve reflection calls in any case
@@ -1663,6 +1764,7 @@ public class InterCFG extends BaseCFG {
         BaseCFG staticInitializersCFG = dummyIntraCFG("static initializers");
         addSubGraph(staticInitializersCFG);
         addEdge(getEntry(), staticInitializersCFG.getEntry());
+        addEdge(staticInitializersCFG.getExit(), getExit());
 
         // track binder classes and attach them to the corresponding service
         Set<String> binderClasses = new HashSet<>();
@@ -1671,12 +1773,17 @@ public class InterCFG extends BaseCFG {
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
                 String className = ClassUtils.dottedClassName(classDef.toString());
 
-                if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())) {
+                if (properties.resolveOnlyAUTClasses && (!className.startsWith(apk.getManifest().getPackageName())
+                        && !className.startsWith(mainActivityPackage))) {
                     // don't resolve classes not belonging to AUT
                     continue;
                 }
@@ -1923,12 +2030,12 @@ public class InterCFG extends BaseCFG {
          * are optional, but not both at the same time:
          *
          * Making the instruction type optional allows to search (by index) for a custom instruction, e.g. a branch.
-         * Making the index optional allows to look up virtual entry and exit vertices.
+         * Making the index optional allows to look up virtual entry and exit vertices as well as if and switch vertices.
          */
         String[] tokens = trace.split("->");
 
         // retrieve fully qualified method name (class name + method name)
-        String method = tokens[0] + "->" + tokens[1];
+        final String method = tokens[0] + "->" + tokens[1];
 
         // check whether method belongs to graph
         if (!intraCFGs.containsKey(method)) {
@@ -1969,12 +2076,12 @@ public class InterCFG extends BaseCFG {
     /**
      * Looks up a vertex in the graph.
      *
-     * @param method           The method the vertex belongs to.
+     * @param method The method the vertex belongs to.
      * @param instructionIndex The instruction index.
-     * @param entry            The entry vertex of the given method (bound for the look up).
-     * @param exit             The exit vertex of the given method (bound for the look up).
+     * @param entry The entry vertex of the given method (bound for the look up).
+     * @param exit The exit vertex of the given method (bound for the look up).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     * a {@link IllegalArgumentException} is thrown.
+     *         a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
     private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry, CFGVertex exit) {
@@ -2024,11 +2131,11 @@ public class InterCFG extends BaseCFG {
     /**
      * Performs a depth first search for looking up the vertex.
      *
-     * @param method           The method describing the vertex.
+     * @param method The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry            The entry vertex of the method (limits the search).
+     * @param entry The entry vertex of the method (limits the search).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     * a {@link IllegalArgumentException} is thrown.
+     *         a {@link IllegalArgumentException} is thrown.
      */
     @SuppressWarnings("unused")
     private CFGVertex lookUpVertexDFS(String method, int instructionIndex, CFGVertex entry) {
@@ -2048,11 +2155,11 @@ public class InterCFG extends BaseCFG {
     /**
      * Performs a breadth first search for looking up the vertex.
      *
-     * @param method           The method describing the vertex.
+     * @param method The method describing the vertex.
      * @param instructionIndex The instruction index of the vertex (the wrapped instruction).
-     * @param entry            The entry vertex of the method (limits the search).
+     * @param entry The entry vertex of the method (limits the search).
      * @return Returns the vertex described by the given method and the instruction index, otherwise
-     * a {@link IllegalArgumentException} is thrown.
+     *         a {@link IllegalArgumentException} is thrown.
      */
     private CFGVertex lookUpVertex(String method, int instructionIndex, CFGVertex entry) {
 
@@ -2080,9 +2187,15 @@ public class InterCFG extends BaseCFG {
         int callbacks = 0;
         int resourceClassMethods = 0;
 
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
+
         for (BaseCFG cfg : intraCFGs.values()) {
             String className = ClassUtils.dottedClassName(MethodUtils.getClassName(cfg.getMethodName()));
-            if (getIncomingEdges(cfg.getEntry()).isEmpty() && className.startsWith(apk.getManifest().getPackageName())) {
+            if (getIncomingEdges(cfg.getEntry()).isEmpty()
+                    && (className.startsWith(apk.getManifest().getPackageName())
+            || className.startsWith(mainActivityPackage))) {
 
                 String methodName = cfg.getMethodName();
 

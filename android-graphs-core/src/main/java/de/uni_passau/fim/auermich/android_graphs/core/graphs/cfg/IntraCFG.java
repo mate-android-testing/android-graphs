@@ -1,5 +1,7 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg;
 
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.iface.*;
 import com.rits.cloning.Cloner;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.statements.BasicStatement;
@@ -9,8 +11,6 @@ import de.uni_passau.fim.auermich.android_graphs.core.utility.InstructionUtils;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.MethodUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.iface.*;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.builder.GraphTypeBuilder;
@@ -60,8 +60,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      * @param targetMethod The method for which we want to generate the CFG.
      */
     private void constructCFG(DexFile dexFile, Method targetMethod) {
-
-        LOGGER.debug("Constructing Intra-CFG for method: " + targetMethod);
 
         MethodImplementation methodImplementation = targetMethod.getImplementation();
 
@@ -170,8 +168,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
      */
     private void constructCFGWithBasicBlocks(DexFile dexFile, Method targetMethod) {
 
-        LOGGER.debug("Constructing Intra-CFG with BasicBlocks for method: " + targetMethod);
-
         if (targetMethod.getImplementation() != null) {
 
             List<AnalyzedInstruction> analyzedInstructions = MethodUtils.getAnalyzedInstructions(dexFile, targetMethod);
@@ -215,6 +211,33 @@ public class IntraCFG extends BaseCFG implements Cloneable {
 
             // add the last basic block separately
             createBasicBlockVertex(basicBlock, basicBlocks);
+
+            /*
+            * A method may contain an endless loop in which case there is no return statement (even not in the bytecode)
+            * and the virtual exit is isolated. Since we need to avoid isolated vertices, we attach a virtual edge from
+            * the loop header to the virtual exit. Note that the detected loop header is not unique, this primarily
+            * depends in which order the successors of a vertex are inserted into the stack, but since the virtual exit
+            * is theoretically not reachable at all, we ignore this fact for now.
+             */
+            if (getPredecessors(getExit()).isEmpty()) {
+
+                // TODO: Find an algorithm that can discover the loop header of the endless loop.
+
+                final Set<CFGVertex> visited = new HashSet<>();
+                final Deque<CFGVertex> stack = new LinkedList<>();
+                CFGVertex current = getEntry();
+
+                while (!visited.contains(current) && current != null) {
+                    visited.add(current);
+                    for (CFGVertex successors : getSuccessors(current)) {
+                        if (!stack.contains(successors)) {
+                            stack.push(successors);
+                        }
+                    }
+                    current = stack.pop();
+                }
+                addEdge(current, getExit()); // add edge from loop header to virtual exit
+            }
         } else {
             // no method implementation found -> construct dummy CFG
             LOGGER.warn("No implementation present for method: " + targetMethod + "! Using dummy CFG.");
@@ -316,8 +339,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             });
         });
 
-        LOGGER.debug("Catch Blocks located at code addresses: " + catchBlocks);
-
         int consumedCodeUnits = 0;
 
         for (AnalyzedInstruction analyzedInstruction : analyzedInstructions) {
@@ -325,7 +346,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             if (!catchBlocks.isEmpty()) {
                 if (catchBlocks.contains(consumedCodeUnits)) {
                     // first instruction of a catch block is a leader instruction
-                    LOGGER.debug("First instruction within catch block at pos: " + analyzedInstruction.getInstructionIndex());
                     leaders.add(analyzedInstruction.getInstructionIndex());
                 }
                 consumedCodeUnits += analyzedInstruction.getInstruction().getCodeUnits();
@@ -352,7 +372,6 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             }
         }
 
-        LOGGER.debug("Leader Instructions: " + leaders);
         return leaders;
     }
 

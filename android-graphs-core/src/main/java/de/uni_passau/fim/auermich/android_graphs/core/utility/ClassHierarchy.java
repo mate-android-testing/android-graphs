@@ -1,9 +1,9 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.Method;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.iface.ClassDef;
-import org.jf.dexlib2.iface.Method;
 
 import javax.annotation.Nonnull;
 import java.util.*;
@@ -285,7 +285,8 @@ public class ClassHierarchy {
      * @return Returns the overridden method(s) in the super or sub classes.
      */
     public Set<String> getOverriddenMethods(final String callingClass, final String method,
-                                            final String packageName, final Properties properties) {
+                                            final String packageName, final String mainActivityPackage,
+                                            final Properties properties) {
 
         Set<String> overriddenMethods = new HashSet<>();
 
@@ -320,7 +321,7 @@ public class ClassHierarchy {
 
                     if (properties.resolveOnlyAUTClasses) {
                         String dottedClassName = ClassUtils.dottedClassName(MethodUtils.getClassName(superMethod));
-                        if (!dottedClassName.startsWith(packageName)) {
+                        if (!dottedClassName.startsWith(packageName) || !dottedClassName.startsWith(mainActivityPackage)) {
                             LOGGER.debug("Super class method " + superMethod + " that shouldn't be resolved!");
                             /*
                             * This can be a super class method that is actually contained in the dex file,

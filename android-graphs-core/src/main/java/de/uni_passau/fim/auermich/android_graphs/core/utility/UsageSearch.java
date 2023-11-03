@@ -1,11 +1,11 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.iface.*;
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.iface.*;
-import org.jf.dexlib2.iface.instruction.ReferenceInstruction;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;

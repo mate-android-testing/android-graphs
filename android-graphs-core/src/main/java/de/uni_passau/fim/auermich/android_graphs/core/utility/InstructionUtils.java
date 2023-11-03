@@ -1,15 +1,15 @@
 package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
+import com.android.tools.smali.dexlib2.Format;
+import com.android.tools.smali.dexlib2.Opcode;
+import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.builder.BuilderInstruction;
+import com.android.tools.smali.dexlib2.builder.BuilderSwitchPayload;
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction31t;
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderSwitchElement;
+import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.Format;
-import org.jf.dexlib2.Opcode;
-import org.jf.dexlib2.analysis.AnalyzedInstruction;
-import org.jf.dexlib2.builder.BuilderInstruction;
-import org.jf.dexlib2.builder.BuilderSwitchPayload;
-import org.jf.dexlib2.builder.instruction.BuilderInstruction31t;
-import org.jf.dexlib2.builder.instruction.BuilderSwitchElement;
-import org.jf.dexlib2.iface.instruction.Instruction;
 
 import java.util.EnumSet;
 import java.util.HashSet;

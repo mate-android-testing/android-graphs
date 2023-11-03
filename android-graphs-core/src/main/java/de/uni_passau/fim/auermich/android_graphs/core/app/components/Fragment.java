@@ -1,6 +1,6 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app.components;
 
-import org.jf.dexlib2.iface.ClassDef;
+import com.android.tools.smali.dexlib2.iface.ClassDef;
 
 public class Fragment extends AbstractComponent {
 

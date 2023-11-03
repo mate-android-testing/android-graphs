@@ -1,12 +1,13 @@
 package de.uni_passau.fim.auermich.android_graphs.core.app;
 
 import brut.androlib.ApkDecoder;
+import brut.androlib.Config;
 import brut.common.BrutException;
+import com.android.tools.smali.dexlib2.iface.DexFile;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.Manifest;
 import de.uni_passau.fim.auermich.android_graphs.core.utility.Utility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jf.dexlib2.iface.DexFile;
 
 import java.io.File;
 import java.io.IOException;
@@ -110,8 +111,14 @@ public class APK {
             h.setLevel(java.util.logging.Level.WARNING);
         }
 
+        final Config config = Config.getDefaultConfig();
+        config.forceDelete = true; // overwrites existing dir: -f
+
         try {
-            ApkDecoder decoder = new ApkDecoder(apkFile);
+            // do not decode dex classes to smali: -s
+            config.setDecodeSources(Config.DECODE_SOURCES_NONE);
+
+            final ApkDecoder decoder = new ApkDecoder(config, apkFile);
 
             // check whether we can access the default framework dir
             if (Utility.isLinux()) {
@@ -131,12 +138,12 @@ public class APK {
                          * the default framework dir location can't be used due to a permission issue. Moreover, we can't
                          * properly delete this folder after decoding completed due to a file locking bug.
                          */
-                        decoder.setFrameworkDir("tmp");
+                        config.frameworkDirectory = "tmp";
                     }
                 } catch (SecurityException e) {
                     LOGGER.warn("Can't access default frameworks dir! Using tmp dir!");
                     LOGGER.warn(e.getMessage());
-                    decoder.setFrameworkDir("tmp");
+                    config.frameworkDirectory = "tmp";
                 }
             }
 
@@ -144,16 +151,7 @@ public class APK {
             decodingOutputPath = new File(apkFile.getParent(), DEFAULT_DECODING_DIR);
 
             LOGGER.debug("Decoding Output Dir: " + decodingOutputPath);
-            decoder.setOutDir(decodingOutputPath);
-
-            // whether to decode classes.dex into smali files: -s
-            decoder.setDecodeSources(ApkDecoder.DECODE_SOURCES_NONE);
-
-            // overwrites existing dir: -f
-            decoder.setForceDelete(true);
-
-            // FIXME: the APKDecoder has some issue with the file path length on Windows!
-            decoder.decode();
+            decoder.decode(decodingOutputPath);
 
         } catch (BrutException | IOException e) {
             LOGGER.error("Failed to decode APK file!");
