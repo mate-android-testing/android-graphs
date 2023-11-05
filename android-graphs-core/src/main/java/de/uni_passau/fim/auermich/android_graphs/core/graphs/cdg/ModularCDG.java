@@ -166,7 +166,7 @@ public class ModularCDG extends BaseCFG {
                 final String className = ClassUtils.dottedClassName(classDef.toString());
 
                 if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())
-                        && !className.startsWith(mainActivityPackage)) {
+                        && (mainActivityPackage == null || !className.startsWith(mainActivityPackage))) {
                     // don't resolve classes not belonging to AUT
                     continue;
                 }
@@ -1025,7 +1025,7 @@ public class ModularCDG extends BaseCFG {
         final String className = MethodUtils.getClassName(targetMethod);
 
         if (properties.resolveOnlyAUTClasses && !ClassUtils.dottedClassName(className).startsWith(packageName)
-                && !ClassUtils.dottedClassName(className).startsWith(mainActivityPackage)) {
+                && (mainActivityPackage == null || !ClassUtils.dottedClassName(className).startsWith(mainActivityPackage))) {
             // don't resolve invocation to non AUT classes
             return null;
         }

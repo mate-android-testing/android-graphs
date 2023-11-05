@@ -1595,7 +1595,7 @@ public class InterCFG extends BaseCFG {
                  * overridden methods in any case.
                  */
                 if (((properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
-                        && !className.startsWith(mainActivityPackage))
+                        && (mainActivityPackage == null || !className.startsWith(mainActivityPackage)))
                         || ClassUtils.isArrayType(className)
                         || (MethodUtils.isARTMethod(targetMethod) && properties.excludeARTClasses)
                         || MethodUtils.isJavaObjectMethod(targetMethod)
@@ -1696,7 +1696,7 @@ public class InterCFG extends BaseCFG {
 
             // don't resolve non AUT classes if requested
             if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
-                    && !className.startsWith(mainActivityPackage)
+                    && (mainActivityPackage == null || !className.startsWith(mainActivityPackage))
                     // we have to resolve component invocations in any case, see the code below
                     && !ComponentUtils.isComponentInvocation(components, targetMethod)
                     // we have to resolve reflection calls in any case
@@ -1783,7 +1783,7 @@ public class InterCFG extends BaseCFG {
                 String className = ClassUtils.dottedClassName(classDef.toString());
 
                 if (properties.resolveOnlyAUTClasses && (!className.startsWith(apk.getManifest().getPackageName())
-                        && !className.startsWith(mainActivityPackage))) {
+                        && (mainActivityPackage == null || !className.startsWith(mainActivityPackage)))) {
                     // don't resolve classes not belonging to AUT
                     continue;
                 }

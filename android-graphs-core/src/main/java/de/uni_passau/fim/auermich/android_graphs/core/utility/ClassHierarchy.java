@@ -320,8 +320,9 @@ public class ClassHierarchy {
                 if (superMethod != null) {
 
                     if (properties.resolveOnlyAUTClasses) {
-                        String dottedClassName = ClassUtils.dottedClassName(MethodUtils.getClassName(superMethod));
-                        if (!dottedClassName.startsWith(packageName) || !dottedClassName.startsWith(mainActivityPackage)) {
+                        final String dottedClassName = ClassUtils.dottedClassName(MethodUtils.getClassName(superMethod));
+                        if (!dottedClassName.startsWith(packageName)
+                                && (mainActivityPackage == null || !dottedClassName.startsWith(mainActivityPackage))) {
                             LOGGER.debug("Super class method " + superMethod + " that shouldn't be resolved!");
                             /*
                             * This can be a super class method that is actually contained in the dex file,
