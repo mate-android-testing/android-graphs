@@ -214,10 +214,22 @@ public class CallTree implements BaseGraph {
         return Optional.of(new GraphWalk<>(graph, startVertex, start, edges, weight));
     }
 
+    /**
+     * Returns the set of outgoing edges from the given vertex.
+     *
+     * @param vertex The vertex from which the outgoing vertices should be determined.
+     * @return Returns the set of outgoing edges from the given vertex.
+     */
     public Set<CallTreeEdge> getOutgoingEdges(CallTreeVertex vertex) {
         return this.graph.outgoingEdgesOf(vertex);
     }
 
+    /**
+     * Returns the set of incoming edges from the given vertex.
+     *
+     * @param vertex The vertex from which the incoming vertices should be determined.
+     * @return Returns the set of incoming edges from the given vertex.
+     */
     public Set<CallTreeEdge> getIncomingEdges(CallTreeVertex vertex) {
         return this.graph.incomingEdgesOf(vertex);
     }
@@ -236,20 +248,39 @@ public class CallTree implements BaseGraph {
      *
      * @return Returns the set of unreachable vertices.
      */
+    @SuppressWarnings("unused")
     public Set<CallTreeVertex> getUnreachableVertices() {
         return graph.vertexSet().stream().filter(v -> getShortestPath(v).isEmpty()).collect(Collectors.toSet());
     }
 
-    public Set<CallTreeVertex> getMethodCallers(CallTreeVertex method, Predicate<CallTreeVertex> validCaller) {
-        return goUntilSatisfied(method, m -> graph.incomingEdgesOf(m).stream().map(CallTreeEdge::getSource), validCaller);
+    /**
+     * Retrieves the set of method callees for the given caller method, i.e. the set of vertices that call the specified
+     * method.
+     *
+     * @param method The method caller.
+     * @param validCallee A predicate that determines whether a callee is valid, e.g., is not identical to the caller.
+     * @return Returns the set of vertices (methods) that call the given method.
+     */
+    @SuppressWarnings("unused")
+    public Set<CallTreeVertex> getMethodCallees(final CallTreeVertex method, final Predicate<CallTreeVertex> validCallee) {
+        return goUntilSatisfied(method, m -> graph.incomingEdgesOf(m).stream().map(CallTreeEdge::getSource), validCallee);
     }
 
-    private <T> Set<T> goUntilSatisfied(T start, Function<T, Stream<T>> childGetter, Predicate<T> predicate) {
+    /**
+     * Performs an operation from the given start until the predicate is satisfied.
+     *
+     * @param start The start point.
+     * @param childGetter A function that jumps to the next point(s).
+     * @param predicate The predicate that should be satisfied.
+     * @param <T> The type parameter.
+     * @return Returns a set of {@link <T>} instances that satisfy the given predicate.
+     */
+    private <T> Set<T> goUntilSatisfied(final T start, final Function<T, Stream<T>> childGetter, final Predicate<T> predicate) {
 
-        Queue<T> workQueue = new LinkedList<>();
+        final Queue<T> workQueue = new LinkedList<>();
         workQueue.add(start);
-        Set<T> satisfied = new HashSet<>();
-        Set<T> seen = new HashSet<>();
+        final Set<T> satisfied = new HashSet<>();
+        final Set<T> seen = new HashSet<>();
 
         while (!workQueue.isEmpty()) {
             T current = workQueue.poll();
@@ -267,7 +298,7 @@ public class CallTree implements BaseGraph {
         return satisfied;
     }
 
-    public static Graph<CallTreeVertex, CallTreeEdge> onlyKeepVertices(Graph<CallTreeVertex, CallTreeEdge> graph,
+    private static Graph<CallTreeVertex, CallTreeEdge> onlyKeepVertices(Graph<CallTreeVertex, CallTreeEdge> graph,
                                                                        Set<CallTreeVertex> vertices) {
         var newGraph = GraphTypeBuilder
                 .<CallTreeVertex, CallTreeEdge>directed()
