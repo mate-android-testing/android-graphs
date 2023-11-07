@@ -25,6 +25,7 @@ import org.jgrapht.graph.builder.GraphTypeBuilder;
 import org.jgrapht.nio.AttributeType;
 import org.jgrapht.nio.DefaultAttribute;
 import org.jgrapht.nio.dot.DOTExporter;
+import org.jgrapht.traverse.BreadthFirstIterator;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.jgrapht.util.ConcurrencyUtil;
 import org.w3c.dom.Document;
@@ -534,8 +535,8 @@ public class CallTree implements BaseGraph {
     }
 
     @Override
-    public CallTreeVertex lookUpVertex(String trace) {
-        return lookUpVertexDFS(trace);
+    public CallTreeVertex lookUpVertex(String trace) { // trace needs to refer to a method!
+        return lookUpVertexBFS(trace);
     }
 
     @Override
@@ -544,11 +545,32 @@ public class CallTree implements BaseGraph {
     }
 
     /**
+     * Performs a breadth first search for looking up the vertex.
+     *
+     * @param method           The method describing the vertex.
+     * @return Returns the vertex described by the given method.
+     */
+    private CallTreeVertex lookUpVertexBFS(final String method) {
+
+        BreadthFirstIterator<CallTreeVertex, CallTreeEdge> bfs = new BreadthFirstIterator<>(graph, root);
+
+        while (bfs.hasNext()) {
+            CallTreeVertex vertex = bfs.next();
+            if (vertex.getMethod().equals(method)) {
+                return vertex;
+            }
+        }
+
+        throw new IllegalArgumentException("Given trace refers to no vertex in graph!");
+    }
+
+    /**
      * Performs a depth first search for looking up the vertex.
      *
      * @param method           The method describing the vertex.
      * @return Returns the vertex described by the given method.
      */
+    @SuppressWarnings("unused")
     private CallTreeVertex lookUpVertexDFS(final String method) {
 
         DepthFirstIterator<CallTreeVertex, CallTreeEdge> dfs = new DepthFirstIterator<>(graph, root);
