@@ -429,16 +429,13 @@ public class IntraCFG extends BaseCFG implements Cloneable {
     @Override
     public CFGVertex lookUpVertex(String trace) {
 
-        // TODO: adjust method to comply with lookUpVertex() of InterCFG
+        // TODO: May enable lookup of 'if' or 'switch' traces.
 
         // decompose trace into class, method  and instruction index
         String[] tokens = trace.split("->");
 
-        // class + method + entry|exit|instruction-index
-        assert tokens.length == 3;
-
         // retrieve fully qualified method name (class name + method name)
-        String method = tokens[0] + "->" + tokens[1];
+        final String method = tokens[0] + "->" + tokens[1];
 
         // check whether trace refers to this graph
         if (!method.equals(getMethodName())) {
@@ -451,7 +448,9 @@ public class IntraCFG extends BaseCFG implements Cloneable {
             return getExit();
         } else {
             // brute force search
-            int instructionIndex = Integer.parseInt(tokens[2]);
+
+            // instruction index is always at same position for both branch and basic block traces
+            final int instructionIndex = Integer.parseInt(tokens[2]);
 
             for (CFGVertex vertex : getVertices()) {
 
@@ -459,7 +458,7 @@ public class IntraCFG extends BaseCFG implements Cloneable {
                     continue;
                 }
 
-                Statement statement = vertex.getStatement();
+                final Statement statement = vertex.getStatement();
 
                 if (statement.getType() == Statement.StatementType.BASIC_STATEMENT) {
                     // no basic blocks
