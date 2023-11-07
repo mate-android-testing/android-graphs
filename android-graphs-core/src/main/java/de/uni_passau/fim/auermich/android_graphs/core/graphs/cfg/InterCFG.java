@@ -523,10 +523,10 @@ public class InterCFG extends BaseCFG {
                     if (receiver.isAppWidgetProvider()) {
 
                         /*
-                        * AppWidgetProvider is a special broadcast receiver that listens potentially to multiple different
-                        * broadcasts and triggers a specific listener method for each broadcast. Moreover, the onReceive()
-                        * method needs not be overridden at all. Since we can't distinguish which broadcast was sent, we
-                        * integrate each available listener method in the subgraph.
+                         * AppWidgetProvider is a special broadcast receiver that listens potentially to multiple different
+                         * broadcasts and triggers a specific listener method for each broadcast. Moreover, the onReceive()
+                         * method needs not be overridden at all. Since we can't distinguish which broadcast was sent, we
+                         * integrate each available listener method in the subgraph.
                          */
 
                         BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
@@ -571,6 +571,15 @@ public class InterCFG extends BaseCFG {
                     targetCFGs.add(sendBroadcastCFG);
                 } else {
                     LOGGER.warn("Couldn't resolve broadcast receiver for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
+            } else if (FileUtils.isListFilesInvocation(overriddenMethod)) {
+                LOGGER.debug("File.listFiles() invocation detected: " + overriddenMethod);
+                final String acceptMethod = FileUtils.isListFilesInvocation(invokeStmt.getInstruction());
+                if (acceptMethod != null && intraCFGs.containsKey(acceptMethod)) {
+                    targetCFGs.add(intraCFGs.get(acceptMethod));
+                } else {
+                    LOGGER.warn("Couldn't resolve FileFilter for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
             } else {
@@ -1608,6 +1617,8 @@ public class InterCFG extends BaseCFG {
                         && !resolveThreadMethod(method, targetMethod)
                         // we need to resolve sendBroadcast() in any case
                         && !ReceiverUtils.isReceiverInvocation(targetMethod)
+                        // we want to resolve listFiles() in any case
+                        && !FileUtils.isListFilesInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
@@ -1637,8 +1648,14 @@ public class InterCFG extends BaseCFG {
                      * should be replaced with the constructor. Here particular, the virtual return statement
                      * should also reflect this change.
                      */
-                    // TODO: replace target method with corresponding constructor
+                    // TODO: Replace target method with corresponding constructor.
                     LOGGER.debug("Reflection call detected!");
+                } else if (FileUtils.isListFilesInvocation(targetMethod)) {
+                    /*
+                    * If we deal with an invocation of listFiles() the target method should be replaced by the
+                    * accept() method of the respective FileFilter class.
+                     */
+                    // TODO: Replace target method with corresponding accept method of FileFilter class.
                 }
 
                 /*
