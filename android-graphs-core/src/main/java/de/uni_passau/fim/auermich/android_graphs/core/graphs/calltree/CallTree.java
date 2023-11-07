@@ -160,12 +160,6 @@ public class CallTree implements BaseGraph {
      * @return Returns the shortest path between the given source and target vertex if such path exists.
      */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex source, CallTreeVertex target) {
-        Stream.of(source, target).forEach(vertex -> {
-            // TODO: This side effect should be eliminated.
-            if (graph.addVertex(vertex)) {
-                LOGGER.warn("Graph did not contain vertex '" + vertex.toString() + "'");
-            }
-        });
         return cache.computeIfAbsent(source.getMethod() + "-->" + target.getMethod(),
                 t -> Optional.ofNullable(BFSShortestPath.findPathBetween(graph, source, target)));
     }
