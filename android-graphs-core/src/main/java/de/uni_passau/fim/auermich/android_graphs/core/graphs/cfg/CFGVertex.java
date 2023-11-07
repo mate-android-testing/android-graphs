@@ -225,7 +225,7 @@ public class CFGVertex extends Vertex implements Comparable<CFGVertex>, Cloneabl
     }
 
     /**
-     * Checks whether the vertex encapsulates a return statement.
+     * Checks whether the vertex encapsulates a virtual return statement.
      *
      * @return Returns {@code true} if the vertex encapsulates a return statement, otherwise {@code false} is returned.
      */

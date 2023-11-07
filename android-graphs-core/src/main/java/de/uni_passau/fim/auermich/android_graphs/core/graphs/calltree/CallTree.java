@@ -5,13 +5,11 @@ import com.mxgraph.layout.mxIGraphLayout;
 import com.mxgraph.model.mxICell;
 import com.mxgraph.util.mxCellRenderer;
 import com.mxgraph.util.mxConstants;
-import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.BaseGraph;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGEdge;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.InterCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.statements.ExitStatement;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.Graph;
@@ -92,44 +90,26 @@ public class CallTree implements BaseGraph {
 
         this.interCFG = interCFG;
         root = new CallTreeVertex(interCFG.getEntry().getMethod());
-        final Activity mainActivity = interCFG.getMainActivity();
 
-        if (mainActivity == null) {
-            throw new UnsupportedOperationException("Cannot construct call tree from APK without dedicated main activity!");
-        }
+        final Set<CFGVertex> entryVertices = interCFG.getVertices().stream()
+                .filter(CFGVertex::isEntryVertex)
+                .collect(Collectors.toSet());
 
-        final String mainActivityConstructor = interCFG.getMainActivity().getConstructors().get(0);
-        final Set<String> methods = interCFG.getVertices().stream().map(CFGVertex::getMethod).collect(Collectors.toSet());
+        // TODO: Should we eliminate cycles, i.e., primarily recursive calls?
+        // TODO: Flatten out virtual 'callbacks' graph.
 
-        for (String method : methods) {
-
+        for (final CFGVertex entry : entryVertices) {
             // construct for each method in the CFG a vertex for the call tree
-            CallTreeVertex methodVertex = new CallTreeVertex(method);
-            graph.addVertex(methodVertex);
+            final CallTreeVertex callerMethod = new CallTreeVertex(entry.getMethod());
+            graph.addVertex(callerMethod);
 
-            // derive which methods are invoked by the current vertex
-            Set<String> calledMethods = interCFG.getVertices().stream()
-                    .filter(v -> v.getMethod().equals(method)) // only consider vertices belonging to the current method
-                    .flatMap(v -> interCFG.getOutgoingEdges(v).stream())
-                    .filter(e -> !ignoreEdge(e))
-                    .map(CFGEdge::getTarget)
-                    .filter(v -> !v.containsReturnStatement()) // ignore virtual return statements
-                    .map(CFGVertex::getMethod)
-                    .filter(m -> !m.equals(method)) // ignore recursive calls (only a single vertex per method)
-                    .filter(m -> !m.startsWith("callbacks ") // ignore the callbacks sub graph
-                            || method.contains("onResume"))
-                    .filter(m -> !m.startsWith("static initializer") // ignore the static initializers
-                            || method.equals(root.toString()))
-                    .filter(m -> !method.equals(root.toString()) || m.startsWith("static initializers")
-                            || m.startsWith(mainActivityConstructor))
-                    .collect(Collectors.toSet());
-
-            // for each invoked method define an edge
-            calledMethods.forEach(calledMethod -> {
-                CallTreeVertex vertex = new CallTreeVertex(calledMethod);
-                graph.addVertex(vertex);
-                graph.addEdge(methodVertex, vertex);
-            });
+            // add from each callee an edge to the caller (this method)
+            for (final CFGEdge edge : interCFG.getIncomingEdges(entry)) {
+                final CFGVertex callee = edge.getSource();
+                final CallTreeVertex calleeMethod = new CallTreeVertex(callee.getMethod());
+                graph.addVertex(calleeMethod);
+                graph.addEdge(calleeMethod, callerMethod);
+            }
         }
     }
 
@@ -149,17 +129,6 @@ public class CallTree implements BaseGraph {
      */
     public InterCFG getInterCFG() {
         return interCFG;
-    }
-
-    /**
-     * Ignores certain edges, e.g. edges between virtual exit vertices.
-     *
-     * @param edge The edge that should be checked.
-     * @return Returns {@code true} if the edge should be ignored, otherwise {@code false} is returned.
-     */
-    private boolean ignoreEdge(CFGEdge edge) {
-        return edge.getSource().getStatement() instanceof ExitStatement
-                && edge.getTarget().getStatement() instanceof ExitStatement;
     }
 
     /**
