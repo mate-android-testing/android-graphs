@@ -163,6 +163,9 @@ public class MethodUtils {
 
         add("handleMessage(Landroid/os/Message;)V");
 
+        // https://developer.android.com/reference/android/app/Activity#onNewIntent(android.content.Intent)
+        add("onNewIntent(Landroid/content/Intent;)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
