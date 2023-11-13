@@ -135,7 +135,7 @@ public class CallTree implements BaseGraph {
     /**
      * Retrieves the shortest path between the root vertex and the given target vertex.
      *
-     * @param target Describes a target vertex.
+     * @param target Describes a target vertex that must exist in the graph.
      * @return Returns the shortest path between the root and the given target vertex if such path exists.
      */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(String target) {
@@ -145,7 +145,7 @@ public class CallTree implements BaseGraph {
     /**
      * Retrieves the shortest path between the root vertex and the given target vertex.
      *
-     * @param target The target vertex.
+     * @param target The target vertex that must exist in the graph.
      * @return Returns the shortest path between the root and the given target vertex if such path exists.
      */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex target) {
@@ -155,8 +155,8 @@ public class CallTree implements BaseGraph {
     /**
      * Retrieves the shortest path between the given source and target vertex.
      *
-     * @param source The source vertex.
-     * @param target The target vertex.
+     * @param source The source vertex that must exist in the graph.
+     * @param target The target vertex that must exist in the graph.
      * @return Returns the shortest path between the given source and target vertex if such path exists.
      */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex source, CallTreeVertex target) {
@@ -168,7 +168,7 @@ public class CallTree implements BaseGraph {
      * Retrieves the shortest path from the root vertex through the list of given stop vertices.
      *
      * @param stops A list of vertices through which the shortest path must flow.
-     * @return Returns the shortest path from the root vertex through the given intermediate vertices.
+     * @return Returns the shortest path from the root vertex through the given intermediate vertices if such path exists.
      */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPathWithStops(List<CallTreeVertex> stops) {
         return getShortestPathWithStops(root, stops);
@@ -178,7 +178,7 @@ public class CallTree implements BaseGraph {
      * Retrieves the shortest path from the given start vertex through the list of given stop vertices.
      *
      * @param startVertex The first vertex in the shortest path.
-     * @param stops A list of vertices through which the shortest path must flow.
+     * @param stops A list of existent vertices through which the shortest path must flow.
      * @return Returns the shortest path from the given start vertex through the given intermediate vertices.
      */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPathWithStops(CallTreeVertex startVertex,
