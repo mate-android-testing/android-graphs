@@ -492,6 +492,15 @@ public class InterCFG extends BaseCFG {
                     last = onPostExecuteCFG.getExit();
                 }
 
+                // optional
+                String onCancelledMethod = classHierarchy
+                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnCancelledMethod(className));
+                if (onCancelledMethod != null && intraCFGs.containsKey(onCancelledMethod)) {
+                    BaseCFG onCancelledCFG = intraCFGs.get(onCancelledMethod);
+                    addEdge(last, onCancelledCFG.getEntry());
+                    last = onCancelledCFG.getExit();
+                }
+
                 addEdge(last, asyncTaskCFG.getExit());
                 targetCFGs.add(asyncTaskCFG);
             } else if (ReceiverUtils.isReceiverInvocation(overriddenMethod)) {

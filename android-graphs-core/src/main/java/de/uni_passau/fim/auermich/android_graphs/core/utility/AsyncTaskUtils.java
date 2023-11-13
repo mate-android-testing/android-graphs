@@ -71,4 +71,15 @@ public class AsyncTaskUtils {
     public static String getOnPostExecuteMethod(String className) {
         return className + "->onPostExecute(Ljava/lang/Object;)V";
     }
+
+    /**
+     * Returns the onCancelled() method of an AsyncTask.
+     * NOTE: There is no bridge method in the bytecode.
+     *
+     * @param className The class in which the method is defined.
+     * @return Returns the signature of the onCancelled() method.
+     */
+    public static String getOnCancelledMethod(String className) {
+        return className + "->onCancelled()V";
+    }
 }
