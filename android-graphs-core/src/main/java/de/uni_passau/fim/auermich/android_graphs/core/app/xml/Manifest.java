@@ -95,12 +95,9 @@ public class Manifest {
                         Element activityTag = (Element) activityNode;
                         String activityName = activityTag.attributeValue("name");
                         if (activityName != null) {
-                            if (activityName.startsWith(".")) {
-                                // make it a fully-qualified name
-                                activityName = packageName + activityName;
-                            }
-                            LOGGER.debug("MainActivity: " + activityName);
-                            mainActivity.set(activityName);
+                                activityName = getFullyQualifiedName(packageName, activityName);
+                                LOGGER.debug("MainActivity: " + activityName);
+                                mainActivity.set(activityName);
                         }
                     }
                 });
@@ -144,10 +141,7 @@ public class Manifest {
                             // the activity alias tag defines a reference via targetActivity
                             String activityName = activityAliasTag.attributeValue("targetActivity");
                             if (activityName != null) {
-                                if (activityName.startsWith(".")) {
-                                    // make it a fully-qualified name
-                                    activityName = packageName + activityName;
-                                }
+                                activityName = getFullyQualifiedName(packageName, activityName);
                                 LOGGER.debug("MainActivity: " + activityName);
                                 mainActivity.set(activityName);
                             }
@@ -159,6 +153,24 @@ public class Manifest {
 
         // NOTE: There can be apps without a dedicated main activity.
         return new Manifest(packageName, mainActivity.get());
+    }
+
+    /**
+     * Retrieves the fully-qualified name.
+     *
+     * @param packageName The package name of the AUT.
+     * @param name The name of the component, potentially not fully-qualified.
+     * @return Returns the FQN for the given component.
+     */
+    private static String getFullyQualifiedName(final String packageName, final String name) {
+        if (name.startsWith(".")) {
+            return packageName + name;
+        } else if (!name.contains(".")) {
+            // Sometimes solely the blank activity class name is given.
+            return packageName + "." + name;
+        } else {
+            return name;
+        }
     }
 
     /**
