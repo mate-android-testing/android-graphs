@@ -89,7 +89,6 @@ public class InterCFG extends BaseCFG {
         this.apk = apk;
         constructCFG(apk);
         removeDisconnectedVertices();
-        addEdgesToCaller();
     }
 
     /**
@@ -176,20 +175,6 @@ public class InterCFG extends BaseCFG {
         // lookup of a trace will succeed although the actual vertex has been removed.
         toDelete.stream().forEach(vertex -> intraCFGs.remove(vertex.getMethod()));
         graph.removeAllVertices(toDelete);
-    }
-
-    /**
-     * Adds synthetic edges from nodes that are not yet connected to the exit to the lowest common ancestor (LCA) since
-     * the LCA is probably the node that has called the respective disconnected node.
-     */
-    private void addEdgesToCaller() {
-        for (CFGVertex vertex : getVertices()) {
-            if (!vertex.equals(getExit()) && getSuccessors(vertex).isEmpty()) {
-                final CFGVertex LCA = getLeastCommonAncestor(vertex, getExit());
-                addEdge(vertex, LCA);
-                LOGGER.debug("Generating missing callback edge from " + vertex + " to " + LCA);
-            }
-        }
     }
 
     /**

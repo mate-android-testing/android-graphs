@@ -2,20 +2,13 @@ package de.uni_passau.fim.auermich.android_graphs.core.graphs.cdg;
 
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.Var;
-
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.GraphType;
 import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.*;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jgrapht.traverse.BreadthFirstIterator;
 
-import java.util.ArrayDeque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -23,7 +16,7 @@ import java.util.stream.Collectors;
  */
 public class CDG extends BaseCFG {
 
-    private static final Logger LOGGER = LogManager.getLogger(BaseCFG.class);
+    private static final Logger LOGGER = LogManager.getLogger(CDG.class);
 
     /**
      * Maintains a reference to the individual intra CFGs.
@@ -38,6 +31,9 @@ public class CDG extends BaseCFG {
      */
     public CDG(BaseCFG cfg) {
         super(cfg.getMethodName(), cfg.getEntry(), cfg.getExit());
+        if (cfg instanceof InterCFG) {
+            addEdgesToCaller(cfg);
+        }
         final PDT pdt = new PDT(cfg);
         buildCDG(cfg, pdt);
 
@@ -46,6 +42,20 @@ public class CDG extends BaseCFG {
         } else { // intra
             intraCFGs = new HashMap<>();
             intraCFGs.put(cfg.getMethodName(), new DummyCFG(cfg));
+        }
+    }
+
+    /**
+     * Adds synthetic edges from nodes that are not yet connected to the exit to the lowest common ancestor (LCA) since
+     * the LCA is probably the node that has called the respective disconnected node.
+     */
+    private void addEdgesToCaller(final BaseCFG cfg) {
+        for (CFGVertex vertex : cfg.getVertices()) {
+            if (!vertex.equals(cfg.getExit()) && cfg.getSuccessors(vertex).isEmpty()) {
+                final CFGVertex LCA = cfg.getLeastCommonAncestor(vertex, cfg.getExit());
+                cfg.addEdge(vertex, LCA);
+                LOGGER.debug("Generating missing callback edge from " + vertex + " to " + LCA);
+            }
         }
     }
 
