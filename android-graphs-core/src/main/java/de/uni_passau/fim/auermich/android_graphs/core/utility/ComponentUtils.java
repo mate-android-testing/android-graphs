@@ -444,7 +444,7 @@ public class ComponentUtils {
      * @param components The set of discovered components.
      * @param classHierarchy The derived class hierarchy.
      */
-    public static void checkComponentRelations(APK apk, final Set<Component> components,
+    public static void checkComponentRelations(final APK apk, final Set<Component> components,
                                                final ClassHierarchy classHierarchy) {
 
         LOGGER.debug("Checking component relations...");
@@ -529,8 +529,8 @@ public class ComponentUtils {
                             } else if (InstructionUtils.isInvokeInstruction(instruction)) {
 
                                 // check for fragment invocation
-                                FragmentUtils.checkForFragmentInvocation(components, fullyQualifiedMethodName,
-                                        analyzedInstruction);
+                                FragmentUtils.checkForFragmentInvocation(apk, components, classDef,
+                                        fullyQualifiedMethodName, analyzedInstruction);
 
                                 // check for fragment view pager usages
                                 viewPagerFragmentUsages.add(FragmentUtils.checkForFragmentViewPager(components,

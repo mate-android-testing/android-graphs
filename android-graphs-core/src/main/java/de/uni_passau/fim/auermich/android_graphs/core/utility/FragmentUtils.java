@@ -2,16 +2,19 @@ package de.uni_passau.fim.auermich.android_graphs.core.utility;
 
 import com.android.tools.smali.dexlib2.Opcode;
 import com.android.tools.smali.dexlib2.analysis.AnalyzedInstruction;
+import com.android.tools.smali.dexlib2.iface.ClassDef;
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction;
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction11x;
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c;
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction35c;
 import com.google.common.collect.Multimap;
+import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.ComponentType;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Fragment;
+import de.uni_passau.fim.auermich.android_graphs.core.app.xml.LayoutFile;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,6 +23,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class FragmentUtils {
 
@@ -185,12 +189,15 @@ public class FragmentUtils {
      * itself can have nested fragments as well, or another class that has a reference to FragmentManager or
      * FragmentTransaction could also invoke such fragment invocation.
      *
-     * @param method The method defining the invocation.
+     * @param apk The APK file.
      * @param components The set of components.
+     * @param classDef The class in which the invocation happens.
+     * @param method The method defining the invocation.
      * @param analyzedInstruction The fragment invocation instruction.
      */
-    public static void checkForFragmentInvocation(final Set<Component> components, String method,
-                                                  AnalyzedInstruction analyzedInstruction) {
+    public static void checkForFragmentInvocation(final APK apk, final Set<Component> components,
+                                                  final ClassDef classDef, final String method,
+                                                  final AnalyzedInstruction analyzedInstruction) {
 
         Instruction instruction = analyzedInstruction.getInstruction();
         String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
@@ -216,6 +223,35 @@ public class FragmentUtils {
                 } else {
                     // TODO: Handle nested fragments.
                     LOGGER.warn("Couldn't assign fragment " + fragmentName + " to activity: " + activityName);
+                }
+            }
+            // fragments can also be defined via setContentView()
+        } else if (targetMethod.endsWith(";->setContentView(I)V")) {
+
+            final String activityName = MethodUtils.getClassName(method);
+            final Optional<Activity> activityComponent = ComponentUtils.getActivityByName(components, activityName);
+
+            if (activityComponent.isPresent()) { // we assume only activities can declare fragments
+
+                final String resourceID = Utility.getLayoutResourceID(classDef, analyzedInstruction);
+                if (resourceID != null) {
+                    // Map the resource id to a layout file if possible.
+                    final LayoutFile layoutFile = LayoutFile.findLayoutFile(apk.getDecodingOutputPath(), resourceID);
+                    if (layoutFile != null) {
+                        final Set<String> fragments = layoutFile.parseFragments().stream()
+                                .map(ClassUtils::convertDottedClassName)
+                                .collect(Collectors.toSet());
+                        for (String fragmentName : fragments) {
+                            final Optional<Fragment> fragmentComponent
+                                    = ComponentUtils.getFragmentByName(components, fragmentName);
+                            if (fragmentComponent.isPresent()
+                                    && fragmentComponent.get().getComponentType() == ComponentType.FRAGMENT) {
+                                final Activity activity = activityComponent.get();
+                                final Fragment fragment = fragmentComponent.get();
+                                activity.addHostingFragment(fragment);
+                            }
+                        }
+                    }
                 }
             }
         }
