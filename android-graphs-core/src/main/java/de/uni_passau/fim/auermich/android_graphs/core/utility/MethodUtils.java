@@ -184,6 +184,18 @@ public class MethodUtils {
         // https://developer.android.com/reference/android/view/View#onKeyUp(int,%20android.view.KeyEvent)
         add("onKeyUp(ILandroid/view/KeyEvent;)Z");
 
+        // https://developer.android.com/reference/android/view/View#onTouchEvent(android.view.MotionEvent)
+        add("onTouchEvent(Landroid/view/MotionEvent;)Z");
+
+        // https://developer.android.com/reference/android/view/View#onTrackballEvent(android.view.MotionEvent)
+        add("onTrackballEvent(Landroid/view/MotionEvent;)Z");
+
+        // https://developer.android.com/reference/android/view/View#onGenericMotionEvent(android.view.MotionEvent)
+        add("onGenericMotionEvent(Landroid/view/MotionEvent;)Z");
+
+        // https://developer.android.com/reference/android/view/View#onHoverEvent(android.view.MotionEvent)
+        add("onHoverEvent(Landroid/view/MotionEvent;)Z");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
