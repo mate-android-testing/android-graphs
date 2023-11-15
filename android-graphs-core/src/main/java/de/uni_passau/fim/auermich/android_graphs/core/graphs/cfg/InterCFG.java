@@ -931,18 +931,21 @@ public class InterCFG extends BaseCFG {
         // if there are fragments, onCreate invokes onAttach, onCreate and onCreateView
         for (Fragment fragment : fragments) {
 
+            BaseCFG lastFragmentLifecycleCFG = onCreateCFG;
+
             // TODO: there is a deprecated onAttach using an activity instance as parameter
             String onAttachFragment = fragment.onAttachMethod();
-            BaseCFG onAttachFragmentCFG = addLifecycle(onAttachFragment, onCreateCFG);
+            if (intraCFGs.containsKey(onAttachFragment)) { // optional
+                lastFragmentLifecycleCFG = addLifecycle(onAttachFragment, onCreateCFG);
+            }
 
             String onCreateFragment = fragment.onCreateMethod();
-            BaseCFG onCreateFragmentCFG = addLifecycle(onCreateFragment, onAttachFragmentCFG);
+            lastFragmentLifecycleCFG = addLifecycle(onCreateFragment, lastFragmentLifecycleCFG);
 
             /*
              * If the fragment is a DialogFragment, it may override onCreateDialog(), see:
              * https://developer.android.com/reference/android/app/DialogFragment#onCreateDialog(android.os.Bundle)
              */
-            BaseCFG lastFragmentLifecycleCFG = onCreateFragmentCFG;
             String onCreateDialogFragment = fragment.onCreateDialogMethod();
             if (intraCFGs.containsKey(onCreateDialogFragment)) {
                 lastFragmentLifecycleCFG = addLifecycle(onCreateDialogFragment, lastFragmentLifecycleCFG);
