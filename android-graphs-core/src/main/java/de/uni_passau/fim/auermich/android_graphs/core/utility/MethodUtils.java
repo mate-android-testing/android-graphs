@@ -166,6 +166,24 @@ public class MethodUtils {
         // https://developer.android.com/reference/android/app/Activity#onNewIntent(android.content.Intent)
         add("onNewIntent(Landroid/content/Intent;)V");
 
+        // https://developer.android.com/reference/android/view/View#onKeyLongPress(int,%20android.view.KeyEvent)
+        add("onKeyLongPress(ILandroid/view/KeyEvent;)Z");
+
+        // https://developer.android.com/reference/android/view/View#onKeyDown(int,%20android.view.KeyEvent)
+        add("onKeyDown(ILandroid/view/KeyEvent;)Z");
+
+        // https://developer.android.com/reference/android/view/View#onKeyMultiple(int,%20int,%20android.view.KeyEvent)
+        add("onKeyMultiple(IILandroid/view/KeyEvent;)Z");
+
+        // https://developer.android.com/reference/android/view/View#onKeyPreIme(int,%20android.view.KeyEvent)
+        add("onKeyPreIme(ILandroid/view/KeyEvent;)Z");
+
+        // https://developer.android.com/reference/android/view/View#onKeyShortcut(int,%20android.view.KeyEvent)
+        add("onKeyShortcut(ILandroid/view/KeyEvent;)Z");
+
+        // https://developer.android.com/reference/android/view/View#onKeyUp(int,%20android.view.KeyEvent)
+        add("onKeyUp(ILandroid/view/KeyEvent;)Z");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
