@@ -931,7 +931,12 @@ public class InterCFG extends BaseCFG {
         // if there are fragments, onCreate invokes onAttach, onCreate and onCreateView
         for (Fragment fragment : fragments) {
 
-            BaseCFG lastFragmentLifecycleCFG = onCreateCFG;
+            // connect the onCreate of the activity with the fragment constructor
+            final String constructor = fragment.getDefaultConstructor();
+            BaseCFG fragmentConstructorCFG = intraCFGs.get(constructor);
+            addEdge(onCreateCFG.getExit(), fragmentConstructorCFG.getEntry());
+
+            BaseCFG lastFragmentLifecycleCFG = fragmentConstructorCFG;
 
             // TODO: there is a deprecated onAttach using an activity instance as parameter
             String onAttachFragment = fragment.onAttachMethod();
