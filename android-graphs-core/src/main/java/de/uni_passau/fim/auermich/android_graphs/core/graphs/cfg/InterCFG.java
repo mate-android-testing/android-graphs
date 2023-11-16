@@ -488,6 +488,57 @@ public class InterCFG extends BaseCFG {
 
                 addEdge(last, asyncTaskCFG.getExit());
                 targetCFGs.add(asyncTaskCFG);
+            } else if (AnimationUtils.isAnimationInvocation(overriddenMethod)) {
+
+                LOGGER.debug("Animation invocation detected: " + overriddenMethod);
+
+                final String animationListenerClassName = AnimationUtils.getAnimationListener(invokeStmt.getInstruction());
+                final ClassDef animationListener = classHierarchy.getClass(animationListenerClassName);
+
+                if (animationListener != null && AnimationUtils.isAnimationListener(animationListener)) {
+
+                    final BaseCFG animationListenerCFG = emptyCFG("callbacks " + animationListenerClassName);
+
+                    // TODO: Add missing callback functions.
+                    // https://developer.android.com/reference/android/animation/Animator.AnimatorListener#summary
+
+                    final String onAnimationEndMethod = AnimationUtils.getOnAnimationEndMethod(animationListenerClassName);
+                    if (intraCFGs.containsKey(onAnimationEndMethod)) {
+                        BaseCFG onAnimationEndCFG = intraCFGs.get(onAnimationEndMethod);
+                        addEdge(animationListenerCFG.getEntry(), onAnimationEndCFG.getEntry());
+                        addEdge(onAnimationEndCFG.getExit(), animationListenerCFG.getExit());
+                    }
+
+                    final String onAnimationStartMethod = AnimationUtils.getOnAnimationStartMethod(animationListenerClassName);
+                    if (intraCFGs.containsKey(onAnimationStartMethod)) {
+                        BaseCFG onAnimationStartCFG = intraCFGs.get(onAnimationStartMethod);
+                        addEdge(animationListenerCFG.getEntry(), onAnimationStartCFG.getEntry());
+                        addEdge(onAnimationStartCFG.getExit(), animationListenerCFG.getExit());
+                    }
+
+                    final String onAnimationCancelMethod = AnimationUtils.getOnAnimationCancelMethod(animationListenerClassName);
+                    if (intraCFGs.containsKey(onAnimationCancelMethod)) {
+                        BaseCFG onAnimationCancelCFG = intraCFGs.get(onAnimationCancelMethod);
+                        addEdge(animationListenerCFG.getEntry(), onAnimationCancelCFG.getEntry());
+                        addEdge(onAnimationCancelCFG.getExit(), animationListenerCFG.getExit());
+                    }
+
+                    final String onAnimationRepeatMethod = AnimationUtils.getOnAnimationRepeatMethod(animationListenerClassName);
+                    if (intraCFGs.containsKey(onAnimationRepeatMethod)) {
+                        BaseCFG onAnimationRepeatCFG = intraCFGs.get(onAnimationRepeatMethod);
+                        addEdge(animationListenerCFG.getEntry(), onAnimationRepeatCFG.getEntry());
+                        addEdge(onAnimationRepeatCFG.getExit(), animationListenerCFG.getExit());
+                    }
+
+                    // the callbacks can be executed in arbitrary order multiple times
+                    addEdge(animationListenerCFG.getExit(), animationListenerCFG.getEntry());
+
+                    targetCFGs.add(animationListenerCFG);
+                } else {
+                    LOGGER.warn("Couldn't resolve animation listener for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
+
             } else if (ReceiverUtils.isReceiverInvocation(overriddenMethod)) {
 
                 LOGGER.debug("BroadcastReceiver invocation detected: " + overriddenMethod);
@@ -1621,6 +1672,8 @@ public class InterCFG extends BaseCFG {
                         && !ReceiverUtils.isReceiverInvocation(targetMethod)
                         // we want to resolve listFiles() in any case
                         && !FileUtils.isListFilesInvocation(targetMethod)
+                        // we want to resolve animations in any case
+                        && !AnimationUtils.isAnimationInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
