@@ -196,6 +196,9 @@ public class MethodUtils {
         // https://developer.android.com/reference/android/view/View#onHoverEvent(android.view.MotionEvent)
         add("onHoverEvent(Landroid/view/MotionEvent;)Z");
 
+        // https://developer.android.com/reference/androidx/fragment/app/Fragment#onRequestPermissionsResult(int,java.lang.String[],int[])
+        add("onRequestPermissionsResult(I[Ljava/lang/String;[I)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
