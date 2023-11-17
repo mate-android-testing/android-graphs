@@ -267,6 +267,18 @@ public class ComponentUtils {
     }
 
     /**
+     * Returns the broadcast receiver that has the given name.
+     *
+     * @param components The set of components.
+     * @param componentName The name of the broadcast receiver we search for.
+     * @return Returns the broadcast receiver matching the given name if present.
+     */
+    public static Optional<BroadcastReceiver> getBroadcastReceiverByName(final Set<Component> components, String componentName) {
+        return getComponentByName(components, componentName)
+                .flatMap(c -> c instanceof BroadcastReceiver ? Optional.of((BroadcastReceiver) c) : Optional.empty());
+    }
+
+    /**
      * Returns the activity that has the given name.
      *
      * @param components The set of components.

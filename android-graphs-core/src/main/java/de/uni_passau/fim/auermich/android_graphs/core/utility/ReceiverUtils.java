@@ -8,12 +8,12 @@ import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c;
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction35c;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.BroadcastReceiver;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
-import de.uni_passau.fim.auermich.android_graphs.core.app.components.ComponentType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A set of utility functions to detect and resolve broadcast receiver invocations.
@@ -35,8 +35,11 @@ public class ReceiverUtils {
      */
     public static boolean isReceiverInvocation(String methodSignature) {
         String method = MethodUtils.getMethodName(methodSignature);
+        // TODO: There exists a sendBroadcastSync() method in the LocalBroadcastManager class.
         return method.equals("sendBroadcast(Landroid/content/Intent;)V")
-                || method.equals("sendBroadcast(Landroid/content/Intent;Ljava/lang/String;)V");
+                || method.equals("sendBroadcast(Landroid/content/Intent;Ljava/lang/String;)V")
+                // https://developer.android.com/reference/android/support/v4/content/LocalBroadcastManager.html#summary
+                || method.equals("sendBroadcast(Landroid/content/Intent;)Z");
     }
 
     /**
@@ -54,23 +57,64 @@ public class ReceiverUtils {
             return null;
         }
 
+        /*
+         * A broadcast receiver invocation looks as follows:
+         *
+         * (1) invoke-virtual {v1, v0}, Landroid/content/Context;->sendBroadcast(Landroid/content/Intent;)V
+         * (2) invoke-virtual {v4, v2}, Landroid/support/v4/content/LocalBroadcastManager;->sendBroadcast(Landroid/content/Intent;)Z
+         *
+         * (1) We need to backtrack the intent (register v0) to the location where it was created or setComponentName()
+         * was called. Then, we should be able to retrieve the name of the receiver. Right now we assume that the
+         * last created string constant refers to the receiver name!
+         *
+         * (2) We need to backtrack the intent (register v2) to the location where the action was passed over since
+         * the name of the broadcast receiver is likely not mentioned (dynamic receiver).
+         */
+        final Instruction35c invokeInstruction = (Instruction35c) analyzedInstruction.getInstruction();
+        final String sendBroadcast = invokeInstruction.getReference().toString();
+        final int intentRegister = invokeInstruction.getRegisterD();
+        final boolean isLocalBroadcast = sendBroadcast.startsWith("Landroid/support/v4/content/LocalBroadcastManager;->");
+        Integer actionRegister = null;
+        final Set<BroadcastReceiver> broadcastReceivers = components.stream()
+                .filter(component -> component instanceof BroadcastReceiver)
+                .map(component -> (BroadcastReceiver) component)
+                .collect(Collectors.toSet());
+
         AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
         while (pred.getInstructionIndex() != -1) {
 
-            Instruction predecessor = pred.getInstruction();
+            final Instruction predecessor = pred.getInstruction();
 
-            /*
-            * A broadcast receiver invocation looks as follows:
-            *
-            *      invoke-virtual {v1, v0}, Landroid/content/Context;->sendBroadcast(Landroid/content/Intent;)V
-            *
-            * We need to backtrack the intent (register v0) to the location where it was created or setComponentName()
-            * was called. Then, we should be able to retrieve the name of the receiver. Right now we assume that the
-            * last created string constant refers to the receiver name!
-             */
-            // TODO: improve backtracking!
-            if (predecessor.getOpcode() == Opcode.CONST_STRING || predecessor.getOpcode() == Opcode.CONST_CLASS) {
+            if (isLocalBroadcast) {
+
+                if (InstructionUtils.isInvokeInstruction(pred) && predecessor instanceof Instruction35c) {
+                    // NOTE: setsRegister() only works on the arguments (v4) and not on the calling class argument (v2).
+                    if (((Instruction35c) predecessor).getRegisterC() == intentRegister) {
+                        Instruction35c invocation = (Instruction35c) predecessor;
+                        if (invocation.getReference().toString()
+                                .equals("Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;")) {
+                            // invoke-virtual {v2, v4}, Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;
+                            if (actionRegister == null) {
+                                actionRegister = invocation.getRegisterD();
+                            }
+                        }
+                    }
+                } else if (actionRegister != null && pred.setsRegister(actionRegister)) {
+                    if (predecessor.getOpcode() == Opcode.CONST_STRING || predecessor.getOpcode() == Opcode.CONST_STRING_JUMBO) {
+                        final String action = ((ReferenceInstruction) predecessor).getReference().toString();
+                        final Optional<BroadcastReceiver> receiver = broadcastReceivers.stream()
+                                .filter(BroadcastReceiver::hasAction)
+                                .filter(broadcastReceiver -> broadcastReceiver.getAction().equals(action))
+                                .findAny();
+                        if (receiver.isPresent()) {
+                            return receiver.get();
+                        }
+                    }
+                }
+
+            } else if (predecessor.getOpcode() == Opcode.CONST_STRING || predecessor.getOpcode() == Opcode.CONST_CLASS) {
+                // TODO: Improve backtracking!
 
                 String receiverName = ((Instruction21c) predecessor).getReference().toString();
 
@@ -80,11 +124,9 @@ public class ReceiverUtils {
                  */
                 receiverName = ClassUtils.convertDottedClassName(receiverName);
 
-                Optional<Component> component = ComponentUtils.getComponentByName(components, receiverName);
+                Optional<BroadcastReceiver> component = ComponentUtils.getBroadcastReceiverByName(components, receiverName);
                 if (component.isPresent()) {
-                    if (component.get().getComponentType() == ComponentType.BROADCAST_RECEIVER) {
-                        return (BroadcastReceiver) component.get();
-                    }
+                    return component.get();
                 }
             }
 
@@ -138,7 +180,7 @@ public class ReceiverUtils {
              */
             int registerD = -1;
 
-            if (instruction instanceof Instruction35c) {
+            if (instruction instanceof Instruction35c && InstructionUtils.isInvokeInstruction(instruction)) {
                 registerD = ((Instruction35c) instruction).getRegisterD();
             }
 
@@ -155,11 +197,10 @@ public class ReceiverUtils {
                     if (newInstance.getRegisterA() == registerD) {
 
                         String receiverName = newInstance.getReference().toString();
-                        Optional<Component> component = ComponentUtils.getComponentByName(components, receiverName);
+                        Optional<BroadcastReceiver> component = ComponentUtils.getBroadcastReceiverByName(components, receiverName);
 
-                        if (component.isPresent()
-                                && component.get().getComponentType() == ComponentType.BROADCAST_RECEIVER) {
-                            BroadcastReceiver receiver = (BroadcastReceiver) component.get();
+                        if (component.isPresent()) {
+                            BroadcastReceiver receiver = component.get();
                             LOGGER.debug("Found dynamic receiver: " + receiver);
                             receiver.setDynamicReceiver(true);
                             break;
@@ -172,6 +213,82 @@ public class ReceiverUtils {
                     pred = pred.getPredecessors().first();
                 } else {
                     break;
+                }
+            }
+            // registration via LocalBroadcastManager
+        } else if (targetMethod.endsWith("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)V")) {
+
+            // invoke-virtual {v8, v3, v2}, Landroid/support/v4/content/LocalBroadcastManager;->
+            // registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)V
+
+            if (analyzedInstruction.getPredecessors().isEmpty()) {
+                // broadcast receiver name is defined outside of method context
+                return;
+            }
+
+            if (instruction instanceof Instruction35c && InstructionUtils.isInvokeInstruction(instruction)) {
+
+                // the register in which the broadcast receiver is stored
+                int receiverRegister = ((Instruction35c) instruction).getRegisterD();
+
+                // the register in which the intent filter is stored
+                int intentFilterRegister = ((Instruction35c) instruction).getRegisterE();
+                boolean foundIntentFilterConstructor = false;
+
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                // TODO: There might be theoretically multiple actions per intent filter.
+                // the action described by the intent filter
+                String action = null;
+
+                // We need to backtrack both the receiver and the intent filter (action tag)
+                while (pred.getInstructionIndex() != -1) {
+
+                    final Instruction predecessor = pred.getInstruction();
+
+                    if (pred.setsRegister(intentFilterRegister)) { // backtracking intent filter
+                        if (predecessor instanceof Instruction35c && InstructionUtils.isInvokeInstruction(predecessor)) {
+                            final String methodReference = ((ReferenceInstruction) predecessor).getReference().toString();
+                            if (methodReference.equals("Landroid/content/IntentFilter;-><init>(Ljava/lang/String;)V")) {
+                                // The action is passed to the constructor of the intent filter (v8)
+                                // invoke-direct {v2, v8}, Landroid/content/IntentFilter;-><init>(Ljava/lang/String;)V
+                                intentFilterRegister = ((Instruction35c) predecessor).getRegisterD();
+                                foundIntentFilterConstructor = true;
+                            }
+                            // TODO: The action might be passed via addAction() to the intent filter.
+                        } else if (foundIntentFilterConstructor
+                                && (predecessor.getOpcode() == Opcode.CONST_STRING
+                                || predecessor.getOpcode() == Opcode.CONST_STRING_JUMBO)) {
+                            if (action == null) {
+                                action = ((ReferenceInstruction) predecessor).getReference().toString();
+                            }
+                        }
+                    } else if (pred.setsRegister(receiverRegister)) { // backtracking receiver
+                        if (predecessor.getOpcode() == Opcode.NEW_INSTANCE) {
+                            final Instruction21c newInstance = (Instruction21c) predecessor;
+                            final String receiverName = newInstance.getReference().toString();
+                            final Optional<BroadcastReceiver> component
+                                    = ComponentUtils.getBroadcastReceiverByName(components, receiverName);
+
+                            if (component.isPresent()) {
+                                BroadcastReceiver receiver = component.get();
+                                LOGGER.debug("Found dynamic receiver: " + receiver);
+                                receiver.setDynamicReceiver(true);
+                                if (action != null) {
+                                    receiver.setAction(action);
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+
+                    // consider next predecessor if available
+                    if (!analyzedInstruction.getPredecessors().isEmpty()) {
+                        pred = pred.getPredecessors().first();
+                    } else {
+                        break;
+                    }
                 }
             }
         }

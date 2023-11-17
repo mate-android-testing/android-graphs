@@ -6,6 +6,11 @@ public class BroadcastReceiver extends AbstractComponent {
 
     private boolean isDynamicReceiver;
 
+    /**
+     * The action to which the broadcast reacts.
+     */
+    private String action;
+
     public BroadcastReceiver(ClassDef clazz, ComponentType type) {
         super(clazz, type);
     }
@@ -42,5 +47,32 @@ public class BroadcastReceiver extends AbstractComponent {
 
     public String onUpdateMethod() {
         return getName() + "->onUpdate(Landroid/content/Context;Landroid/appwidget/AppWidgetManager;[I)V";
+    }
+
+    /**
+     * Sets an action through which the broadcast receiver can be triggered.
+     * .
+     * @param action The action to which the broadcast receiver reacts.
+     */
+    public void setAction(String action) {
+        this.action = action;
+    }
+
+    /**
+     * Gets the action to which the broadcast receiver reacts if any.
+     *
+     * @return Returns the action to which the broadcast receiver reacts if any.
+     */
+    public String getAction() {
+        return this.action;
+    }
+
+    /**
+     * Checks whether the broadcast receiver has specified an action.
+     *
+     * @return Returns {@code true} if there is an action, otherwise {@code false}.
+     */
+    public boolean hasAction() {
+        return this.action != null;
     }
 }

@@ -562,7 +562,7 @@ public class InterCFG extends BaseCFG {
                             + instructionIndex + "->sendBroadcast()");
 
                     // integrate constructor of receiver
-                    BaseCFG receiverConstructor = intraCFGs.get(receiver.getDefaultConstructor());
+                    BaseCFG receiverConstructor = intraCFGs.get(receiver.getConstructors().get(0));
                     addEdge(sendBroadcastCFG.getEntry(), receiverConstructor.getEntry());
 
                     if (receiver.isAppWidgetProvider()) {
