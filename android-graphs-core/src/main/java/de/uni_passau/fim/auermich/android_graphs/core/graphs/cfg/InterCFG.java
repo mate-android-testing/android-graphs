@@ -631,6 +631,16 @@ public class InterCFG extends BaseCFG {
                     LOGGER.warn("Couldn't resolve FileFilter for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
+            } else if (MediaPlayerUtils.isMediaPlayerListenerInvocation(overriddenMethod)) {
+                LOGGER.debug("MediaPlayer.setListener() invocation detected: " + overriddenMethod);
+                final String callback = MediaPlayerUtils.getListenerCallback(overriddenMethod,
+                        invokeStmt.getInstruction(), classHierarchy);
+                if (callback != null && intraCFGs.containsKey(callback)) {
+                    targetCFGs.add(intraCFGs.get(callback));
+                } else {
+                    LOGGER.warn("Couldn't resolve MediaPlayer callback for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
             } else {
 
                 if (intraCFGs.containsKey(overriddenMethod)) {
@@ -1678,6 +1688,8 @@ public class InterCFG extends BaseCFG {
                         && !FileUtils.isListFilesInvocation(targetMethod)
                         // we want to resolve animations in any case
                         && !AnimationUtils.isAnimationInvocation(targetMethod)
+                        // we want to resolve media player invocations in any case
+                        && !MediaPlayerUtils.isMediaPlayerListenerInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
