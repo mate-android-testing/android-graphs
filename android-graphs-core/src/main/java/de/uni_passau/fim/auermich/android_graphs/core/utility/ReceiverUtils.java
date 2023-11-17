@@ -11,6 +11,8 @@ import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -43,14 +45,13 @@ public class ReceiverUtils {
     }
 
     /**
-     * Tries to resolve a sendBroadcast() invocation back to the concrete receiver. This is only works if the receiver
-     * was statically defined and the corresponding intent is explicit.
+     * Tries to resolve a sendBroadcast() invocation back to the concrete receiver(s).
      *
      * @param components The set of components.
      * @param analyzedInstruction The sendBroadcast() instruction.
-     * @return Returns the resolved broadcast receiver or {@code null} otherwise.
+     * @return Returns the resolved broadcast receiver(s) or {@code null} otherwise.
      */
-    public static BroadcastReceiver isReceiverInvocation(Set<Component> components, AnalyzedInstruction analyzedInstruction) {
+    public static List<BroadcastReceiver> isReceiverInvocation(Set<Component> components, AnalyzedInstruction analyzedInstruction) {
 
         if (analyzedInstruction.getPredecessors().isEmpty()) {
             // couldn't backtrack receiver invocation to receiver
@@ -103,12 +104,12 @@ public class ReceiverUtils {
                 } else if (actionRegister != null && pred.setsRegister(actionRegister)) {
                     if (predecessor.getOpcode() == Opcode.CONST_STRING || predecessor.getOpcode() == Opcode.CONST_STRING_JUMBO) {
                         final String action = ((ReferenceInstruction) predecessor).getReference().toString();
-                        final Optional<BroadcastReceiver> receiver = broadcastReceivers.stream()
+                        final List<BroadcastReceiver> receivers = broadcastReceivers.stream()
                                 .filter(BroadcastReceiver::hasAction)
                                 .filter(broadcastReceiver -> broadcastReceiver.getAction().equals(action))
-                                .findAny();
-                        if (receiver.isPresent()) {
-                            return receiver.get();
+                                .collect(Collectors.toList());
+                        if (!receivers.isEmpty()) {
+                            return receivers;
                         }
                     }
                 }
@@ -126,7 +127,7 @@ public class ReceiverUtils {
 
                 Optional<BroadcastReceiver> component = ComponentUtils.getBroadcastReceiverByName(components, receiverName);
                 if (component.isPresent()) {
-                    return component.get();
+                    return Collections.singletonList(component.get());
                 }
             }
 

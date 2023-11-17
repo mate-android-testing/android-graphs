@@ -542,10 +542,9 @@ public class InterCFG extends BaseCFG {
             } else if (ReceiverUtils.isReceiverInvocation(overriddenMethod)) {
 
                 LOGGER.debug("BroadcastReceiver invocation detected: " + overriddenMethod);
+                List<BroadcastReceiver> receivers = ReceiverUtils.isReceiverInvocation(components, invokeStmt.getInstruction());
 
-                BroadcastReceiver receiver = ReceiverUtils.isReceiverInvocation(components, invokeStmt.getInstruction());
-
-                if (receiver != null) {
+                if (receivers != null) {
 
                     /*
                      * Depending on whether the receiver is a static or dynamic receiver, the control flow differs.
@@ -561,56 +560,61 @@ public class InterCFG extends BaseCFG {
                     BaseCFG sendBroadcastCFG = emptyCFG(callingMethod + "->"
                             + instructionIndex + "->sendBroadcast()");
 
-                    // integrate constructor of receiver
-                    BaseCFG receiverConstructor = intraCFGs.get(receiver.getConstructors().get(0));
-                    addEdge(sendBroadcastCFG.getEntry(), receiverConstructor.getEntry());
+                    for (final BroadcastReceiver receiver : receivers) {
+
+                        // TODO: Do not invoke the constructor for dynamic/local receivers!
+
+                        // integrate constructor of receiver
+                        BaseCFG receiverConstructor = intraCFGs.get(receiver.getConstructors().get(0));
+                        addEdge(sendBroadcastCFG.getEntry(), receiverConstructor.getEntry());
 
                     if (receiver.isAppWidgetProvider()) {
 
-                        /*
-                         * AppWidgetProvider is a special broadcast receiver that listens potentially to multiple different
-                         * broadcasts and triggers a specific listener method for each broadcast. Moreover, the onReceive()
-                         * method needs not be overridden at all. Since we can't distinguish which broadcast was sent, we
-                         * integrate each available listener method in the subgraph.
-                         */
+                            /*
+                             * AppWidgetProvider is a special broadcast receiver that listens potentially to multiple different
+                             * broadcasts and triggers a specific listener method for each broadcast. Moreover, the onReceive()
+                             * method needs not be overridden at all. Since we can't distinguish which broadcast was sent, we
+                             * integrate each available listener method in the subgraph.
+                             */
 
-                        BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
-                        if (onReceiveCFG != null) {
+                            BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
+                            if (onReceiveCFG != null) {
+                                addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
+                                addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
+                            }
+
+                            BaseCFG onDeletedCFG = intraCFGs.get(receiver.onDeletedMethod());
+                            if (onDeletedCFG != null) {
+                                addEdge(receiverConstructor.getExit(), onDeletedCFG.getEntry());
+                                addEdge(onDeletedCFG.getExit(), sendBroadcastCFG.getExit());
+                            }
+
+                            BaseCFG onEnabledCFG = intraCFGs.get(receiver.onEnabledMethod());
+                            if (onEnabledCFG != null) {
+                                addEdge(receiverConstructor.getExit(), onEnabledCFG.getEntry());
+                                addEdge(onEnabledCFG.getExit(), sendBroadcastCFG.getExit());
+                            }
+
+                            BaseCFG onDisabledCFG = intraCFGs.get(receiver.onDisabledMethod());
+                            if (onDisabledCFG != null) {
+                                addEdge(receiverConstructor.getExit(), onDisabledCFG.getEntry());
+                                addEdge(onDisabledCFG.getExit(), sendBroadcastCFG.getExit());
+                            }
+
+                            BaseCFG onUpdateCFG = intraCFGs.get(receiver.onUpdateMethod());
+                            if (onUpdateCFG != null) {
+                                addEdge(receiverConstructor.getExit(), onUpdateCFG.getEntry());
+                                addEdge(onUpdateCFG.getExit(), sendBroadcastCFG.getExit());
+                            }
+
+                            // TODO: Add further methods of AppWidgetProvider, e.g. onAppWidgetOptionsChanged().
+
+                        } else {
+                            // integrate onReceive() after constructor
+                            BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
                             addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
                             addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
                         }
-
-                        BaseCFG onDeletedCFG = intraCFGs.get(receiver.onDeletedMethod());
-                        if (onDeletedCFG != null) {
-                            addEdge(receiverConstructor.getExit(), onDeletedCFG.getEntry());
-                            addEdge(onDeletedCFG.getExit(), sendBroadcastCFG.getExit());
-                        }
-
-                        BaseCFG onEnabledCFG = intraCFGs.get(receiver.onEnabledMethod());
-                        if (onEnabledCFG != null) {
-                            addEdge(receiverConstructor.getExit(), onEnabledCFG.getEntry());
-                            addEdge(onEnabledCFG.getExit(), sendBroadcastCFG.getExit());
-                        }
-
-                        BaseCFG onDisabledCFG = intraCFGs.get(receiver.onDisabledMethod());
-                        if (onDisabledCFG != null) {
-                            addEdge(receiverConstructor.getExit(), onDisabledCFG.getEntry());
-                            addEdge(onDisabledCFG.getExit(), sendBroadcastCFG.getExit());
-                        }
-
-                        BaseCFG onUpdateCFG = intraCFGs.get(receiver.onUpdateMethod());
-                        if (onUpdateCFG != null) {
-                            addEdge(receiverConstructor.getExit(), onUpdateCFG.getEntry());
-                            addEdge(onUpdateCFG.getExit(), sendBroadcastCFG.getExit());
-                        }
-
-                        // TODO: Add further methods of AppWidgetProvider, e.g. onAppWidgetOptionsChanged().
-
-                    } else {
-                        // integrate onReceive() after constructor
-                        BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
-                        addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
-                        addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
                     }
 
                     targetCFGs.add(sendBroadcastCFG);
