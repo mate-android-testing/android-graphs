@@ -179,41 +179,75 @@ public class ReceiverUtils {
              * We need to backtrack the first argument in order to resolve the receiver name. In above case this is the
              * register v7. Typically, the dynamic receiver is declared by a new-instance instruction.
              */
-            int registerD = -1;
 
             if (instruction instanceof Instruction35c && InstructionUtils.isInvokeInstruction(instruction)) {
-                registerD = ((Instruction35c) instruction).getRegisterD();
-            }
 
-            AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+                int receiverRegister = ((Instruction35c) instruction).getRegisterD();
+                int intentFilterRegister = ((Instruction35c) instruction).getRegisterE();
+                boolean foundIntentFilterConstructor = false;
 
-            while (pred.getInstructionIndex() != -1) {
+                // TODO: There might be theoretically multiple actions per intent filter.
+                // the action described by the intent filter
+                String action = null;
+                BroadcastReceiver receiver = null;
 
-                Instruction predecessor = pred.getInstruction();
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
-                if (predecessor.getOpcode() == Opcode.NEW_INSTANCE) {
+                while (pred.getInstructionIndex() != -1) {
 
-                    Instruction21c newInstance = (Instruction21c) predecessor;
+                    Instruction predecessor = pred.getInstruction();
 
-                    if (newInstance.getRegisterA() == registerD) {
+                    if (pred.setsRegister(intentFilterRegister)) { // backtracking intent filter
+                        if (predecessor instanceof Instruction35c && InstructionUtils.isInvokeInstruction(predecessor)) {
+                            final String methodReference = ((ReferenceInstruction) predecessor).getReference().toString();
+                            if (methodReference.equals("Landroid/content/IntentFilter;-><init>(Ljava/lang/String;)V")) {
+                                // The action is passed to the constructor of the intent filter (v8)
+                                // invoke-direct {v2, v8}, Landroid/content/IntentFilter;-><init>(Ljava/lang/String;)V
+                                intentFilterRegister = ((Instruction35c) predecessor).getRegisterD();
+                                foundIntentFilterConstructor = true;
+                            }
+                            // TODO: The action might be passed via addAction() to the intent filter.
+                        } else if (foundIntentFilterConstructor
+                                && (predecessor.getOpcode() == Opcode.CONST_STRING
+                                || predecessor.getOpcode() == Opcode.CONST_STRING_JUMBO)) {
+                            if (action == null) {
+                                action = ((ReferenceInstruction) predecessor).getReference().toString();
+                                if (receiver != null) {
+                                    receiver.setAction(action);
+                                    break;
+                                }
+                            }
+                        }
+                    } else if (pred.setsRegister(receiverRegister) && receiver == null) { // backtrack receiver
+                        if (predecessor.getOpcode() == Opcode.NEW_INSTANCE) {
 
-                        String receiverName = newInstance.getReference().toString();
-                        Optional<BroadcastReceiver> component = ComponentUtils.getBroadcastReceiverByName(components, receiverName);
+                            final Instruction21c newInstance = (Instruction21c) predecessor;
 
-                        if (component.isPresent()) {
-                            BroadcastReceiver receiver = component.get();
-                            LOGGER.debug("Found dynamic receiver: " + receiver);
-                            receiver.setDynamicReceiver(true);
-                            break;
+                            if (newInstance.getRegisterA() == receiverRegister) {
+
+                                final String receiverName = newInstance.getReference().toString();
+                                final Optional<BroadcastReceiver> component
+                                        = ComponentUtils.getBroadcastReceiverByName(components, receiverName);
+
+                                if (component.isPresent()) {
+                                    receiver = component.get();
+                                    LOGGER.debug("Found dynamic receiver: " + receiver);
+                                    receiver.setDynamicReceiver(true);
+                                    if (action != null) {
+                                        receiver.setAction(action);
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
-                }
 
-                // consider next predecessor if available
-                if (!analyzedInstruction.getPredecessors().isEmpty()) {
-                    pred = pred.getPredecessors().first();
-                } else {
-                    break;
+                    // consider next predecessor if available
+                    if (!analyzedInstruction.getPredecessors().isEmpty()) {
+                        pred = pred.getPredecessors().first();
+                    } else {
+                        break;
+                    }
                 }
             }
             // registration via LocalBroadcastManager
