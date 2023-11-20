@@ -129,11 +129,18 @@ public final class UsageSearch {
     public static Set<Usage> findMethodUsages(APK apk, Method targetMethod) {
 
         LOGGER.debug("Find usages of method: " + targetMethod);
-        Set<Usage> usages = new HashSet<>();
+        final Set<Usage> usages = new HashSet<>();
+
+        final String applicationPackage = apk.getManifest().getPackageName();
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
-                if (ClassUtils.dottedClassName(classDef.toString()).startsWith(apk.getManifest().getPackageName())) {
+                final String dottedClassName = ClassUtils.dottedClassName(classDef.toString());
+                if (dottedClassName.startsWith(applicationPackage)
+                        || (mainActivityPackage != null && dottedClassName.startsWith(mainActivityPackage))) {
                     // only inspect application classes
                     for (Method method : classDef.getMethods()) {
                         MethodImplementation implementation = method.getImplementation();
@@ -243,8 +250,11 @@ public final class UsageSearch {
             return CACHE.get(clazz);
         }
 
-        Set<Usage> usages = new HashSet<>();
-        String applicationPackage = apk.getManifest().getPackageName();
+        final Set<Usage> usages = new HashSet<>();
+        final String applicationPackage = apk.getManifest().getPackageName();
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
 
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
@@ -252,7 +262,8 @@ public final class UsageSearch {
                 boolean foundUsage = false;
                 String className = classDef.toString();
 
-                if (!ClassUtils.dottedClassName(className).startsWith(applicationPackage)) {
+                if (!ClassUtils.dottedClassName(className).startsWith(applicationPackage)
+                        && (mainActivityPackage == null || !ClassUtils.dottedClassName(className).startsWith(mainActivityPackage))) {
                     // don't consider usages outside the application package
                     continue;
                 }
