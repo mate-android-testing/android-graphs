@@ -41,6 +41,10 @@ public class Manifest {
      * @return Returns the parsed manifest file.
      */
     public static Manifest parse(File manifestFile) {
+
+        // TODO: Parse components from manifest!
+        // TODO: Parse intent filters (actions, categories, etc) per component from manifest!
+
         assert manifestFile.exists();
         LOGGER.debug("Parsing AndroidManifest.xml!");
 
