@@ -199,6 +199,11 @@ public class MethodUtils {
         // https://developer.android.com/reference/androidx/fragment/app/Fragment#onRequestPermissionsResult(int,java.lang.String[],int[])
         add("onRequestPermissionsResult(I[Ljava/lang/String;[I)V");
 
+        // https://developer.android.com/reference/android/app/LoaderManager.LoaderCallbacks#summary
+        add("onCreateLoader(ILandroid/os/Bundle;)Landroid/content/Loader;");
+        add("onLoadFinished(Landroid/content/Loader;Ljava/lang/Object;)V");
+        add("onLoaderReset(Landroid/content/Loader;)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
