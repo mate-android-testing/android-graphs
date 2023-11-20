@@ -650,6 +650,15 @@ public class InterCFG extends BaseCFG {
                     LOGGER.warn("Couldn't resolve AudioManager callback for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
+            } else if(PopupMenuUtils.isPopupMenuCreation(overriddenMethod)) {
+                LOGGER.debug("PopupMenu creation detected: " + overriddenMethod);
+                final String callback = PopupMenuUtils.getPopupMenuCallback(invokeStmt.getInstruction(), classHierarchy);
+                if (callback != null && intraCFGs.containsKey(callback)) {
+                    targetCFGs.add(intraCFGs.get(callback));
+                } else {
+                    LOGGER.warn("Couldn't resolve PopupMenu callback for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
             } else {
 
                 if (intraCFGs.containsKey(overriddenMethod)) {
@@ -1725,6 +1734,8 @@ public class InterCFG extends BaseCFG {
                         && !MediaPlayerUtils.isMediaPlayerListenerInvocation(targetMethod)
                         // we want to resolve an audio manager invocation in any case
                         && !AudioManagerUtils.isAudioManagerInvocation(targetMethod)
+                        // we want to resolve pop menu invocations in any case
+                        && !PopupMenuUtils.isPopupMenuCreation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
