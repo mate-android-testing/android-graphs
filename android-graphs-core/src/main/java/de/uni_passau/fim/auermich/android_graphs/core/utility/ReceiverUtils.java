@@ -11,10 +11,11 @@ import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -24,8 +25,60 @@ public class ReceiverUtils {
 
     private static final Logger LOGGER = LogManager.getLogger(ReceiverUtils.class);
 
+    /**
+     * The file containing the system events to which system event receivers can react.
+     */
+    private static final String SYSTEM_EVENTS_FILE = "broadcast_actions.txt";
+
+    /**
+     * The set of system events to which system event receivers react.
+     */
+    private static final Set<String> SYSTEM_EVENTS = loadSystemEvents();
+
     private ReceiverUtils() {
         throw new UnsupportedOperationException("utility class");
+    }
+
+    /**
+     * Loads the system events from the given file.
+     *
+     * @return Returns the set of system events.
+     */
+    private static Set<String> loadSystemEvents() {
+
+        ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+        InputStream inputStream = classLoader.getResourceAsStream(SYSTEM_EVENTS_FILE);
+
+        if (inputStream == null) {
+            LOGGER.warn("Couldn't find system events file!");
+            return Collections.emptySet();
+        }
+
+        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+        String systemEvent;
+        final Set<String> systemEvents = new HashSet<>();
+
+        try {
+            while ((systemEvent = reader.readLine()) != null) {
+                systemEvents.add(systemEvent);
+            }
+            reader.close();
+        } catch (IOException e) {
+            LOGGER.error("Couldn't read from system events file!");
+            e.printStackTrace();
+            return Collections.emptySet();
+        }
+        return systemEvents;
+    }
+
+    /**
+     * Checks whether the given broadcast receiver reacts to system events.
+     *
+     * @param receiver The receiver to be checked.
+     * @return Returns {@code true} if the receiver reacts to system events, otherwise {@code false}.
+     */
+    public static boolean isSystemEventReceiver(final BroadcastReceiver receiver) {
+        return receiver.hasAction() && SYSTEM_EVENTS.contains(receiver.getAction());
     }
 
     /**

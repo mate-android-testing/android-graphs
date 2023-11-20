@@ -568,7 +568,7 @@ public class InterCFG extends BaseCFG {
                         BaseCFG receiverConstructor = intraCFGs.get(receiver.getConstructors().get(0));
                         addEdge(sendBroadcastCFG.getEntry(), receiverConstructor.getEntry());
 
-                    if (receiver.isAppWidgetProvider()) {
+                        if (receiver.isAppWidgetProvider()) {
 
                             /*
                              * AppWidgetProvider is a special broadcast receiver that listens potentially to multiple different
@@ -704,6 +704,14 @@ public class InterCFG extends BaseCFG {
             addAndroidApplicationLifecycle(application, callbackGraphs.get(application.getName()));
             addGlobalEntryAndExitPoint(application);
         });
+
+        // connect broadcast receivers reacting to system events with global entry
+        components.stream().filter(c -> c.getComponentType() == ComponentType.BROADCAST_RECEIVER).forEach(receiverComponent -> {
+            BroadcastReceiver receiver = (BroadcastReceiver) receiverComponent;
+            if (ReceiverUtils.isSystemEventReceiver(receiver)) {
+                addGlobalEntryAndExitPoint(receiver);
+            }
+        });
     }
 
     /**
@@ -721,12 +729,28 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
+     * Connects the global entry and exit with the onReceive() method of system event receiver.
+     *
+     * @param receiver The given system event receiver.
+     */
+    private void addGlobalEntryAndExitPoint(BroadcastReceiver receiver) {
+        final String onReceiveMethod = receiver.onReceiveMethod();
+        final BaseCFG onReceiveCFG = intraCFGs.get(onReceiveMethod);
+        if (onReceiveCFG != null) {
+            addEdge(getEntry(), onReceiveCFG.getEntry());
+            addEdge(onReceiveCFG.getExit(), getExit());
+        } else {
+            LOGGER.warn("Couldn't locate onReceive() method for receiver: " + receiver);
+        }
+    }
+
+    /**
      * Connects the global entry and exit point to the application's constructor methods.
      *
      * @param application The application class.
      */
     private void addGlobalEntryAndExitPoint(Application application) {
-        for (String constructor: application.getConstructors()) {
+        for (String constructor : application.getConstructors()) {
             final BaseCFG applicationConstructor = intraCFGs.get(constructor);
             if (applicationConstructor != null) {
                 addEdge(getEntry(), applicationConstructor.getEntry());
