@@ -204,6 +204,12 @@ public class MethodUtils {
         add("onLoadFinished(Landroid/content/Loader;Ljava/lang/Object;)V");
         add("onLoaderReset(Landroid/content/Loader;)V");
 
+        // https://developer.android.com/reference/android/view/ActionMode.Callback#summary
+        add("onCreateActionMode(Landroid/view/ActionMode;Landroid/view/Menu;)Z");
+        add("onPrepareActionMode(Landroid/view/ActionMode;Landroid/view/Menu;)Z");
+        add("onActionItemClicked(Landroid/view/ActionMode;Landroid/view/MenuItem;)Z");
+        add("onDestroyActionMode(Landroid/view/ActionMode;)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
