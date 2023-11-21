@@ -203,6 +203,9 @@ public class MethodUtils {
         add("onCreateLoader(ILandroid/os/Bundle;)Landroid/content/Loader;");
         add("onLoadFinished(Landroid/content/Loader;Ljava/lang/Object;)V");
         add("onLoaderReset(Landroid/content/Loader;)V");
+        add("onCreateLoader(ILandroid/os/Bundle;)Landroid/support/v4/content/Loader;");
+        add("onLoadFinished(Landroid/support/v4/content/Loader;Landroid/database/Cursor;)V");
+        add("onLoaderReset(Landroid/support/v4/content/Loader;)V");
 
         // https://developer.android.com/reference/android/view/ActionMode.Callback#summary
         add("onCreateActionMode(Landroid/view/ActionMode;Landroid/view/Menu;)Z");
