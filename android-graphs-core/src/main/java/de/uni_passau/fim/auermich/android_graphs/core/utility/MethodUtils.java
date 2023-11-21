@@ -42,7 +42,7 @@ public class MethodUtils {
         add("onEditorAction(Landroid/widget/TextView;ILandroid/view/KeyEvent;)Z");
         add("onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V");
 
-        // interface Landroid/text/TextWatcher;
+        // https://developer.android.com/reference/android/text/TextWatcher#summary
         add("afterTextChanged(Landroid/text/Editable;)V");
         add("beforeTextChanged(Ljava/lang/CharSequence;III)V");
         add("onTextChanged(Ljava/lang/CharSequence;III)V");
@@ -209,6 +209,12 @@ public class MethodUtils {
         add("onPrepareActionMode(Landroid/view/ActionMode;Landroid/view/Menu;)Z");
         add("onActionItemClicked(Landroid/view/ActionMode;Landroid/view/MenuItem;)Z");
         add("onDestroyActionMode(Landroid/view/ActionMode;)V");
+
+        // https://developer.android.com/reference/android/widget/DatePicker.OnDateChangedListener#summary
+        add("onDateChanged(Landroid/widget/DatePicker;III)V");
+
+        // https://developer.android.com/reference/android/widget/CompoundButton.OnCheckedChangeListener#summary
+        add("onCheckedChanged(Landroid/widget/CompoundButton;Z)V");
 
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
