@@ -192,6 +192,7 @@ public class CallTree implements BaseGraph {
             var path = getShortestPath(start, end);
 
             if (path.isEmpty()) {
+                LOGGER.warn("No path between " + start + " and " + end + "!");
                 return Optional.empty();
             } else {
                 paths.add(path.get());
