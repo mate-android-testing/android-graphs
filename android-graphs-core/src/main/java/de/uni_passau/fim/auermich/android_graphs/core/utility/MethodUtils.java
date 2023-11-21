@@ -216,6 +216,12 @@ public class MethodUtils {
         // https://developer.android.com/reference/android/widget/CompoundButton.OnCheckedChangeListener#summary
         add("onCheckedChanged(Landroid/widget/CompoundButton;Z)V");
 
+        // EditText
+        add("onFocusChanged(ZILandroid/graphics/Rect;)V");
+
+        // https://developer.android.com/reference/android/widget/AbsListView.MultiChoiceModeListener#summary
+        add("onItemCheckedStateChanged(Landroid/view/ActionMode;IJZ)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
