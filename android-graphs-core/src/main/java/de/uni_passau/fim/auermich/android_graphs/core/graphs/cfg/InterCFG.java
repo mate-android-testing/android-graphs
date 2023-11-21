@@ -695,6 +695,15 @@ public class InterCFG extends BaseCFG {
                 }
 
                 targetCFGs.add(callbacks);
+            } else if (ThreadUtils.isPostDelayMethod(overriddenMethod)) {
+                LOGGER.debug("View.postDelay() invocation detected: " + overriddenMethod);
+                final String callback = ThreadUtils.getPostDelayCallback(invokeStmt.getInstruction(), classHierarchy);
+                if (callback != null && intraCFGs.containsKey(callback)) {
+                    targetCFGs.add(intraCFGs.get(callback));
+                } else {
+                    LOGGER.warn("Couldn't resolve Thread callback for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
             } else {
 
                 if (intraCFGs.containsKey(overriddenMethod)) {
@@ -1772,6 +1781,8 @@ public class InterCFG extends BaseCFG {
                         && !AudioManagerUtils.isAudioManagerInvocation(targetMethod)
                         // we want to resolve pop menu invocations in any case
                         && !PopupMenuUtils.isPopupMenuCreation(targetMethod)
+                        // we want to resolve thread invocations in any case
+                        && !ThreadUtils.isPostDelayMethod(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
