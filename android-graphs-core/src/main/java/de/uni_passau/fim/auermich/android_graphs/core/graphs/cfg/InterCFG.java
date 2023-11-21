@@ -1075,7 +1075,7 @@ public class InterCFG extends BaseCFG {
         for (Fragment fragment : fragments) {
 
             // connect the onCreate of the activity with the fragment constructor
-            final String constructor = fragment.getDefaultConstructor();
+            final String constructor = fragment.getConstructors().get(0);
             BaseCFG fragmentConstructorCFG = intraCFGs.get(constructor);
             addEdge(onCreateCFG.getExit(), fragmentConstructorCFG.getEntry());
 
