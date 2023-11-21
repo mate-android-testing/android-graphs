@@ -88,7 +88,7 @@ public class InterCFG extends BaseCFG {
         this.properties = new Properties(useBasicBlocks, excludeARTClasses, resolveOnlyAUTClasses);
         this.apk = apk;
         constructCFG(apk);
-        removeDisconnectedVertices();
+        removeDisconnectedVertices(); // ensures that lookup fails for disconnected vertices
     }
 
     /**
@@ -650,7 +650,7 @@ public class InterCFG extends BaseCFG {
                     LOGGER.warn("Couldn't resolve AudioManager callback for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
-            } else if(PopupMenuUtils.isPopupMenuCreation(overriddenMethod)) {
+            } else if (PopupMenuUtils.isPopupMenuCreation(overriddenMethod)) {
                 LOGGER.debug("PopupMenu creation detected: " + overriddenMethod);
                 final String callback = PopupMenuUtils.getPopupMenuCallback(invokeStmt.getInstruction(), classHierarchy);
                 if (callback != null && intraCFGs.containsKey(callback)) {
@@ -659,6 +659,42 @@ public class InterCFG extends BaseCFG {
                     LOGGER.warn("Couldn't resolve PopupMenu callback for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
+            } else if (overriddenMethod.endsWith("->getWritableDatabase()Landroid/database/sqlite/SQLiteDatabase;")
+                    || overriddenMethod.endsWith("->getReadableDatabase()Landroid/database/sqlite/SQLiteDatabase;")) {
+                LOGGER.debug("Database creation detected: " + overriddenMethod);
+
+                final String className = MethodUtils.getClassName(overriddenMethod);
+                final BaseCFG callbacks = emptyCFG("callbacks " + overriddenMethod);
+
+                final String onCreateMethod = className + "->" + "onCreate(Landroid/database/sqlite/SQLiteDatabase;)V";
+                if (intraCFGs.containsKey(onCreateMethod)) {
+                    final BaseCFG onCreateCFG = intraCFGs.get(onCreateMethod);
+                    addEdge(callbacks.getEntry(), onCreateCFG.getEntry());
+                    addEdge(onCreateCFG.getExit(), callbacks.getExit());
+                }
+
+                final String onOpenMethod = className + "->" + "onOpen(Landroid/database/sqlite/SQLiteDatabase;)V";
+                if (intraCFGs.containsKey(onOpenMethod)) {
+                    final BaseCFG onOpenCFG = intraCFGs.get(onOpenMethod);
+                    addEdge(callbacks.getEntry(), onOpenCFG.getEntry());
+                    addEdge(onOpenCFG.getExit(), callbacks.getExit());
+                }
+
+                final String onUpgradeMethod = className + "->" + "onUpgrade(Landroid/database/sqlite/SQLiteDatabase;II)V";
+                if (intraCFGs.containsKey(onUpgradeMethod)) {
+                    final BaseCFG onUpgradeCFG = intraCFGs.get(onUpgradeMethod);
+                    addEdge(callbacks.getEntry(), onUpgradeCFG.getEntry());
+                    addEdge(onUpgradeCFG.getExit(), callbacks.getExit());
+                }
+
+                final String onDowngradeMethod = className + "->" + "onDowngrade(Landroid/database/sqlite/SQLiteDatabase;II)V";
+                if (intraCFGs.containsKey(onDowngradeMethod)) {
+                    final BaseCFG onDowngradeCFG = intraCFGs.get(onDowngradeMethod);
+                    addEdge(callbacks.getEntry(), onDowngradeCFG.getEntry());
+                    addEdge(onDowngradeCFG.getExit(), callbacks.getExit());
+                }
+
+                targetCFGs.add(callbacks);
             } else {
 
                 if (intraCFGs.containsKey(overriddenMethod)) {
