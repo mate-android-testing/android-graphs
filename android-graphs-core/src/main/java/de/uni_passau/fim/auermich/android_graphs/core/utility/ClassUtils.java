@@ -167,7 +167,8 @@ public class ClassUtils {
             String simpleClassName = tokens[1].split("\\$")[0];
             return packageName + simpleClassName + ";";
         } else {
-            return className.split("\\$")[0] + ";";
+            // NOTE: There can be multiple nested classes, e.g., Lorg/dmfs/tasks/groupings/BySearch$2$1;.
+            return className.substring(0, className.lastIndexOf('$')) + ";";
         }
     }
 
