@@ -32,17 +32,17 @@ public final class UsageSearch {
         /**
          * The class that makes use of the looked up class/method.
          */
-        private ClassDef clazz;
+        private final ClassDef clazz;
 
         /**
          * The method that makes use of the looked up class/method.
          */
-        private Method method;
+        private final Method method;
 
         /**
          * The instruction that makes use of the looked up class/method.
          */
-        private AnalyzedInstruction instruction;
+        private final AnalyzedInstruction instruction;
 
         public Usage(ClassDef clazz) {
             this(clazz, null, null);
@@ -148,7 +148,7 @@ public final class UsageSearch {
                             List<AnalyzedInstruction> instructions = MethodUtils.getAnalyzedInstructions(dexFile, method);
                             for (AnalyzedInstruction instruction : instructions) {
                                 if (InstructionUtils.isInvokeInstruction(instruction)) {
-                                    String invokeTarget = ((ReferenceInstruction) instruction.getInstruction())
+                                    final String invokeTarget = ((ReferenceInstruction) instruction.getInstruction())
                                             .getReference().toString();
                                     if (invokeTarget.equals(MethodUtils.deriveMethodSignature(targetMethod))) {
                                         Usage usage = new Usage(classDef, method, instruction);
@@ -183,16 +183,16 @@ public final class UsageSearch {
             return CACHE.get(clazz);
         }
 
-        Set<Usage> totalUsages = new HashSet<>();
-        Set<String> classes = new HashSet<>();
+        final Set<Usage> totalUsages = new LinkedHashSet<>(); // save them in order
+        final Set<String> classes = new HashSet<>();
         classes.add(clazz);
 
         for (int level = 0; level < maxLevel; level++) {
 
-            Set<String> newClasses = new HashSet<>();
+            final Set<String> newClasses = new HashSet<>();
 
             for (String className : classes) {
-                Set<Usage> usages = findClassUsages(apk, className);
+                final Set<Usage> usages = findClassUsages(apk, className);
                 totalUsages.addAll(usages);
                 // search for transitive usages in subsequent iterations
                 usages.forEach(usage -> newClasses.add(usage.clazz.toString()));
