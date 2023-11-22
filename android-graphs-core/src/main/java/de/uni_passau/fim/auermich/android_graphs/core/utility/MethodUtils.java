@@ -225,6 +225,10 @@ public class MethodUtils {
         // https://developer.android.com/reference/android/widget/AbsListView.MultiChoiceModeListener#summary
         add("onItemCheckedStateChanged(Landroid/view/ActionMode;IJZ)V");
 
+        // https://developer.android.com/reference/android/widget/AdapterView.OnItemSelectedListener#summary
+        add("onItemSelected(Landroid/widget/AdapterView;Landroid/view/View;IJ)V");
+        add("onNothingSelected(Landroid/widget/AdapterView;)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
