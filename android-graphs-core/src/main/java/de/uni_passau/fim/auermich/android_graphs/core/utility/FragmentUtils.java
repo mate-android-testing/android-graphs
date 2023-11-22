@@ -254,6 +254,44 @@ public class FragmentUtils {
                     }
                 }
             }
+            // convenience method to add an fragment
+        } else if (targetMethod.endsWith("->show(Landroid/support/v4/app/FragmentManager;Ljava/lang/String;)V")) {
+
+            // NOTE: Retrieving the activity to which the fragment belongs is a mere heuristic. Ideally we should try
+            // to backtrack the invocation instead of relying upon (direct and indirect) usages.
+
+            // fragment name is encoded in the invocation call
+            final String fragmentName = MethodUtils.getClassName(targetMethod);
+            final Optional<Fragment> fragmentComponent
+                    = ComponentUtils.getFragmentByName(components, fragmentName);
+
+            if (ClassUtils.isInnerClass(classDef.toString())) {
+
+                final String outerClassName = ClassUtils.getOuterClass(classDef.toString());
+
+                // TODO: The fragment invocation might be arbitrarily nested, thus it remains unclear which lookup level
+                //  should be chosen for the (indirect) usages.
+
+                // TODO: A plain usage does not guarantee that an activity is really making use of the fragment.
+
+                // check which application classes make direct or indirect use of the given class
+                final Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, outerClassName, 2);
+
+                // check whether any found class represents an activity
+                for (UsageSearch.Usage usage : usages) {
+
+                    final String clazzName = usage.getClazz().toString();
+                    final Optional<Activity> activityComponent = ComponentUtils.getActivityByName(components, clazzName);
+
+                    // TODO: There are potentially several activities that make use of the fragment but the call to
+                    //  show() actually refers only to a single activity.
+                    if (activityComponent.isPresent() && fragmentComponent.isPresent()) {
+                        final Activity activity = activityComponent.get();
+                        final Fragment fragment = fragmentComponent.get();
+                        activity.addHostingFragment(fragment);
+                    }
+                }
+            }
         }
     }
 
