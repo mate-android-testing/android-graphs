@@ -148,9 +148,12 @@ public class ReceiverUtils {
                     // NOTE: setsRegister() only works on the arguments (v4) and not on the calling class argument (v2).
                     if (((Instruction35c) predecessor).getRegisterC() == intentRegister) {
                         Instruction35c invocation = (Instruction35c) predecessor;
-                        if (invocation.getReference().toString()
-                                .equals("Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;")) {
+                        final String reference = invocation.getReference().toString();
+                        if (reference.equals("Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;")
+                            || reference.equals("Landroid/content/Intent;-><init>(Ljava/lang/String;)V")) {
                             // invoke-virtual {v2, v4}, Landroid/content/Intent;->setAction(Ljava/lang/String;)Landroid/content/Intent;
+                            // or
+                            // invoke-direct {v0, v1}, Landroid/content/Intent;-><init>(Ljava/lang/String;)V
                             if (actionRegister == null) {
                                 actionRegister = invocation.getRegisterD();
                             }
@@ -239,7 +242,7 @@ public class ReceiverUtils {
 
                 int receiverRegister = ((Instruction35c) instruction).getRegisterD();
                 int intentFilterRegister = ((Instruction35c) instruction).getRegisterE();
-                boolean foundIntentFilterConstructor = false;
+                boolean foundIntentFilter = false;
 
                 // TODO: There might be theoretically multiple actions per intent filter.
                 // the action described by the intent filter
@@ -259,10 +262,13 @@ public class ReceiverUtils {
                                 // The action is passed to the constructor of the intent filter (v8)
                                 // invoke-direct {v2, v8}, Landroid/content/IntentFilter;-><init>(Ljava/lang/String;)V
                                 intentFilterRegister = ((Instruction35c) predecessor).getRegisterD();
-                                foundIntentFilterConstructor = true;
+                                foundIntentFilter = true;
+                            } else if (methodReference.equals("Landroid/content/IntentFilter;->addAction(Ljava/lang/String;)V")) {
+                                // The action is passed via the addAction() method to the intent filter (v8)
+                                // invoke-virtual {v0, v8}, Landroid/content/IntentFilter;->addAction(Ljava/lang/String;)V
+                                foundIntentFilter = true;
                             }
-                            // TODO: The action might be passed via addAction() to the intent filter.
-                        } else if (foundIntentFilterConstructor
+                        } else if (foundIntentFilter
                                 && (predecessor.getOpcode() == Opcode.CONST_STRING
                                 || predecessor.getOpcode() == Opcode.CONST_STRING_JUMBO)) {
                             if (action == null) {
@@ -305,6 +311,7 @@ public class ReceiverUtils {
                     }
                 }
             }
+            // TODO: Merge with above implementation!
             // registration via LocalBroadcastManager
         } else if (targetMethod.endsWith("registerReceiver(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)V")) {
 
@@ -323,13 +330,16 @@ public class ReceiverUtils {
 
                 // the register in which the intent filter is stored
                 int intentFilterRegister = ((Instruction35c) instruction).getRegisterE();
-                boolean foundIntentFilterConstructor = false;
+                boolean foundIntentFilter = false;
 
                 AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
                 // TODO: There might be theoretically multiple actions per intent filter.
                 // the action described by the intent filter
                 String action = null;
+
+                // TODO: It is not guaranteed that the intent filter (action) is declared after the broadcast receiver!
+                //  Consider the approach implemented above.
 
                 // We need to backtrack both the receiver and the intent filter (action tag)
                 while (pred.getInstructionIndex() != -1) {
@@ -343,10 +353,13 @@ public class ReceiverUtils {
                                 // The action is passed to the constructor of the intent filter (v8)
                                 // invoke-direct {v2, v8}, Landroid/content/IntentFilter;-><init>(Ljava/lang/String;)V
                                 intentFilterRegister = ((Instruction35c) predecessor).getRegisterD();
-                                foundIntentFilterConstructor = true;
+                                foundIntentFilter = true;
+                            } else if (methodReference.equals("Landroid/content/IntentFilter;->addAction(Ljava/lang/String;)V")) {
+                                // The action is passed via the addAction() method to the intent filter (v8)
+                                // invoke-virtual {v0, v8}, Landroid/content/IntentFilter;->addAction(Ljava/lang/String;)V
+                                foundIntentFilter = true;
                             }
-                            // TODO: The action might be passed via addAction() to the intent filter.
-                        } else if (foundIntentFilterConstructor
+                        } else if (foundIntentFilter
                                 && (predecessor.getOpcode() == Opcode.CONST_STRING
                                 || predecessor.getOpcode() == Opcode.CONST_STRING_JUMBO)) {
                             if (action == null) {
