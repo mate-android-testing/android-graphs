@@ -127,7 +127,9 @@ public class ReceiverUtils {
         final Instruction35c invokeInstruction = (Instruction35c) analyzedInstruction.getInstruction();
         final String sendBroadcast = invokeInstruction.getReference().toString();
         final int intentRegister = invokeInstruction.getRegisterD();
-        final boolean isLocalBroadcast = sendBroadcast.startsWith("Landroid/support/v4/content/LocalBroadcastManager;->");
+        final boolean isLocalBroadcast
+                = sendBroadcast.startsWith("Landroid/support/v4/content/LocalBroadcastManager;->")
+                || sendBroadcast.startsWith("Landroidx/localbroadcastmanager/content/LocalBroadcastManager;->");
         Integer actionRegister = null;
         final Set<BroadcastReceiver> broadcastReceivers = components.stream()
                 .filter(component -> component instanceof BroadcastReceiver)
