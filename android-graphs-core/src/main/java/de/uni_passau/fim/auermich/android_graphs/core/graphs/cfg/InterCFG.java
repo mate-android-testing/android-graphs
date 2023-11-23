@@ -434,60 +434,67 @@ public class InterCFG extends BaseCFG {
                  * Only the doInBackground() method is mandatory.
                  */
 
-                String className = MethodUtils.getClassName(overriddenMethod);
-                BaseCFG asyncTaskCFG = emptyCFG(overriddenMethod);
-                CFGVertex last = asyncTaskCFG.getEntry();
+                final String asyncTaskClass = AsyncTaskUtils.getAsyncTaskClass(callingClass, invokeStmt.getInstruction(), classHierarchy);
+                if (asyncTaskClass != null) {
 
-                // optional
-                String onPreExecuteMethod = classHierarchy
-                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPreExecuteMethod(className));
-                if (onPreExecuteMethod != null && intraCFGs.containsKey(onPreExecuteMethod)) {
-                    BaseCFG onPreExecuteCFG = intraCFGs.get(onPreExecuteMethod);
-                    addEdge(asyncTaskCFG.getEntry(), onPreExecuteCFG.getEntry());
-                    last = onPreExecuteCFG.getExit();
+                    // TODO: Make the AsyncTask callback unique (not unique due to inheritance)!
+                    BaseCFG asyncTaskCFG = emptyCFG("callbacks " + asyncTaskClass);
+                    CFGVertex last = asyncTaskCFG.getEntry();
+
+                    // optional
+                    final String onPreExecuteMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPreExecuteMethod(asyncTaskClass));
+                    if (onPreExecuteMethod != null && intraCFGs.containsKey(onPreExecuteMethod)) {
+                        BaseCFG onPreExecuteCFG = intraCFGs.get(onPreExecuteMethod);
+                        addEdge(asyncTaskCFG.getEntry(), onPreExecuteCFG.getEntry());
+                        last = onPreExecuteCFG.getExit();
+                    }
+
+                    // mandatory
+                    final String doInBackgroundMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getDoInBackgroundMethod(asyncTaskClass));
+                    BaseCFG doInBackgroundCFG = intraCFGs.get(doInBackgroundMethod);
+
+                    if (doInBackgroundCFG == null || !intraCFGs.containsKey(doInBackgroundMethod)) {
+                        throw new IllegalStateException("AsyncTask without doInBackgroundTask() method: " + overriddenMethod);
+                    }
+
+                    addEdge(last, doInBackgroundCFG.getEntry());
+                    last = doInBackgroundCFG.getExit();
+
+                    // optional
+                    final String onProgressUpdateMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnProgressUpdateMethod(asyncTaskClass));
+                    if (onProgressUpdateMethod != null && intraCFGs.containsKey(onProgressUpdateMethod)) {
+                        BaseCFG onProgressUpdateCFG = intraCFGs.get(onProgressUpdateMethod);
+                        addEdge(last, onProgressUpdateCFG.getEntry());
+                        last = onProgressUpdateCFG.getExit();
+                    }
+
+                    // optional
+                    final String onPostExecuteMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPostExecuteMethod(asyncTaskClass));
+                    if (onPostExecuteMethod != null && intraCFGs.containsKey(onPostExecuteMethod)) {
+                        BaseCFG onPostExecuteCFG = intraCFGs.get(onPostExecuteMethod);
+                        addEdge(last, onPostExecuteCFG.getEntry());
+                        last = onPostExecuteCFG.getExit();
+                    }
+
+                    // optional
+                    final String onCancelledMethod = classHierarchy
+                            .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnCancelledMethod(asyncTaskClass));
+                    if (onCancelledMethod != null && intraCFGs.containsKey(onCancelledMethod)) {
+                        BaseCFG onCancelledCFG = intraCFGs.get(onCancelledMethod);
+                        addEdge(last, onCancelledCFG.getEntry());
+                        last = onCancelledCFG.getExit();
+                    }
+
+                    addEdge(last, asyncTaskCFG.getExit());
+                    targetCFGs.add(asyncTaskCFG);
+                } else {
+                    LOGGER.warn("Couldn't resolve AsyncTask for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
                 }
-
-                // mandatory
-                String doInBackgroundMethod = classHierarchy
-                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getDoInBackgroundMethod(className));
-                BaseCFG doInBackgroundCFG = intraCFGs.get(doInBackgroundMethod);
-
-                if (doInBackgroundCFG == null || !intraCFGs.containsKey(doInBackgroundMethod)) {
-                    throw new IllegalStateException("AsyncTask without doInBackgroundTask() method: " + overriddenMethod);
-                }
-
-                addEdge(last, doInBackgroundCFG.getEntry());
-                last = doInBackgroundCFG.getExit();
-
-                // optional
-                String onProgressUpdateMethod = classHierarchy
-                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnProgressUpdateMethod(className));
-                if (onProgressUpdateMethod != null && intraCFGs.containsKey(onProgressUpdateMethod)) {
-                    BaseCFG onProgressUpdateCFG = intraCFGs.get(onProgressUpdateMethod);
-                    addEdge(last, onProgressUpdateCFG.getEntry());
-                    last = onProgressUpdateCFG.getExit();
-                }
-
-                // optional
-                String onPostExecuteMethod = classHierarchy
-                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnPostExecuteMethod(className));
-                if (onPostExecuteMethod != null && intraCFGs.containsKey(onPostExecuteMethod)) {
-                    BaseCFG onPostExecuteCFG = intraCFGs.get(onPostExecuteMethod);
-                    addEdge(last, onPostExecuteCFG.getEntry());
-                    last = onPostExecuteCFG.getExit();
-                }
-
-                // optional
-                String onCancelledMethod = classHierarchy
-                        .invokedByCurrentClassOrAnySuperClass(AsyncTaskUtils.getOnCancelledMethod(className));
-                if (onCancelledMethod != null && intraCFGs.containsKey(onCancelledMethod)) {
-                    BaseCFG onCancelledCFG = intraCFGs.get(onCancelledMethod);
-                    addEdge(last, onCancelledCFG.getEntry());
-                    last = onCancelledCFG.getExit();
-                }
-
-                addEdge(last, asyncTaskCFG.getExit());
-                targetCFGs.add(asyncTaskCFG);
             } else if (AnimationUtils.isAnimationInvocation(overriddenMethod)) {
 
                 LOGGER.debug("Animation invocation detected: " + overriddenMethod);
