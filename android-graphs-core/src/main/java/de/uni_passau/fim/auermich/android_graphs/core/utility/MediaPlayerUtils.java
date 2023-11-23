@@ -23,7 +23,7 @@ public final class MediaPlayerUtils {
 
     // TODO: Add additional registration, listener and callback for MediaPlayer class.
 
-    private static Map<String, String> REGISTRATION_METHOD_TO_LISTENER_MAPPING = new HashMap<>(){{
+    private static final Map<String, String> REGISTRATION_METHOD_TO_LISTENER_MAPPING = new HashMap<>(){{
        put("Landroid/media/MediaPlayer;->setOnBufferingUpdateListener(Landroid/media/MediaPlayer$OnBufferingUpdateListener;)V",
                "Landroid/media/MediaPlayer$OnBufferingUpdateListener;");
        put("Landroid/media/MediaPlayer;->setOnInfoListener(Landroid/media/MediaPlayer$OnInfoListener;)V",
@@ -34,7 +34,7 @@ public final class MediaPlayerUtils {
                "Landroid/media/MediaPlayer$OnErrorListener;");
     }};
 
-    private static Map<String, String> LISTENER_TO_CALLBACK_MAPPING = new HashMap<>(){{
+    private static final Map<String, String> LISTENER_TO_CALLBACK_MAPPING = new HashMap<>(){{
         put("Landroid/media/MediaPlayer$OnBufferingUpdateListener;", "onBufferingUpdate(Landroid/media/MediaPlayer;I)V");
         put("Landroid/media/MediaPlayer$OnInfoListener;", "onInfo(Landroid/media/MediaPlayer;II)Z");
         put("Landroid/media/MediaPlayer$OnPreparedListener;", "onPrepared(Landroid/media/MediaPlayer;)V");
