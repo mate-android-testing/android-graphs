@@ -300,6 +300,21 @@ public class ReceiverUtils {
                                     }
                                 }
                             }
+                        } else if (predecessor.getOpcode() == Opcode.IGET_OBJECT) {
+                            // The broadcast receiver might be retrieved from an instance variable:
+                            // iget-object v1, p0, Lcom/ichi2/anki/DeckOptions;->mUnmountReceiver:Landroid/content/BroadcastReceiver;
+                            final String reference = ((ReferenceInstruction) predecessor).getReference().toString();
+                            final String className = reference.split("->")[0];
+                            final String variableName = reference.split("->")[1].split(":")[0];
+                            final String returnType = reference.split(":")[1];
+
+                            // TODO: Check if the return type can be any subclass of 'BroadcastReceiver'.
+                            if (returnType.equals("Landroid/content/BroadcastReceiver;")) {
+                                // TODO: Locate where the instance variable has been written. In most cases this is the
+                                //  constructor but in fact it could be any method (hopefully inside of the given class).
+                                LOGGER.warn("Backtracking instance variable of broadcast receiver is not yet supported!");
+                                break;
+                            }
                         }
                     }
 
@@ -382,9 +397,23 @@ public class ReceiverUtils {
                                 }
                                 break;
                             }
+                        } else if (predecessor.getOpcode() == Opcode.IGET_OBJECT) {
+                            // The broadcast receiver might be retrieved from an instance variable:
+                            // iget-object v1, p0, Lcom/ichi2/anki/DeckOptions;->mUnmountReceiver:Landroid/content/BroadcastReceiver;
+                            final String reference = ((ReferenceInstruction) predecessor).getReference().toString();
+                            final String className = reference.split("->")[0];
+                            final String variableName = reference.split("->")[1].split(":")[0];
+                            final String returnType = reference.split(":")[1];
+
+                            // TODO: Check if the return type can be any subclass of 'BroadcastReceiver'.
+                            if (returnType.equals("Landroid/content/BroadcastReceiver;")) {
+                                // TODO: Locate where the instance variable has been written. In most cases this is the
+                                //  constructor but in fact it could be any method (hopefully inside of the given class).
+                                LOGGER.warn("Backtracking instance variable of broadcast receiver is not yet supported!");
+                                break;
+                            }
                         }
                     }
-
 
                     // consider next predecessor if available
                     if (!analyzedInstruction.getPredecessors().isEmpty()) {
