@@ -157,11 +157,21 @@ public class ClassHierarchy {
      * Returns the inner classes of the given class.
      *
      * @param className The class name for which the inner classes should be looked up.
-     * @return Returns the inner classes or {@code null} if the class is not present.
+     * @return Returns the inner classes of the given class.
      */
     public Set<ClassDef> getInnerClasses(String className) {
         Class clazz = classHierarchy.get(className);
-        return clazz != null ? clazz.getInnerClasses() : null;
+        return clazz != null ? clazz.getInnerClasses() : Collections.emptySet();
+    }
+
+    /**
+     * Returns the inner classes of the given class.
+     *
+     * @param classDef The class for which the inner classes should be looked up.
+     * @return Returns the inner classes of the given class.
+     */
+    public Set<ClassDef> getInnerClasses(ClassDef classDef) {
+        return classDef != null ? getInnerClasses(classDef.toString()) : Collections.emptySet();
     }
 
     public void addClass(ClassDef classDef) {
