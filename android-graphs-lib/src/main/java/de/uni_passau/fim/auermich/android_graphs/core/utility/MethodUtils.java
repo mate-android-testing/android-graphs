@@ -235,6 +235,14 @@ public class MethodUtils {
         add("onItemSelected(Landroid/widget/AdapterView;Landroid/view/View;IJ)V");
         add("onNothingSelected(Landroid/widget/AdapterView;)V");
 
+        // https://developer.android.com/reference/android/location/LocationListener#summary
+        add("onLocationChanged(Landroid/location/Location;)V");
+        add("onLocationChanged(Ljava/util/List;)V");
+        add("onFlushComplete(I)V");
+        add("onProviderDisabled(Ljava/lang/String;)V");
+        add("onProviderEnabled(Ljava/lang/String;)V");
+        add("onStatusChanged(Ljava/lang/String;ILandroid/os/Bundle;)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
