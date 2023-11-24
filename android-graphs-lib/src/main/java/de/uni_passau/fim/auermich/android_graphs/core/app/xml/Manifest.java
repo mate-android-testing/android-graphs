@@ -9,6 +9,7 @@ import org.dom4j.Node;
 import org.dom4j.io.SAXReader;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -22,16 +23,26 @@ public class Manifest {
 
     private final String mainActivity;
     private final String packageName;
+    private final List<String> activities;
+    private final List<String> services;
+    private final List<String> receivers;
 
     /**
      * Creates a new manifest with the given package name and main activity.
      *
      * @param packageName The package name.
      * @param mainActivity The name of the main activity.
+     * @param activities The list of activities.
+     * @param services The list of services.
+     * @param receivers The list of receivers.
      */
-    private Manifest(final String packageName, final String mainActivity) {
+    private Manifest(final String packageName, final String mainActivity, final List<String> activities,
+                     final List<String> services, final List<String> receivers) {
         this.packageName = packageName;
         this.mainActivity = mainActivity;
+        this.activities = activities;
+        this.services = services;
+        this.receivers = receivers;
     }
 
     /**
@@ -42,7 +53,6 @@ public class Manifest {
      */
     public static Manifest parse(File manifestFile) {
 
-        // TODO: Parse components from manifest!
         // TODO: Parse intent filters (actions, categories, etc) per component from manifest!
 
         assert manifestFile.exists();
@@ -57,17 +67,23 @@ public class Manifest {
             LOGGER.error("Couldn't load AndroidManifest.xml!");
             throw new IllegalStateException("Couldn't load AndroidManifest.xml!");
         }
-        Element rootElement = document.getRootElement();
+
+        final Element rootElement = document.getRootElement();
 
         String packageName = rootElement.attributeValue("package");
         if (packageName != null) {
             LOGGER.debug("Package name: " + packageName);
         }
 
-        AtomicReference<String> mainActivity = new AtomicReference<>(null);
+        final List<String> activities = new ArrayList<>();
+        final AtomicReference<String> mainActivity = new AtomicReference<>(null);
 
-        List<Node> activities = rootElement.selectNodes("application/activity");
-        activities.forEach(activityNode -> {
+        List<Node> activityNodes = rootElement.selectNodes("application/activity");
+        activityNodes.forEach(activityNode -> {
+
+            final Element activityTag = (Element) activityNode;
+            final String activityName = getFullyQualifiedName(packageName, activityTag.attributeValue("name"));
+            activities.add(activityName);
 
             // only traverse activities unless we found main activity
             if (mainActivity.get() == null) {
@@ -96,13 +112,8 @@ public class Manifest {
                     });
 
                     if (containsMainActivityAction.get() && containsMainActivityCategory.get()) {
-                        Element activityTag = (Element) activityNode;
-                        String activityName = activityTag.attributeValue("name");
-                        if (activityName != null) {
-                                activityName = getFullyQualifiedName(packageName, activityName);
-                                LOGGER.debug("MainActivity: " + activityName);
-                                mainActivity.set(activityName);
-                        }
+                        LOGGER.debug("MainActivity: " + activityName);
+                        mainActivity.set(activityName);
                     }
                 });
             }
@@ -155,8 +166,26 @@ public class Manifest {
             });
         }
 
+        // parse services
+        final List<String> services = new ArrayList<>();
+        List<Node> serviceNodes = rootElement.selectNodes("application/service");
+        serviceNodes.forEach(serviceNode -> {
+            final Element serviceTag = (Element) serviceNode;
+            final String serviceName = getFullyQualifiedName(packageName, serviceTag.attributeValue("name"));
+            services.add(serviceName);
+        });
+
+        // parse broadcast receivers
+        final List<String> receivers = new ArrayList<>();
+        List<Node> receiverNodes = rootElement.selectNodes("application/receiver");
+        receiverNodes.forEach(receiverNode -> {
+            final Element receiverTag = (Element) receiverNode;
+            final String receiverName = getFullyQualifiedName(packageName, receiverTag.attributeValue("name"));
+            receivers.add(receiverName);
+        });
+
         // NOTE: There can be apps without a dedicated main activity.
-        return new Manifest(packageName, mainActivity.get());
+        return new Manifest(packageName, mainActivity.get(), activities, services, receivers);
     }
 
     /**
@@ -193,5 +222,32 @@ public class Manifest {
      */
     public String getPackageName() {
         return packageName;
+    }
+
+    /**
+     * Returns the activities declared in the manifest.
+     *
+     * @return Returns the activities declared in the manifest.
+     */
+    public List<String> getActivities() {
+        return activities;
+    }
+
+    /**
+     * Returns the services declared in the manifest.
+     *
+     * @return Returns the services declared in the manifest.
+     */
+    public List<String> getServices() {
+        return services;
+    }
+
+    /**
+     * Returns the broadcast receivers declared in the manifest.
+     *
+     * @return Returns the broadcast receivers declared in the manifest.
+     */
+    public List<String> getReceivers() {
+        return receivers;
     }
 }

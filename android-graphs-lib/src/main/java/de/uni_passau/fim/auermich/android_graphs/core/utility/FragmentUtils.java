@@ -205,7 +205,7 @@ public class FragmentUtils {
         // track which fragments are hosted by which activity
         if (isFragmentInvocation(targetMethod)) {
 
-            // check whether fragment is defined within given method, i.e. a local call to the fragment ctr
+            // check whether fragment is defined within given method, i.e. a local call to the fragment constructor
             String fragmentName = isFragmentInvocation(analyzedInstruction);
 
             if (fragmentName != null) {
