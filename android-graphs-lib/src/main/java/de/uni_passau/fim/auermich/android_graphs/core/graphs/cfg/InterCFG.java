@@ -776,6 +776,16 @@ public class InterCFG extends BaseCFG {
                 addGlobalEntryAndExitPoint(receiver);
             }
         });
+
+        // connect broadcast receivers declared in manifest with global entry
+        apk.getManifest().getReceivers().forEach(receiverName -> {
+            final Optional<BroadcastReceiver> receiverComponent
+                    = ComponentUtils.getBroadcastReceiverByName(components, ClassUtils.convertDottedClassName(receiverName));
+            if (receiverComponent.isPresent()) {
+                BroadcastReceiver receiver = receiverComponent.get();
+                addGlobalEntryAndExitPoint(receiver);
+            }
+        });
     }
 
     /**
@@ -793,18 +803,30 @@ public class InterCFG extends BaseCFG {
     }
 
     /**
-     * Connects the global entry and exit with the onReceive() method of system event receiver.
+     * Connects the global entry and exit with the constructor and onReceive() method of the given broadcast receiver.
      *
-     * @param receiver The given system event receiver.
+     * @param receiver The broadcast receiver that should be integrated.
      */
     private void addGlobalEntryAndExitPoint(BroadcastReceiver receiver) {
-        final String onReceiveMethod = receiver.onReceiveMethod();
-        final BaseCFG onReceiveCFG = intraCFGs.get(onReceiveMethod);
-        if (onReceiveCFG != null) {
-            addEdge(getEntry(), onReceiveCFG.getEntry());
-            addEdge(onReceiveCFG.getExit(), getExit());
-        } else {
-            LOGGER.warn("Couldn't locate onReceive() method for receiver: " + receiver);
+        for (String constructor : receiver.getConstructors()) {
+            final BaseCFG receiverConstructor = intraCFGs.get(constructor);
+            if (receiverConstructor != null) {
+
+                addEdge(getEntry(), receiverConstructor.getEntry());
+
+                final String onReceiveMethod = receiver.onReceiveMethod();
+                final BaseCFG onReceiveCFG = intraCFGs.get(onReceiveMethod);
+                if (onReceiveCFG != null) {
+                    addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
+                    addEdge(onReceiveCFG.getExit(), getExit());
+                } else {
+                    addEdge(receiverConstructor.getExit(), getExit());
+                    LOGGER.warn("Couldn't locate onReceive() method for receiver: " + receiver);
+                }
+
+            } else {
+                LOGGER.warn("Not integrated class constructor: " + constructor);
+            }
         }
     }
 
