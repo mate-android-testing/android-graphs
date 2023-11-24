@@ -22,6 +22,7 @@ public class Activity extends AbstractComponent {
         menus.put(onCreateMenuMethod, menuItems);
     }
 
+    // Accessed from MATE-Server!
     public Map<Method, List<MenuItemWithResolvedTitle>> getMenus() {
         return menus;
     }

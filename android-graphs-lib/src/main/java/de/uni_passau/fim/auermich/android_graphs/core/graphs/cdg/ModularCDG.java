@@ -156,6 +156,7 @@ public class ModularCDG extends BaseCFG {
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
 
+        final String packageName = apk.getManifest().getPackageName();
         final String mainActivity = apk.getManifest().getMainActivity();
         final String mainActivityPackage = mainActivity != null
                 ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
@@ -165,7 +166,7 @@ public class ModularCDG extends BaseCFG {
 
                 final String className = ClassUtils.dottedClassName(classDef.toString());
 
-                if (properties.resolveOnlyAUTClasses && !className.startsWith(apk.getManifest().getPackageName())
+                if (properties.resolveOnlyAUTClasses && !ClassUtils.isApplicationClass(packageName, className)
                         && (mainActivityPackage == null || !className.startsWith(mainActivityPackage))) {
                     // don't resolve classes not belonging to AUT
                     continue;
@@ -1022,10 +1023,10 @@ public class ModularCDG extends BaseCFG {
 
         final Instruction instruction = invokeStmt.getInstruction().getInstruction();
         final String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
-        final String className = MethodUtils.getClassName(targetMethod);
+        final String className = ClassUtils.dottedClassName(MethodUtils.getClassName(targetMethod));
 
-        if (properties.resolveOnlyAUTClasses && !ClassUtils.dottedClassName(className).startsWith(packageName)
-                && (mainActivityPackage == null || !ClassUtils.dottedClassName(className).startsWith(mainActivityPackage))) {
+        if (properties.resolveOnlyAUTClasses && !ClassUtils.isApplicationClass(packageName, className)
+                && (mainActivityPackage == null || !className.startsWith(mainActivityPackage))) {
             // don't resolve invocation to non AUT classes
             return null;
         }

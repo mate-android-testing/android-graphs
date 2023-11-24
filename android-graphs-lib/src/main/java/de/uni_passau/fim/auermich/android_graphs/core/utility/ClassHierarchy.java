@@ -331,7 +331,7 @@ public class ClassHierarchy {
 
                     if (properties.resolveOnlyAUTClasses) {
                         final String dottedClassName = ClassUtils.dottedClassName(MethodUtils.getClassName(superMethod));
-                        if (!dottedClassName.startsWith(packageName)
+                        if (!ClassUtils.isApplicationClass(packageName, dottedClassName)
                                 && (mainActivityPackage == null || !dottedClassName.startsWith(mainActivityPackage))) {
                             LOGGER.debug("Super class method " + superMethod + " that shouldn't be resolved!");
                             /*

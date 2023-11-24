@@ -1,7 +1,9 @@
 package de.uni_passau.fim.auermich.android_graphs.core.graphs;
 
-import static org.junit.jupiter.api.Assertions.*;
-
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
+import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.DummyCFG;
+import de.uni_passau.fim.auermich.android_graphs.core.statements.EntryStatement;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -9,10 +11,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.BaseCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.CFGVertex;
-import de.uni_passau.fim.auermich.android_graphs.core.graphs.cfg.DummyCFG;
-import de.uni_passau.fim.auermich.android_graphs.core.statements.EntryStatement;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class BaseCFGTest {
     private BaseCFG subject;

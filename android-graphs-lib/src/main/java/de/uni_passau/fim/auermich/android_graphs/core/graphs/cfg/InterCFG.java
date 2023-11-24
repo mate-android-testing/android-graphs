@@ -173,7 +173,10 @@ public class InterCFG extends BaseCFG {
                 .collect(Collectors.toSet());
         // We basically remove here a complete subgraph and thus need to update the intraCFGs reference, otherwise a
         // lookup of a trace will succeed although the actual vertex has been removed.
-        toDelete.stream().forEach(vertex -> intraCFGs.remove(vertex.getMethod()));
+        toDelete.stream().forEach(vertex -> {
+            LOGGER.debug("Removing method: " + vertex.getMethod());
+            intraCFGs.remove(vertex.getMethod());
+        });
         graph.removeAllVertices(toDelete);
     }
 
@@ -1764,7 +1767,7 @@ public class InterCFG extends BaseCFG {
                  * However, we need to resolve component invocation, reflection calls, and
                  * overridden methods in any case.
                  */
-                if (((properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
+                if (((properties.resolveOnlyAUTClasses && !ClassUtils.isApplicationClass(packageName, className)
                         && (mainActivityPackage == null || !className.startsWith(mainActivityPackage)))
                         || ClassUtils.isArrayType(className)
                         || (MethodUtils.isARTMethod(targetMethod) && properties.excludeARTClasses)
@@ -1883,7 +1886,7 @@ public class InterCFG extends BaseCFG {
             // TODO: Update exclusion rules to be consistent with basic block interCFG!
 
             // don't resolve non AUT classes if requested
-            if (properties.resolveOnlyAUTClasses && !className.startsWith(packageName)
+            if (properties.resolveOnlyAUTClasses && !ClassUtils.isApplicationClass(packageName, className)
                     && (mainActivityPackage == null || !className.startsWith(mainActivityPackage))
                     // we have to resolve component invocations in any case, see the code below
                     && !ComponentUtils.isComponentInvocation(components, targetMethod)
@@ -1961,6 +1964,7 @@ public class InterCFG extends BaseCFG {
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
 
+        final String packageName = apk.getManifest().getPackageName();
         final String mainActivity = apk.getManifest().getMainActivity();
         final String mainActivityPackage = mainActivity != null
                 ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
@@ -1970,7 +1974,7 @@ public class InterCFG extends BaseCFG {
 
                 String className = ClassUtils.dottedClassName(classDef.toString());
 
-                if (properties.resolveOnlyAUTClasses && (!className.startsWith(apk.getManifest().getPackageName())
+                if (properties.resolveOnlyAUTClasses && (!ClassUtils.isApplicationClass(packageName, className)
                         && (mainActivityPackage == null || !className.startsWith(mainActivityPackage)))) {
                     // don't resolve classes not belonging to AUT
                     continue;
@@ -2375,6 +2379,7 @@ public class InterCFG extends BaseCFG {
         int callbacks = 0;
         int resourceClassMethods = 0;
 
+        final String packageName = apk.getManifest().getPackageName();
         final String mainActivity = apk.getManifest().getMainActivity();
         final String mainActivityPackage = mainActivity != null
                 ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
@@ -2382,8 +2387,8 @@ public class InterCFG extends BaseCFG {
         for (BaseCFG cfg : intraCFGs.values()) {
             String className = ClassUtils.dottedClassName(MethodUtils.getClassName(cfg.getMethodName()));
             if (getIncomingEdges(cfg.getEntry()).isEmpty()
-                    && (className.startsWith(apk.getManifest().getPackageName())
-            || className.startsWith(mainActivityPackage))) {
+                    && (ClassUtils.isApplicationClass(packageName, className)
+                    || (mainActivityPackage != null && className.startsWith(mainActivityPackage)))) {
 
                 String methodName = cfg.getMethodName();
 

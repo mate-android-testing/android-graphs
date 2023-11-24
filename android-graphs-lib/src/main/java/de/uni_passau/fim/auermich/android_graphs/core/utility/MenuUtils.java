@@ -68,6 +68,8 @@ public class MenuUtils {
         return Stream.of(
                 "onCreateContextMenu(Landroid/view/ContextMenu;Landroid/view/View;Landroid/view/ContextMenu$ContextMenuInfo;)V",
                 "onCreateOptionsMenu(Landroid/view/Menu;)Z"
+                // TODO: Handle also menus from fragments!
+                // "onCreateOptionsMenu(Landroid/view/Menu;Landroid/view/MenuInflater;)V"
         ).anyMatch(method::endsWith);
     }
 

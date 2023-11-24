@@ -1,3 +1,3 @@
 rootProject.name = 'android-graphs'
 include 'android-graphs-cli'
-include 'android-graphs-core'
+include 'android-graphs-lib'

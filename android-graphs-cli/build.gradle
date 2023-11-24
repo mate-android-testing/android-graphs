@@ -5,7 +5,7 @@ plugins {
 }
 
 dependencies {
-    implementation project(':android-graphs-core')
+    implementation project(':android-graphs-lib')
 
     // https://mvnrepository.com/artifact/com.beust/jcommander
     implementation group: 'com.beust', name: 'jcommander', version: '1.81'

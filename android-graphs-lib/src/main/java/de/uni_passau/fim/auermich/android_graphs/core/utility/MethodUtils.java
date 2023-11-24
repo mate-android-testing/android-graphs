@@ -75,6 +75,12 @@ public class MethodUtils {
         // Landroid/content/SharedPreferences$OnSharedPreferenceChangeListener;
         add("onSharedPreferenceChanged(Landroid/content/SharedPreferences;Ljava/lang/String;)V");
 
+        // https://developer.android.com/reference/androidx/fragment/app/Fragment#onCreateOptionsMenu(android.view.Menu,android.view.MenuInflater)
+        add("onCreateOptionsMenu(Landroid/view/Menu;Landroid/view/MenuInflater;)V");
+
+        // https://developer.android.com/reference/androidx/fragment/app/Fragment#setHasOptionsMenu(boolean)
+        add("setHasOptionsMenu(Z)V");
+
         // https://developer.android.com/reference/android/app/Activity#onCreateOptionsMenu(android.view.Menu)
         add("onCreateOptionsMenu(Landroid/view/Menu;)Z");
 
