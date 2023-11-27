@@ -472,10 +472,12 @@ public class ComponentUtils {
         // consumes the class usages and checks for view pager fragment usages of activities
         final List<Consumer<Multimap<String, String>>> viewPagerFragmentUsages = new LinkedList<>();
 
+        // TODO: Avoid deriving class usages two times, see 'classUsages' vs UsageSearch.findClassUsages()!
+
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
-                // TODO: track usages defined by interfaces
+                // TODO: Track usages defined by interfaces.
 
                 final String className = classDef.toString();
                 final String dottedClassName = ClassUtils.dottedClassName(className);
@@ -485,6 +487,8 @@ public class ComponentUtils {
                     // don't look at 3rd party classes
                     continue;
                 }
+
+                // TODO: Define a class usage between outer class and nested inner classes, e.g. Activity$FragmentA$FragmentB.
 
                 // an outer class has a direct relation to its inner class, e.g. ActivityA$FragmentA
                 if (ClassUtils.isInnerClass(className)) {

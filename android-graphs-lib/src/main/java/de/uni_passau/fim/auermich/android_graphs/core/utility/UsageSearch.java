@@ -278,6 +278,9 @@ public final class UsageSearch {
                     continue;
                 }
 
+                // TODO: We should probably rethink this. An outer class is typically using an inner class. At least,
+                //  this is not consistent the way we define class usages in ComponentUtils.checkComponentRelations().
+                //  Moreover, we should take in account the following case: 'outerClass$InnerClass1$InnerClass2'.
                 if (ClassUtils.isInnerClass(className)) {
                     if (clazz.equals(ClassUtils.getOuterClass(className))) {
                         // any inner class of the given class is also not relevant
