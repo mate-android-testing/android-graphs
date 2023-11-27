@@ -174,6 +174,14 @@ public class FragmentUtils {
                 fragments.add(fragment);
                 return fragments;
             }
+        } else if (predecessor.setsRegister(fragmentRegisterID) && predecessor.getInstruction().getOpcode() == Opcode.IGET_OBJECT) {
+            // Fragment is stored in (instance) variable:
+            // iget-object v9, p0, Lnet/exclaimindustries/geohashdroid/util/ExpeditionMode;
+            //                    ->mExtraFragment:Lnet/exclaimindustries/geohashdroid/fragments/CentralMapExtraFragment;
+            final String reference = ((ReferenceInstruction) predecessor.getInstruction()).getReference().toString();
+            final String fragment = reference.split(":")[1];
+            fragments.add(fragment);
+            return fragments;
         }
 
         // check all predecessors
@@ -194,35 +202,63 @@ public class FragmentUtils {
      * @param classDef The class in which the invocation happens.
      * @param method The method defining the invocation.
      * @param analyzedInstruction The fragment invocation instruction.
+     * @param classHierarchy A mapping from class name to its class.
      */
     public static void checkForFragmentInvocation(final APK apk, final Set<Component> components,
                                                   final ClassDef classDef, final String method,
-                                                  final AnalyzedInstruction analyzedInstruction) {
+                                                  final AnalyzedInstruction analyzedInstruction,
+                                                  final ClassHierarchy classHierarchy) {
 
-        Instruction instruction = analyzedInstruction.getInstruction();
-        String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+        final Instruction instruction = analyzedInstruction.getInstruction();
+        final String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
 
-        // track which fragments are hosted by which activity
+        // check whether the invocation refers to a fragment invocation
         if (isFragmentInvocation(targetMethod)) {
 
-            // check whether fragment is defined within given method, i.e. a local call to the fragment constructor
-            String fragmentName = isFragmentInvocation(analyzedInstruction);
+            // resolve fragment invocation back to fragment if possible
+            final String fragmentName = isFragmentInvocation(analyzedInstruction);
+            final Optional<Fragment> fragmentComponent = ComponentUtils.getFragmentByName(components, fragmentName);
 
-            if (fragmentName != null) {
+            if (fragmentName != null && fragmentComponent.isPresent()) {
+                // find activity that hosts the given fragment
+
+                // in most cases the class invoking the fragment is an activity itself
                 String activityName = MethodUtils.getClassName(method);
+                Optional<Activity> activityComponent = ComponentUtils.getActivityByName(components, activityName);
 
-                Optional<Component> activityComponent = ComponentUtils.getComponentByName(components, activityName);
-                Optional<Component> fragmentComponent = ComponentUtils.getComponentByName(components, fragmentName);
+                if (activityComponent.isEmpty()) { // check direct usages for being activity classes
+                    for (UsageSearch.Usage usage : UsageSearch.findClassUsages(apk, activityName)) {
+                        activityName = usage.getClazz().toString();
+                        activityComponent = ComponentUtils.getActivityByName(components, activityName);
+                        if (activityComponent.isPresent()) {
+                            // TODO: There might be multiple activity classes, the first one might be not the correct one.
+                            break;
+                        }
+                    }
+                }
 
-                if (activityComponent.isPresent()
-                        && activityComponent.get().getComponentType() == ComponentType.ACTIVITY
-                        && fragmentComponent.isPresent()) {
-                    Activity activity = (Activity) activityComponent.get();
-                    Fragment fragment = (Fragment) fragmentComponent.get();
+                if (activityComponent.isPresent()) {
+
+                    // add fragment to activity
+                    final Activity activity = activityComponent.get();
+                    final Fragment fragment = fragmentComponent.get();
                     activity.addHostingFragment(fragment);
+
+                    // The fragment class might be abstract or represent some base fragment class. Since it is not possible
+                    // in all circumstances to derive the concrete fragment class, we should over-approximate here and
+                    // include all concrete fragment sub classes.
+                    for (ClassDef subFragmentClass : classHierarchy.getSubClasses(fragmentName)) {
+                        final String subFragmentName = subFragmentClass.toString();
+                        final Optional<Fragment> subFragmentComponent = ComponentUtils.getFragmentByName(components, subFragmentName);
+                        if (subFragmentComponent.isPresent()) {
+                            final Fragment subFragment = subFragmentComponent.get();
+                            activity.addHostingFragment(subFragment);
+                        }
+                    }
+
                 } else {
                     // TODO: Handle nested fragments.
-                    LOGGER.warn("Couldn't assign fragment " + fragmentName + " to activity: " + activityName);
+                    LOGGER.warn("Couldn't assign fragment " + fragmentName + " to activity within class: " + activityName);
                 }
             }
             // fragments can also be defined via setContentView()
