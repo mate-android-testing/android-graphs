@@ -38,7 +38,7 @@ public class FragmentUtils {
         add("Landroid/app/FragmentTransaction;->" +
                 "replace(ILandroid/app/Fragment;)Landroid/app/FragmentTransaction;");
         add("Landroid/app/FragmentTransaction;->" +
-                "replace(ILandroid/app/Fragment;L/java/lang/String;)Landroid/app/FragmentTransaction;");
+                "replace(ILandroid/app/Fragment;Ljava/lang/String;)Landroid/app/FragmentTransaction;");
         add("Landroidx/fragment/app/FragmentTransaction;->" +
                 "add(ILandroidx/fragment/app/Fragment;Ljava/lang/String;)Landroidx/fragment/app/FragmentTransaction;");
         add("Landroid/support/v4/app/FragmentTransaction;->" +
