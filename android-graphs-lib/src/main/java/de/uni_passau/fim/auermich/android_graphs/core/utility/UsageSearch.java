@@ -259,6 +259,8 @@ public final class UsageSearch {
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
+                // TODO: Define a usage to any outer class and take in account the following case: 'outerClass$InnerClass1$InnerClass2'.
+
                 boolean foundUsage = false;
                 String className = classDef.toString();
 
@@ -278,12 +280,14 @@ public final class UsageSearch {
                     continue;
                 }
 
-                // TODO: We should probably rethink this. An outer class is typically using an inner class. At least,
-                //  this is not consistent the way we define class usages in ComponentUtils.checkComponentRelations().
-                //  Moreover, we should take in account the following case: 'outerClass$InnerClass1$InnerClass2'.
+                // TODO: We should probably rethink this. Although it is common that the outer class is using the inner
+                //  class, e.g. as part of a callback specification, there is also sometimes a back reference from the
+                //  inner to the outer class, in particular when we think about the somewhat strange handling of lambda
+                //  callbacks.
                 if (ClassUtils.isInnerClass(className)) {
                     if (clazz.equals(ClassUtils.getOuterClass(className))) {
-                        // any inner class of the given class is also not relevant
+                        // Any inner class of the given class is also not relevant, i.e. the outer class is using the
+                        // inner class but not vice versa!
                         continue;
                     }
                 }
