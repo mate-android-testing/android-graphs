@@ -723,6 +723,41 @@ public class InterCFG extends BaseCFG {
                     LOGGER.warn("Couldn't resolve TimerTask callback for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
+            } else if (JobSchedulerUtils.isScheduleMethod(overriddenMethod)) {
+                LOGGER.debug("JobScheduler.schedule() invocation detected: " + overriddenMethod);
+                final String jobServiceClassName
+                        = JobSchedulerUtils.getJobServiceClassName(invokeStmt.getInstruction(), classHierarchy);
+                if (jobServiceClassName != null) {
+
+                    final BaseCFG callbacks = emptyCFG("callbacks " + jobServiceClassName);
+
+                    // mandatory
+                    final String onJobStartMethod = JobSchedulerUtils.getOnJobStartMethod(jobServiceClassName);
+                    if (intraCFGs.containsKey(onJobStartMethod)) {
+                        final BaseCFG onJobStartCFG = intraCFGs.get(onJobStartMethod);
+                        addEdge(callbacks.getEntry(), onJobStartCFG.getEntry());
+
+                        // mandatory
+                        final String onJobStopMethod = JobSchedulerUtils.getOnJobStopMethod(jobServiceClassName);
+                        if (intraCFGs.containsKey(onJobStopMethod)) {
+                            final BaseCFG onJobStopCFG = intraCFGs.get(onJobStopMethod);
+                            addEdge(onJobStartCFG.getExit(), onJobStopCFG.getEntry());
+                            addEdge(onJobStopCFG.getExit(), callbacks.getExit());
+                        } else {
+                            LOGGER.warn("Job without onJobStop() method: " + jobServiceClassName);
+                            addEdge(onJobStartCFG.getExit(), callbacks.getExit());
+                        }
+                    } else {
+                        LOGGER.warn("Job without onJobStart() method: " + jobServiceClassName);
+                        addEdge(callbacks.getEntry(), callbacks.getExit());
+                    }
+
+                    targetCFGs.add(callbacks);
+
+                } else {
+                    LOGGER.warn("Couldn't resolve Job class for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
             } else {
 
                 if (intraCFGs.containsKey(overriddenMethod)) {
@@ -1826,6 +1861,8 @@ public class InterCFG extends BaseCFG {
                         && !ThreadUtils.isPostDelayMethod(targetMethod)
                         // we want to resolve thread invocations in any case
                         && !ThreadUtils.isScheduleMethod(targetMethod)
+                        // we want to resolve JobScheduler invocations in any case
+                        && !JobSchedulerUtils.isScheduleMethod(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
