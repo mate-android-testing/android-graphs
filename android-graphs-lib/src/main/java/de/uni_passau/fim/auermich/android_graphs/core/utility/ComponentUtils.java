@@ -465,6 +465,9 @@ public class ComponentUtils {
         final Multimap<String, String> classUsages = ArrayListMultimap.create();
 
         final String applicationPackage = apk.getManifest().getPackageName();
+        final String mainActivity = apk.getManifest().getMainActivity();
+        final String mainActivityPackage = mainActivity != null
+                ? mainActivity.substring(0, mainActivity.lastIndexOf('.')) : null;
 
         // consumes the class usages and checks for view pager fragment usages of activities
         final List<Consumer<Multimap<String, String>>> viewPagerFragmentUsages = new LinkedList<>();
@@ -475,9 +478,10 @@ public class ComponentUtils {
                 // TODO: track usages defined by interfaces
 
                 final String className = classDef.toString();
+                final String dottedClassName = ClassUtils.dottedClassName(className);
 
-                if (!ClassUtils.dottedClassName(className).startsWith(applicationPackage)) {
-                    // TODO: Find here a better heuristic!
+                if (!ClassUtils.isApplicationClass(applicationPackage, dottedClassName)
+                        && (mainActivityPackage == null || !dottedClassName.startsWith(mainActivityPackage))) {
                     // don't look at 3rd party classes
                     continue;
                 }
@@ -491,8 +495,10 @@ public class ComponentUtils {
 
                 // check the references to other application classes
                 for (Field field : classDef.getFields()) {
-                    if (ClassUtils.dottedClassName(field.getType()).startsWith(applicationPackage)) {
-                        if (!className.equals(field.getType())) {
+                    final String dottedFieldName = ClassUtils.dottedClassName(field.getType());
+                    if (ClassUtils.isApplicationClass(applicationPackage, dottedFieldName)
+                            || (mainActivityPackage != null && dottedFieldName.startsWith(mainActivityPackage))) {
+                        if (!className.equals(field.getType())) { // ignore self references
                             classUsages.put(className, field.getType());
                         }
                     }
@@ -504,16 +510,20 @@ public class ComponentUtils {
 
                     // check the method parameters for references
                     for (MethodParameter parameter : method.getParameters()) {
-                        if (ClassUtils.dottedClassName(parameter.getType()).startsWith(applicationPackage)) {
-                            if (!className.equals(parameter.getType())) {
+                        final String dottedParameterName = ClassUtils.dottedClassName(parameter.getType());
+                        if (ClassUtils.isApplicationClass(applicationPackage, dottedParameterName)
+                                || (mainActivityPackage != null && dottedParameterName.startsWith(mainActivityPackage))) {
+                            if (!className.equals(parameter.getType())) { // ignore self references
                                 classUsages.put(className, parameter.getType());
                             }
                         }
                     }
 
                     // check method return value
-                    if (ClassUtils.dottedClassName(method.getReturnType()).startsWith(applicationPackage)) {
-                        if (!className.equals(method.getReturnType())) {
+                    final String dottedReturnTypeName = ClassUtils.dottedClassName(method.getReturnType());
+                    if (ClassUtils.isApplicationClass(applicationPackage, dottedReturnTypeName)
+                            || (mainActivityPackage != null && dottedReturnTypeName.startsWith(mainActivityPackage))) {
+                        if (!className.equals(method.getReturnType())) { // ignore self references
                             classUsages.put(className, method.getReturnType());
                         }
                     }
@@ -531,18 +541,52 @@ public class ComponentUtils {
                             if (instruction.getOpcode() == Opcode.NEW_INSTANCE) {
                                 // check constructor call
                                 final Instruction21c newInstance = (Instruction21c) instruction;
-                                final String targetClass = newInstance.getReference().toString();
-                                if (ClassUtils.dottedClassName(targetClass).startsWith(applicationPackage)) {
-                                    if (!className.equals(targetClass)) {
-                                        // don't track self references
-                                        classUsages.put(className, targetClass);
+                                final String targetClassName = newInstance.getReference().toString();
+                                final String dottedTargetClassName = ClassUtils.dottedClassName(targetClassName);
+                                if (ClassUtils.isApplicationClass(applicationPackage, dottedTargetClassName)
+                                        || (mainActivityPackage != null && dottedTargetClassName.startsWith(mainActivityPackage))) {
+                                    if (!className.equals(targetClassName)) { // ignore self references
+                                        classUsages.put(className, targetClassName);
                                     }
                                 }
                             } else if (InstructionUtils.isInvokeInstruction(instruction)) {
 
+                                final String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
+
+                                // check defining class (called class)
+                                final String definingClassName = MethodUtils.getClassName(invokeCall);
+                                final String dottedDefiningClassName = ClassUtils.dottedClassName(definingClassName);
+                                if (ClassUtils.isApplicationClass(applicationPackage, dottedDefiningClassName)
+                                        || (mainActivityPackage != null && dottedDefiningClassName.startsWith(mainActivityPackage))) {
+                                    if (!className.equals(definingClassName)) { // ignore self references
+                                        classUsages.put(className, definingClassName);
+                                    }
+                                }
+
+                                if (ClassUtils.isInnerClass(definingClassName)) {
+                                    // every inner class has per default a relation to its outer class
+                                    final String outerClassName = ClassUtils.getOuterClass(definingClassName);
+                                    if (ClassUtils.isApplicationClass(applicationPackage, outerClassName)
+                                            || (mainActivityPackage != null && outerClassName.startsWith(mainActivityPackage))) {
+                                        if (!className.equals(outerClassName)) { // ignore self references
+                                            classUsages.put(className, outerClassName);
+                                        }
+                                    }
+                                }
+
+                                // check return type
+                                final String returnType = MethodUtils.getReturnType(invokeCall);
+                                final String dottedReturnType = ClassUtils.dottedClassName(returnType);
+                                if (ClassUtils.isApplicationClass(applicationPackage, dottedReturnType)
+                                        || (mainActivityPackage != null && dottedReturnType.startsWith(mainActivityPackage))) {
+                                    if (!className.equals(returnType)) { // ignore self references
+                                        classUsages.put(className, returnType);
+                                    }
+                                }
+
                                 // check for fragment invocation
                                 FragmentUtils.checkForFragmentInvocation(apk, components, classDef,
-                                        fullyQualifiedMethodName, analyzedInstruction);
+                                        fullyQualifiedMethodName, analyzedInstruction, classHierarchy);
 
                                 // check for fragment view pager usages
                                 viewPagerFragmentUsages.add(FragmentUtils.checkForFragmentViewPager(components,
@@ -555,43 +599,14 @@ public class ComponentUtils {
                                 // check for dynamic broadcast receiver registration
                                 ReceiverUtils.checkForDynamicReceiverRegistration(components, analyzedInstruction);
 
-                                final String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
-
-                                // check defining class (called class)
-                                final String definingClass = MethodUtils.getClassName(invokeCall);
-                                if (ClassUtils.dottedClassName(definingClass).startsWith(applicationPackage)) {
-                                    if (!className.equals(definingClass)) {
-                                        // don't track self references
-                                        classUsages.put(className, definingClass);
-                                    }
-                                }
-
-                                if (ClassUtils.isInnerClass(definingClass)) {
-                                    // every inner class has per default a relation to its outer class
-                                    final String outerClass = ClassUtils.getOuterClass(definingClass);
-                                    if (ClassUtils.dottedClassName(outerClass).startsWith(applicationPackage)) {
-                                        if (!className.equals(outerClass)) {
-                                            // don't track self references
-                                            classUsages.put(className, outerClass);
-                                        }
-                                    }
-                                }
-
-                                // check return type
-                                final String returnType = MethodUtils.getReturnType(invokeCall);
-                                if (ClassUtils.dottedClassName(returnType).startsWith(applicationPackage)) {
-                                    if (!className.equals(returnType)) {
-                                        // don't track self references
-                                        classUsages.put(className, returnType);
-                                    }
-                                }
                             } else if (instruction.getOpcode() == Opcode.CONST_CLASS) {
                                 final Instruction21c constClass = (Instruction21c) instruction;
-                                final String targetClass = constClass.getReference().toString();
-                                if (ClassUtils.dottedClassName(targetClass).startsWith(applicationPackage)) {
-                                    if (!className.equals(targetClass)) {
-                                        // don't track self references
-                                        classUsages.put(className, targetClass);
+                                final String targetClassName = constClass.getReference().toString();
+                                final String dottedTargetClassName = ClassUtils.dottedClassName(targetClassName);
+                                if (ClassUtils.isApplicationClass(applicationPackage, dottedTargetClassName)
+                                        || (mainActivityPackage != null && dottedTargetClassName.startsWith(mainActivityPackage))) {
+                                    if (!className.equals(targetClassName)) { // ignore self references
+                                        classUsages.put(className, targetClassName);
                                     }
                                 }
                             }
