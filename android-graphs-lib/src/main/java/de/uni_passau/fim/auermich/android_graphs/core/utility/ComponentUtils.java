@@ -549,6 +549,16 @@ public class ComponentUtils {
                                         classUsages.put(className, targetClassName);
                                     }
                                 }
+                            } else if (instruction.getOpcode() == Opcode.CONST_CLASS) {
+                                final Instruction21c constClass = (Instruction21c) instruction;
+                                final String targetClassName = constClass.getReference().toString();
+                                final String dottedTargetClassName = ClassUtils.dottedClassName(targetClassName);
+                                if (ClassUtils.isApplicationClass(applicationPackage, dottedTargetClassName)
+                                        || (mainActivityPackage != null && dottedTargetClassName.startsWith(mainActivityPackage))) {
+                                    if (!className.equals(targetClassName)) { // ignore self references
+                                        classUsages.put(className, targetClassName);
+                                    }
+                                }
                             } else if (InstructionUtils.isInvokeInstruction(instruction)) {
 
                                 final String invokeCall = ((ReferenceInstruction) instruction).getReference().toString();
@@ -598,17 +608,6 @@ public class ComponentUtils {
 
                                 // check for dynamic broadcast receiver registration
                                 ReceiverUtils.checkForDynamicReceiverRegistration(components, analyzedInstruction);
-
-                            } else if (instruction.getOpcode() == Opcode.CONST_CLASS) {
-                                final Instruction21c constClass = (Instruction21c) instruction;
-                                final String targetClassName = constClass.getReference().toString();
-                                final String dottedTargetClassName = ClassUtils.dottedClassName(targetClassName);
-                                if (ClassUtils.isApplicationClass(applicationPackage, dottedTargetClassName)
-                                        || (mainActivityPackage != null && dottedTargetClassName.startsWith(mainActivityPackage))) {
-                                    if (!className.equals(targetClassName)) { // ignore self references
-                                        classUsages.put(className, targetClassName);
-                                    }
-                                }
                             }
                         }
                     }
@@ -632,7 +631,7 @@ public class ComponentUtils {
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet()));
 
-            LOGGER.debug("Component " + component + "has the following usages: " + componentUsages);
+            LOGGER.debug("Component " + component + " has the following usages: " + componentUsages);
 
             for (String usage : componentUsages) {
                 // TODO: handle transitive usages

@@ -18,7 +18,7 @@ public class ClassHierarchy {
     /**
      * A mapping of a class name to its class.
      */
-    private Map<String, Class> classHierarchy;
+    private final Map<String, Class> classHierarchy;
 
     /**
      * The internal representation of a class.

@@ -753,7 +753,6 @@ public class InterCFG extends BaseCFG {
                     }
 
                     targetCFGs.add(callbacks);
-
                 } else {
                     LOGGER.warn("Couldn't resolve Job class for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
