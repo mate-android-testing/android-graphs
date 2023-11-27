@@ -758,6 +758,15 @@ public class InterCFG extends BaseCFG {
                     LOGGER.warn("Couldn't resolve Job class for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
+            } else if (ServiceUtils.isJobIntentServiceInvocation(overriddenMethod)) {
+                LOGGER.debug("JobIntentService.enqueueWork() invocation detected: " + overriddenMethod);
+                final String callback = ServiceUtils.getJobIntentServiceCallback(invokeStmt.getInstruction());
+                if (callback != null && intraCFGs.containsKey(callback)) {
+                    targetCFGs.add(intraCFGs.get(callback));
+                } else {
+                    LOGGER.warn("Couldn't resolve JobIntentService.onHandleWork() callback for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
             } else {
 
                 if (intraCFGs.containsKey(overriddenMethod)) {
@@ -1863,6 +1872,8 @@ public class InterCFG extends BaseCFG {
                         && !ThreadUtils.isScheduleMethod(targetMethod)
                         // we want to resolve JobScheduler invocations in any case
                         && !JobSchedulerUtils.isScheduleMethod(targetMethod)
+                        // we want to resolve JobIntentService invocations in any case
+                        && !ServiceUtils.isJobIntentServiceInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {

@@ -27,6 +27,48 @@ public final class ServiceUtils {
     }
 
     /**
+     * Checks whether the given method refers to an enqueueWork() invocation of a JobIntentService.
+     *
+     * @param methodSignature The method to be checked.
+     * @return Returns {@code true} if method is referring to an enqueueWork() invocation, otherwise {@code false}.
+     */
+    public static boolean isJobIntentServiceInvocation(final String methodSignature) {
+        // https://developer.android.com/reference/androidx/core/app/JobIntentService#enqueueWork(android.content.Context,java.lang.Class%3C?%3E,int,android.content.Intent)
+        // https://developer.android.com/reference/androidx/core/app/JobIntentService#enqueueWork(android.content.Context,android.content.ComponentName,int,android.content.Intent)
+        return methodSignature.endsWith("->enqueueWork(Landroid/content/Context;Ljava/lang/Class;ILandroid/content/Intent;)V")
+                || methodSignature.endsWith("->enqueueWork(Landroid/content/Context;Landroid/content/ComponentName;ILandroid/content/Intent;)V");
+    }
+
+    /**
+     * Retrieves the onHandleWork() callback method for the given enqueueWork() invocation of a JobIntentService if possible.
+     *
+     * @param invokeInstruction The invoke instruction referring to the enqueueWork() invocation.
+     * @return Returns the onHandleWork() callback method if possible, otherwise {@code null}.
+     */
+    public static String getJobIntentServiceCallback(final AnalyzedInstruction invokeInstruction) {
+
+        // TODO: Check that the retrieved service name really represents a JobIntentService.
+        // TODO: Perform backtracking if really necessary.
+
+        // Example:
+        //     const-class v1, Lnet/exclaimindustries/geohashdroid/services/StockService;
+        //    const/16 v2, 0x3e9
+        //    invoke-static {p0, v1, v2, p1}, Lnet/exclaimindustries/geohashdroid/services/StockService;
+        //                           ->enqueueWork(Landroid/content/Context;Ljava/lang/Class;ILandroid/content/Intent;)V
+        //
+        // It looks like the respective service name is always encoded in the static enqueueWork() invocation, thus no
+        // backtracking seems to be necessary.
+
+        if (invokeInstruction.getInstruction() instanceof Instruction35c) {
+            final String invocation = ((ReferenceInstruction) invokeInstruction.getInstruction()).getReference().toString();
+            final String serviceName = MethodUtils.getClassName(invocation);
+            LOGGER.debug("Found callback: " + serviceName + "->onHandleWork(Landroid/content/Intent;)V");
+            return serviceName + "->onHandleWork(Landroid/content/Intent;)V";
+        }
+        return null; // couldn't resolve invocation
+    }
+
+    /**
      * Checks whether the given instruction refers to a service invocation. If this is the case, the invocation
      * is backtracked to the respective service component if possible.
      *
