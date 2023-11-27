@@ -368,6 +368,7 @@ public class InterCFG extends BaseCFG {
                     targetCFGs.add(intraCFGs.get(overriddenMethod));
                 }
             } else if (ComponentUtils.isComponentInvocation(components, overriddenMethod)) {
+                LOGGER.debug("Component invocation detected: " + overriddenMethod);
                 /*
                  * If there is a component invocation, e.g. a call to startActivity(), we
                  * replace the targetCFG with the constructor of the respective component.
