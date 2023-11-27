@@ -174,6 +174,27 @@ public class ClassHierarchy {
         return classDef != null ? getInnerClasses(classDef.toString()) : Collections.emptySet();
     }
 
+    /**
+     * Returns the sub classes of the given class.
+     *
+     * @param classDef The class for which the sub classes should be looked up.
+     * @return Returns the sub classes of the given class.
+     */
+    public Set<ClassDef> getSubClasses(ClassDef classDef) {
+        return classDef != null ? getSubClasses(classDef.toString()) : Collections.emptySet();
+    }
+
+    /**
+     * Returns the sub classes of the given class.
+     *
+     * @param className The class for which the sub classes should be looked up.
+     * @return Returns the sub classes of the given class.
+     */
+    public Set<ClassDef> getSubClasses(String className) {
+        final Class clazz = getClassByName(className);
+        return clazz != null ? clazz.getSubClasses() : Collections.emptySet();
+    }
+
     public void addClass(ClassDef classDef) {
         Class clazz = new Class(classDef);
         classHierarchy.put(clazz.getName(), clazz);
