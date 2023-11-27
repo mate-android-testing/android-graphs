@@ -7,19 +7,21 @@ import com.android.tools.smali.dexlib2.iface.Method;
 import com.android.tools.smali.dexlib2.iface.MethodImplementation;
 import com.android.tools.smali.dexlib2.iface.instruction.Instruction;
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction;
+import com.android.tools.smali.dexlib2.iface.instruction.TwoRegisterInstruction;
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c;
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction22c;
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction35c;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.EnumSet;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
- * Provides utility functions to check whether a given method represents the start() method of a Thread class
- * or the run() method of a Thread or Runnable class.
+ * Handles thread-related invocations, e.g. a regular thread or runnable invocation but also TimerTasks or postDelayed()
+ * invocations.
  */
 public final class ThreadUtils {
 
@@ -29,6 +31,83 @@ public final class ThreadUtils {
         throw new UnsupportedOperationException("utility class");
     }
 
+    /**
+     * Checks whether the given method refers to a schedule() invocation of a TimerTask.
+     *
+     * @param methodSignature The method to be checked.
+     * @return Returns {@code true} if method is referring to a schedule() invocation, otherwise {@code false}.
+     */
+    public static boolean isScheduleMethod(final String methodSignature) {
+        return methodSignature.equals("Ljava/util/Timer;->schedule(Ljava/util/TimerTask;J)V");
+    }
+
+    /**
+     * Retrieves the TimerTask callback for the given schedule() invocation if possible.
+     *
+     * @param invokeInstruction The invoke instruction referring to a schedule() invocation.
+     * @param classHierarchy A mapping from class name to its class.
+     * @return Returns the callback method for the given schedule() invocation if possible, otherwise {@code null}.
+     */
+    public static String getTimerTaskCallback(final AnalyzedInstruction invokeInstruction, final ClassHierarchy classHierarchy) {
+
+        if (invokeInstruction.getPredecessors().isEmpty()) {
+            // couldn't backtrack invocation
+            return null;
+        }
+
+        // Example:
+        //    new-instance v0, Lnet/exclaimindustries/geohashdroid/util/HashBuilder$StockRunner$1;
+        //    invoke-direct {v0, v1}, Lnet/exclaimindustries/geohashdroid/util/HashBuilder$StockRunner$1;-><init>(Lnet/exclaimindustries/geohashdroid/util/HashBuilder$StockRunner;)V
+        //    const/16 v16, 0x23
+        //    aput-boolean v4, v3, v16
+        //    move-object/from16 v16, v0
+        //    new-instance v0, Ljava/util/Timer;
+        //    invoke-direct {v0, v4}, Ljava/util/Timer;-><init>(Z)V
+        //    move-object/from16 v17, v5
+        //    const-wide/16 v4, 0x2710
+        //    move-object/from16 v2, v16
+        //    invoke-virtual {v0, v2, v4, v5}, Ljava/util/Timer;->schedule(Ljava/util/TimerTask;J)V
+
+        if (invokeInstruction.getInstruction() instanceof Instruction35c) {
+
+            // The TimerTask class is stored in the second register (v2 above) passed to the invoke instruction.
+            final Instruction35c invoke = (Instruction35c) invokeInstruction.getInstruction();
+            int targetRegister = invoke.getRegisterD();
+
+            AnalyzedInstruction pred = invokeInstruction.getPredecessors().first();
+
+            // backtrack until we discover last write to register D (v2 above)
+            while (pred.getInstructionIndex() != -1) {
+
+                final Instruction predecessor = pred.getInstruction();
+
+                final EnumSet<Opcode> moveOpcodes = EnumSet.of(Opcode.MOVE_OBJECT,
+                        Opcode.MOVE_OBJECT_16, Opcode.MOVE_OBJECT_FROM16);
+
+                if (pred.setsRegister(targetRegister)) {
+                    if (moveOpcodes.contains(predecessor.getOpcode())) { // update the register we need to backtrack
+                        final TwoRegisterInstruction moveInstruction = (TwoRegisterInstruction) predecessor;
+                        targetRegister = moveInstruction.getRegisterB();
+                    } else if (predecessor.getOpcode() == Opcode.NEW_INSTANCE) { // retrieve the callback class
+                        final String className = ((ReferenceInstruction) predecessor).getReference().toString();
+                        if (classHierarchy.getSuperClasses(className).contains("Ljava/util/TimerTask;")) {
+                            LOGGER.debug("Found callback: " + className + "->run()V");
+                            return className + "->run()V";
+                        }
+                    }
+                }
+
+                // consider next predecessor if available
+                if (!pred.getPredecessors().isEmpty()) {
+                    pred = pred.getPredecessors().first();
+                } else {
+                    break;
+                }
+            }
+        }
+
+        return null; // couldn't resolve invocation
+    }
 
     /**
      * Checks whether the given method refers to a postDelayed() invocation.
