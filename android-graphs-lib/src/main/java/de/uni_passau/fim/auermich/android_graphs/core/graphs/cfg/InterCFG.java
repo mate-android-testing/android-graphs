@@ -767,6 +767,16 @@ public class InterCFG extends BaseCFG {
                     LOGGER.warn("Couldn't resolve JobIntentService.onHandleWork() callback for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
+            } else if (GoogleMapUtils.isGoogleMapListenerInvocation(overriddenMethod)) {
+                LOGGER.debug("GoogleMap.setListener() invocation detected: " + overriddenMethod);
+                final String callback = GoogleMapUtils.getListenerCallback(overriddenMethod,
+                        invokeStmt.getInstruction(), classHierarchy);
+                if (callback != null && intraCFGs.containsKey(callback)) {
+                    targetCFGs.add(intraCFGs.get(callback));
+                } else {
+                    LOGGER.warn("Couldn't resolve GoogleMap callback for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
             } else {
 
                 if (intraCFGs.containsKey(overriddenMethod)) {
@@ -1874,6 +1884,8 @@ public class InterCFG extends BaseCFG {
                         && !JobSchedulerUtils.isScheduleMethod(targetMethod)
                         // we want to resolve JobIntentService invocations in any case
                         && !ServiceUtils.isJobIntentServiceInvocation(targetMethod)
+                        // we want to resolve google map invocations in any case
+                        && !GoogleMapUtils.isGoogleMapListenerInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
