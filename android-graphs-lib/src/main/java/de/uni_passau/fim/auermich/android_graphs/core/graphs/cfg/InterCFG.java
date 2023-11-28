@@ -777,6 +777,47 @@ public class InterCFG extends BaseCFG {
                     LOGGER.warn("Couldn't resolve GoogleMap callback for invocation: " + overriddenMethod);
                     targetCFGs.add(dummyCFG(overriddenMethod));
                 }
+            } else if (GoogleMapUtils.isRequestLocationUpdateInvocation(overriddenMethod)) {
+                LOGGER.debug("FusedLocationProviderClient.requestLocationUpdate() invocation detected: " + overriddenMethod);
+                final String locationCallbackClass
+                        = GoogleMapUtils.getLocationCallbackClass(invokeStmt.getInstruction(), classHierarchy);
+                if (locationCallbackClass != null) {
+
+                    // onLocationAvailability() is typically called prior to onLocationResult()
+                    final BaseCFG callbacks = emptyCFG("callbacks " + locationCallbackClass);
+
+                    // optional
+                    final String onLocationAvailabilityMethod = GoogleMapUtils.getOnLocationAvailabilityMethod(locationCallbackClass);
+                    if (intraCFGs.containsKey(onLocationAvailabilityMethod)) {
+                        final BaseCFG onLocationAvailabilityCFG = intraCFGs.get(onLocationAvailabilityMethod);
+                        addEdge(callbacks.getEntry(), onLocationAvailabilityCFG.getEntry());
+
+                        // optional
+                        final String onLocationResultMethod = GoogleMapUtils.getOnLocationResultMethod(locationCallbackClass);
+                        if (intraCFGs.containsKey(onLocationResultMethod)) {
+                            final BaseCFG onLocationResultCFG = intraCFGs.get(onLocationResultMethod);
+                            addEdge(onLocationAvailabilityCFG.getExit(), onLocationResultCFG.getEntry());
+                            addEdge(onLocationResultCFG.getExit(), callbacks.getExit());
+                        } else {
+                            addEdge(onLocationAvailabilityCFG.getExit(), callbacks.getExit());
+                        }
+                    } else {
+                        // optional
+                        final String onLocationResultMethod = GoogleMapUtils.getOnLocationResultMethod(locationCallbackClass);
+                        if (intraCFGs.containsKey(onLocationResultMethod)) {
+                            final BaseCFG onLocationResultCFG = intraCFGs.get(onLocationResultMethod);
+                            addEdge(callbacks.getEntry(), onLocationResultCFG.getEntry());
+                            addEdge(onLocationResultCFG.getExit(), callbacks.getExit());
+                        } else {
+                            addEdge(callbacks.getEntry(), callbacks.getExit());
+                        }
+                    }
+
+                    targetCFGs.add(callbacks);
+                } else {
+                    LOGGER.warn("Couldn't resolve LocationCallback class for invocation: " + overriddenMethod);
+                    targetCFGs.add(dummyCFG(overriddenMethod));
+                }
             } else {
 
                 if (intraCFGs.containsKey(overriddenMethod)) {
@@ -1886,6 +1927,8 @@ public class InterCFG extends BaseCFG {
                         && !ServiceUtils.isJobIntentServiceInvocation(targetMethod)
                         // we want to resolve google map invocations in any case
                         && !GoogleMapUtils.isGoogleMapListenerInvocation(targetMethod)
+                        // we want to resolve request location updates in any case
+                        && !GoogleMapUtils.isRequestLocationUpdateInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
