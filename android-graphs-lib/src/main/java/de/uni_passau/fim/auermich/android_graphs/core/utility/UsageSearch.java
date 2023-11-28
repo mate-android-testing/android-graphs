@@ -259,8 +259,6 @@ public final class UsageSearch {
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
-                // TODO: Define a usage to any outer class and take in account the following case: 'outerClass$InnerClass1$InnerClass2'.
-
                 boolean foundUsage = false;
                 String className = classDef.toString();
 
@@ -290,6 +288,23 @@ public final class UsageSearch {
                         // inner class but not vice versa!
                         continue;
                     }
+                }
+
+                /*
+                * Checks whether a usage is defined through an outer to inner class relation, i.e. class A makes use of
+                * class B if B is an inner class of A.
+                 */
+                if (ClassUtils.isInnerClass(clazz)) {
+                    // TODO: Take in account the following case (nested inner classes): 'outerClass$InnerClass1$InnerClass2'.
+                    if (className.equals(ClassUtils.getOuterClass(clazz))) {
+                        LOGGER.debug("Found inner class usage: " + classDef);
+                        usages.add(new Usage(classDef));
+                        foundUsage = true;
+                    }
+                }
+
+                if (foundUsage) {
+                    continue;
                 }
 
                 /*
