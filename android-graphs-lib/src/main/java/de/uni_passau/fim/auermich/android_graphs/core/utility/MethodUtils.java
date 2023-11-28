@@ -243,6 +243,9 @@ public class MethodUtils {
         add("onProviderEnabled(Ljava/lang/String;)V");
         add("onStatusChanged(Ljava/lang/String;ILandroid/os/Bundle;)V");
 
+        // https://developer.android.com/reference/android/preference/PreferenceActivity#onBuildHeaders(java.util.List%3Candroid.preference.PreferenceActivity.Header%3E)
+        add("onBuildHeaders(Ljava/util/List;)V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
