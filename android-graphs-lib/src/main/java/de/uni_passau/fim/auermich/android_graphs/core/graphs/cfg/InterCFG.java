@@ -2110,7 +2110,7 @@ public class InterCFG extends BaseCFG {
         for (DexFile dexFile : apk.getDexFiles()) {
             for (ClassDef classDef : dexFile.getClasses()) {
 
-                String className = ClassUtils.dottedClassName(classDef.toString());
+                final String className = ClassUtils.dottedClassName(classDef.toString());
 
                 if (properties.resolveOnlyAUTClasses && (!ClassUtils.isApplicationClass(packageName, className)
                         && (mainActivityPackage == null || !className.startsWith(mainActivityPackage)))) {
@@ -2124,25 +2124,27 @@ public class InterCFG extends BaseCFG {
                     continue;
                 }
 
+                if (exclusionPattern != null && exclusionPattern.matcher(className).matches()) {
+                    // Exclude further classes that might be incorrectly classified as application classes.
+                    continue;
+                }
+
+                // re-assemble the class hierarchy
+                updateClassHierarchy(dexFile, classDef);
+
                 // as a side effect track whether the given class represents an activity, service or fragment
-                if (exclusionPattern != null && !exclusionPattern.matcher(className).matches()) {
-
-                    // re-assemble the class hierarchy
-                    updateClassHierarchy(dexFile, classDef);
-
-                    if (ComponentUtils.isActivity(classes, classDef)) {
-                        components.add(new Activity(classDef, ComponentType.ACTIVITY));
-                    } else if (ComponentUtils.isFragment(classes, classDef)) {
-                        components.add(new Fragment(classDef, ComponentType.FRAGMENT));
-                    } else if (ComponentUtils.isService(classes, classDef)) {
-                        components.add(new Service(classDef, ComponentType.SERVICE));
-                    } else if (ComponentUtils.isBinder(classes, classDef)) {
-                        binderClasses.add(classDef.toString());
-                    } else if (ComponentUtils.isApplication(classes, classDef)) {
-                        components.add(new Application(classDef, ComponentType.APPLICATION));
-                    } else if (ComponentUtils.isBroadcastReceiver(classes, classDef)) {
-                        components.add(new BroadcastReceiver(classDef, ComponentType.BROADCAST_RECEIVER));
-                    }
+                if (ComponentUtils.isActivity(classes, classDef)) {
+                    components.add(new Activity(classDef, ComponentType.ACTIVITY));
+                } else if (ComponentUtils.isFragment(classes, classDef)) {
+                    components.add(new Fragment(classDef, ComponentType.FRAGMENT));
+                } else if (ComponentUtils.isService(classes, classDef)) {
+                    components.add(new Service(classDef, ComponentType.SERVICE));
+                } else if (ComponentUtils.isBinder(classes, classDef)) {
+                    binderClasses.add(classDef.toString());
+                } else if (ComponentUtils.isApplication(classes, classDef)) {
+                    components.add(new Application(classDef, ComponentType.APPLICATION));
+                } else if (ComponentUtils.isBroadcastReceiver(classes, classDef)) {
+                    components.add(new BroadcastReceiver(classDef, ComponentType.BROADCAST_RECEIVER));
                 }
 
                 for (Method method : classDef.getMethods()) {
@@ -2170,8 +2172,8 @@ public class InterCFG extends BaseCFG {
                         }
                     }
 
-                    if (exclusionPattern != null && exclusionPattern.matcher(className).matches()
-                            || MethodUtils.isARTMethod(methodSignature)) {
+                    // TODO: Overwriting an ART method shouldn't make any sense and may not even work?
+                    if (MethodUtils.isARTMethod(methodSignature)) {
                         // only construct dummy CFG for non ART classes
                         if (!properties.excludeARTClasses) {
                             BaseCFG intraCFG = dummyIntraCFG(method);
