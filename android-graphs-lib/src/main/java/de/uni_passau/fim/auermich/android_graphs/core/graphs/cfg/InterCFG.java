@@ -205,7 +205,7 @@ public class InterCFG extends BaseCFG {
                 continue;
             }
 
-            LOGGER.debug("Invoke Vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]");
+            LOGGER.debug("Invoke vertex: " + invokeVertex + " [" + invokeVertex.getMethod() + "]");
 
             // save the predecessors and successors as we remove the vertex
             Set<CFGVertex> predecessors = getIncomingEdges(invokeVertex).stream().map(CFGEdge::getSource).collect(Collectors.toSet());
@@ -1929,6 +1929,8 @@ public class InterCFG extends BaseCFG {
                         && !GoogleMapUtils.isGoogleMapListenerInvocation(targetMethod)
                         // we want to resolve request location updates in any case
                         && !GoogleMapUtils.isRequestLocationUpdateInvocation(targetMethod)
+                        // we want to resolve AsyncTask invocations in any case
+                        && !AsyncTaskUtils.isAsyncTaskInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
