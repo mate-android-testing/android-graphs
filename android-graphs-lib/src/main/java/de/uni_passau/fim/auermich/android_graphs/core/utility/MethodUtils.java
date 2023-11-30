@@ -212,6 +212,10 @@ public class MethodUtils {
         add("onCreateLoader(ILandroid/os/Bundle;)Landroid/support/v4/content/Loader;");
         add("onLoadFinished(Landroid/support/v4/content/Loader;Landroid/database/Cursor;)V");
         add("onLoaderReset(Landroid/support/v4/content/Loader;)V");
+        // https://developer.android.com/reference/androidx/loader/app/LoaderManager.LoaderCallbacks.html#summary
+        add("onLoadFinished(Landroidx/loader/content/Loader;Landroid/database/Cursor;)V");
+        add("onLoaderReset(Landroidx/loader/content/Loader;)V");
+        add("onCreateLoader(ILandroid/os/Bundle;)Landroidx/loader/content/Loader;");
 
         // https://developer.android.com/reference/android/view/ActionMode.Callback#summary
         add("onCreateActionMode(Landroid/view/ActionMode;Landroid/view/Menu;)Z");
@@ -245,6 +249,10 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/preference/PreferenceActivity#onBuildHeaders(java.util.List%3Candroid.preference.PreferenceActivity.Header%3E)
         add("onBuildHeaders(Ljava/util/List;)V");
+
+        // https://developer.android.com/reference/com/google/android/material/bottomsheet/BottomSheetBehavior.BottomSheetCallback#summary
+        add("onSlide(Landroid/view/View;F)V");
+        add("onStateChanged(Landroid/view/View;I)V");
 
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
