@@ -254,6 +254,9 @@ public class MethodUtils {
         add("onSlide(Landroid/view/View;F)V");
         add("onStateChanged(Landroid/view/View;I)V");
 
+        // https://developer.android.com/reference/android/view/ViewTreeObserver.OnGlobalLayoutListener#summary
+        add("onGlobalLayout()V");
+
         ANDROID_CALLBACK_TO_PARENT.forEach((child, parent) -> {
             add(child);
             add(parent);
