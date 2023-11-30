@@ -157,15 +157,19 @@ public class ClassUtils {
     public static String getOuterClass(final String className) {
         assert isInnerClass(className);
         if (className.contains("-$$Lambda$")) {
+            // Example: Luk/co/bbc/smpan/avmonitoring/-$$Lambda$HeartbeatBuilder$W6lNE_aiLNgIQnJvZjjH1NceFt0
             /*
-            * Lambda classes have a rather strange class name, i.e. the sequence '-$$Lambda$' followed by the actual
-            * outer class name, which in turn is followed by '$' and a randomly generated identifier. Luckily, one
-            * can re-assemble the outer class name quite easily.
+             * Lambda classes have a rather strange class name, i.e. the sequence '-$$Lambda$' followed by the actual
+             * outer class name, which in turn is followed by '$' and a randomly generated identifier. Luckily, one
+             * can re-assemble the outer class name quite easily.
              */
             String[] tokens = className.split("-\\$\\$Lambda\\$");
             String packageName = tokens[0];
             String simpleClassName = tokens[1].split("\\$")[0];
             return packageName + simpleClassName + ";";
+        } else if (className.contains("$$Lambda$")) {
+            // Example: Lit/feio/android/omninotes/DetailFragment$$Lambda$3;
+            return className.split("\\$\\$Lambda\\$")[0] + ";";
         } else {
             // NOTE: There can be multiple nested classes, e.g., Lorg/dmfs/tasks/groupings/BySearch$2$1;.
             return className.substring(0, className.lastIndexOf('$')) + ";";
