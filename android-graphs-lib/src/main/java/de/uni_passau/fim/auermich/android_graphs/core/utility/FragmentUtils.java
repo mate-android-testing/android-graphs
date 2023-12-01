@@ -342,42 +342,62 @@ public class FragmentUtils {
      * @return Returns a consumer expecting the resolved class usages.
      */
     public static Consumer<Multimap<String, String>> checkForFragmentViewPager(final Set<Component> components,
-                                                                               String method,
-                                                                               AnalyzedInstruction analyzedInstruction,
-                                                                               ClassHierarchy classHierarchy) {
+                                                                               final String method,
+                                                                               final AnalyzedInstruction analyzedInstruction,
+                                                                               final ClassHierarchy classHierarchy) {
+        // Example:
+        // GalleryActivity:
+        // new-instance v5, Lit/feio/android/simplegallery/models/GalleryPagerAdapter;
+        // invoke-virtual {v6, v5}, Lit/feio/android/simplegallery/views/GalleryViewPager;
+        //                          ->setAdapter(Landroidx/viewpager/widget/PagerAdapter;)V
+        //
+        // GalleryPageAdapter.getItem(I):
+        // invoke-static {p1, v0}, Lit/feio/android/simplegallery/GalleryPagerFragment;
+        //                         ->create(ILandroid/net/Uri;)Lit/feio/android/simplegallery/GalleryPagerFragment;
+        // move-result-object v0
+        // return-object v0
+        //
+        // We need to backtrack the setAdapter() call to the respective Adapter class (v5 -> GalleryPagerAdapter) and
+        // then look up inside that class the getItem() method with returns a concrete fragment instance. Here, we rely
+        // upon the fact that the fragment represents a direct usage of the Adapter class.
 
         return usages -> { // the resolved class usages are required as input
-            Instruction instruction = analyzedInstruction.getInstruction();
-            String targetMethod = ((ReferenceInstruction) instruction).getReference().toString();
+            final Instruction instruction = analyzedInstruction.getInstruction();
+            final String targetMethod
+                    = MethodUtils.getMethodName(((ReferenceInstruction) instruction).getReference().toString());
 
             final Set<String> pageAdapterClasses = Set.of(
                     "Landroid/support/v4/view/PagerAdapter;",
-                    "Landroid/support/v4/app/FragmentStatePagerAdapter;"
+                    "Landroid/support/v4/app/FragmentStatePagerAdapter;",
+                    "Landroidx/fragment/app/FragmentStatePagerAdapter;",
+                    "Landroidx/fragment/app/FragmentPagerAdapter;",
+                    "Landroidx/viewpager/widget/PagerAdapter;"
             );
 
             final Set<String> pageAdapterMethods = Set.of(
-                    "Landroid/support/v4/view/ViewPager;->setAdapter(Landroid/support/v4/view/PagerAdapter;)V",
-                    "Landroidx/viewpager/widget/ViewPager;->setAdapter(Landroidx/viewpager/widget/PagerAdapter;)V"
+                    "setAdapter(Landroid/support/v4/view/PagerAdapter;)V",
+                    "setAdapter(Landroidx/viewpager/widget/PagerAdapter;)V"
             );
 
             if (pageAdapterMethods.contains(targetMethod)) {
 
-                String callingClass = MethodUtils.getClassName(method);
+                // The class in which setAdapter() is invoked is likely the activity class on which the fragment is placed.
+                final String callingClass = MethodUtils.getClassName(method);
 
-                // only resolve usage if surrounding class refers to an activity
+                // Only resolve usage if surrounding class refers to an activity.
                 ComponentUtils.getActivityByName(components, callingClass)
                         .ifPresent(activity -> usages.get(callingClass).stream()
-                                // only consider page adapters used on the given activity
+                                // Only consider page adapters used by the given activity.
                                 .filter(clazz -> classHierarchy.getSuperClasses(clazz).stream()
                                         .anyMatch(pageAdapterClasses::contains))
-                                // get usages of page adapters
+                                // Get the usages of the discovered page adapters.
                                 .map(usages::get)
                                 .flatMap(Collection::stream)
-                                // map page adapter usages to fragments if possible
+                                // Map page adapter usages to fragments if possible.
                                 .map(pageAdapterUsage -> ComponentUtils.getFragmentByName(components, pageAdapterUsage))
                                 .filter(Optional::isPresent)
                                 .map(Optional::get)
-                                // add all page adapter fragments to the given activity
+                                // Add all page adapter fragments to the given activity.
                                 .forEach(activity::addHostingFragment)
                         );
             }
