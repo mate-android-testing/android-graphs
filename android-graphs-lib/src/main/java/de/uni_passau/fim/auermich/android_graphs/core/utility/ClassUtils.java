@@ -4,13 +4,11 @@ import com.android.tools.smali.dexlib2.AccessFlags;
 import com.android.tools.smali.dexlib2.iface.ClassDef;
 import com.android.tools.smali.dexlib2.iface.DexFile;
 import com.android.tools.smali.dexlib2.iface.Method;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -155,9 +153,8 @@ public class ClassUtils {
      * @return Returns the outer class name.
      */
     public static String getOuterClass(final String className) {
-        assert isInnerClass(className);
         if (className.contains("-$$Lambda$")) {
-            // Example: Luk/co/bbc/smpan/avmonitoring/-$$Lambda$HeartbeatBuilder$W6lNE_aiLNgIQnJvZjjH1NceFt0
+            // Example: Luk/co/bbc/smpan/avmonitoring/-$$Lambda$HeartbeatBuilder$W6lNE_aiLNgIQnJvZjjH1NceFt0;
             /*
              * Lambda classes have a rather strange class name, i.e. the sequence '-$$Lambda$' followed by the actual
              * outer class name, which in turn is followed by '$' and a randomly generated identifier. Luckily, one
@@ -171,8 +168,26 @@ public class ClassUtils {
             // Example: Lit/feio/android/omninotes/DetailFragment$$Lambda$3;
             return className.split("\\$\\$Lambda\\$")[0] + ";";
         } else {
-            // NOTE: There can be multiple nested classes, e.g., Lorg/dmfs/tasks/groupings/BySearch$2$1;.
-            return className.substring(0, className.lastIndexOf('$')) + ";";
+            int count = StringUtils.countMatches(className, '$');
+            if (count == 1) { // simple case, e.g. Lcom/google/samples/apps/sunflower/adapters/GardenPlantingAdapter$ViewHolder;
+                return className.split("\\$")[0] + ";";
+            } else {
+                // NOTE: There can be multiple nested classes, e.g., Lorg/dmfs/tasks/groupings/BySearch$2$1;
+                final List<String> classes = new ArrayList<>();
+                final String[] tokens = className.split("\\$");
+
+                for (int i = tokens.length - 2; i >= 0; i--) { // go from right to left and skip last class in any case
+                    final String token = tokens[i];
+                    // NOTE: We assume that any nested class name between '$' signs is irregular if it starts with a
+                    // lower case letter, e.g. we would drop non existing intermediate 'classes' like 'createOnClickListener' in:
+                    // Lcom/google/samples/apps/sunflower/adapters/PlantAdapter$createOnClickListener$1;
+                    // In fact, there should be at most one such non existing class name.
+                    if (!Character.isLowerCase(token.charAt(0))) {
+                        classes.add(0, token);
+                    }
+                }
+                return String.join("$", classes) + ";";
+            }
         }
     }
 
