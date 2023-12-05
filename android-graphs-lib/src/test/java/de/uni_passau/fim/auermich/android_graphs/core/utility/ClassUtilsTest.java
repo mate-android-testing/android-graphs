@@ -41,4 +41,11 @@ public class ClassUtilsTest {
         final String className = "Lcom/google/samples/apps/sunflower/adapters/PlantAdapter$createOnClickListener$1;";
         Assertions.assertEquals("Lcom/google/samples/apps/sunflower/adapters/PlantAdapter;", ClassUtils.getOuterClass(className));
     }
+
+    @DisplayName("Testing complex nested outer class name.")
+    @Test
+    public void testOuterClassNameComplexNested() {
+        final String className = "Landroidx/core/animation/AnimatorKt$doOnCancel$$inlined$addListener$1;";
+        Assertions.assertEquals("Landroidx/core/animation/AnimatorKt;", ClassUtils.getOuterClass(className));
+    }
 }

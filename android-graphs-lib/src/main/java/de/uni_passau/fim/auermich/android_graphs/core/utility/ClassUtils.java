@@ -181,8 +181,9 @@ public class ClassUtils {
                     // NOTE: We assume that any nested class name between '$' signs is irregular if it starts with a
                     // lower case letter, e.g. we would drop non existing intermediate 'classes' like 'createOnClickListener' in:
                     // Lcom/google/samples/apps/sunflower/adapters/PlantAdapter$createOnClickListener$1;
-                    // In fact, there should be at most one such non existing class name.
-                    if (!Character.isLowerCase(token.charAt(0))) {
+                    // In fact, there can be multiple such non existing classes in sequence:
+                    // Landroidx/core/animation/AnimatorKt$doOnCancel$$inlined$addListener$1;
+                    if (!token.isEmpty() && !Character.isLowerCase(token.charAt(0))) {
                         classes.add(0, token);
                     }
                 }
