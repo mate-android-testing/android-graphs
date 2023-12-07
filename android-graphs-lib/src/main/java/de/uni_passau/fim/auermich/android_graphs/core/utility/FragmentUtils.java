@@ -12,7 +12,6 @@ import com.google.common.collect.Multimap;
 import de.uni_passau.fim.auermich.android_graphs.core.app.APK;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Activity;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Component;
-import de.uni_passau.fim.auermich.android_graphs.core.app.components.ComponentType;
 import de.uni_passau.fim.auermich.android_graphs.core.app.components.Fragment;
 import de.uni_passau.fim.auermich.android_graphs.core.app.xml.LayoutFile;
 import org.apache.logging.log4j.LogManager;
@@ -280,16 +279,85 @@ public class FragmentUtils {
                         for (String fragmentName : fragments) {
                             final Optional<Fragment> fragmentComponent
                                     = ComponentUtils.getFragmentByName(components, fragmentName);
-                            if (fragmentComponent.isPresent()
-                                    && fragmentComponent.get().getComponentType() == ComponentType.FRAGMENT) {
+                            if (fragmentComponent.isPresent()) {
                                 final Activity activity = activityComponent.get();
                                 final Fragment fragment = fragmentComponent.get();
                                 activity.addHostingFragment(fragment);
+                            } else if (fragmentName.equals("Landroidx/navigation/fragment/NavHostFragment;")) {
+                                final String navigationGraph
+                                        = layoutFile.parseNavigationGraphOfFragment(ClassUtils.dottedClassName(fragmentName));
+                                if (navigationGraph != null) {
+                                    final LayoutFile navigationLayoutFile
+                                            = LayoutFile.findNavigationLayoutFile(apk.getDecodingOutputPath(), navigationGraph);
+                                    if (navigationLayoutFile != null) {
+                                        final Set<String> navigationFragments = navigationLayoutFile.parseFragments().stream()
+                                                .map(ClassUtils::convertDottedClassName)
+                                                .collect(Collectors.toSet());
+                                        for (String navigationFragmentName : navigationFragments) {
+                                            final Optional<Fragment> navigationFragmentComponent
+                                                    = ComponentUtils.getFragmentByName(components, navigationFragmentName);
+                                            if (navigationFragmentComponent.isPresent()) {
+                                                final Activity activity = activityComponent.get();
+                                                final Fragment fragment = navigationFragmentComponent.get();
+                                                activity.addHostingFragment(fragment);
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
+            // fragments can also be defined via setContentView()
+        } else if (targetMethod.endsWith("setContentView(Landroid/app/Activity;I)Landroidx/databinding/ViewDataBinding;")) {
+
+            final String activityName = MethodUtils.getClassName(method);
+            final Optional<Activity> activityComponent = ComponentUtils.getActivityByName(components, activityName);
+
+            if (activityComponent.isPresent()) { // we assume only activities can declare fragments
+                final String resourceID = Utility.getLayoutResourceID(classDef, analyzedInstruction);
+                if (resourceID != null) {
+                    // Map the resource id to a layout file if possible.
+                    final LayoutFile layoutFile = LayoutFile.findLayoutFile(apk.getDecodingOutputPath(), resourceID);
+                    if (layoutFile != null) {
+                        final Set<String> fragments = layoutFile.parseFragments().stream()
+                                .map(ClassUtils::convertDottedClassName)
+                                .collect(Collectors.toSet());
+                        for (String fragmentName : fragments) {
+                            final Optional<Fragment> fragmentComponent
+                                    = ComponentUtils.getFragmentByName(components, fragmentName);
+                            if (fragmentComponent.isPresent()) {
+                                final Activity activity = activityComponent.get();
+                                final Fragment fragment = fragmentComponent.get();
+                                activity.addHostingFragment(fragment);
+                            } else if (fragmentName.equals("Landroidx/navigation/fragment/NavHostFragment;")) {
+                                final String navigationGraph
+                                        = layoutFile.parseNavigationGraphOfFragment(ClassUtils.dottedClassName(fragmentName));
+                                if (navigationGraph != null) {
+                                    final LayoutFile navigationLayoutFile
+                                            = LayoutFile.findNavigationLayoutFile(apk.getDecodingOutputPath(), navigationGraph);
+                                    if (navigationLayoutFile != null) {
+                                        final Set<String> navigationFragments = navigationLayoutFile.parseFragments().stream()
+                                                .map(ClassUtils::convertDottedClassName)
+                                                .collect(Collectors.toSet());
+                                        for (String navigationFragmentName : navigationFragments) {
+                                            final Optional<Fragment> navigationFragmentComponent
+                                                    = ComponentUtils.getFragmentByName(components, navigationFragmentName);
+                                            if (navigationFragmentComponent.isPresent()) {
+                                                final Activity activity = activityComponent.get();
+                                                final Fragment fragment = navigationFragmentComponent.get();
+                                                activity.addHostingFragment(fragment);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // convenience method to add an fragment
         } else if (targetMethod.endsWith("->show(Landroid/support/v4/app/FragmentManager;Ljava/lang/String;)V")) {
 

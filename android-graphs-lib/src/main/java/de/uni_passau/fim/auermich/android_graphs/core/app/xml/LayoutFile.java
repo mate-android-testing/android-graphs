@@ -89,6 +89,48 @@ public class LayoutFile {
     }
 
     /**
+     * Retrieves the navigation graph from the given fragment.
+     *
+     * @param fragmentName The name of the fragment from which the navigation graph should be derived.
+     * @return Returns the name of the navigation graph or {@code null} if no such graph exists.
+     */
+    public String parseNavigationGraphOfFragment(final String fragmentName) {
+
+        final SAXReader reader = new SAXReader();
+        Document document = null;
+
+        try {
+            document = reader.read(layoutFile);
+            final Element rootElement = document.getRootElement();
+
+            final Queue<Element> queue = new LinkedList<>();
+            queue.add(rootElement);
+
+            // inspect each element
+            while (!queue.isEmpty()) {
+
+                final Element element = queue.poll();
+                queue.addAll(element.elements());
+
+                // search for given fragment
+                if (element.getName().equals("fragment")
+                        && (Objects.equals(fragmentName, element.attributeValue("name"))
+                        || Objects.equals(fragmentName, element.attributeValue("class")))) {
+                    // check for attribute navGraph, e.g., app:navGraph="@navigation/nav_garden"
+                    final String navGraph = element.attributeValue("navGraph");
+                    return navGraph != null
+                            ? navGraph.split("/")[1]
+                            : null;
+                }
+            }
+        } catch (DocumentException e) {
+            LOGGER.error("Reading layout file " + layoutFile.getName() + " failed");
+            LOGGER.error(e.getMessage());
+        }
+        return null;
+    }
+
+    /**
      * Parses the fragments from the underlying layout file.
      *
      * @return Returns the fragment names contained in the layout file.
@@ -197,6 +239,19 @@ public class LayoutFile {
         final String titleID = fullTitleParts.length == 2 ? fullTitleParts[1] : fullTitleParts[0];
 
         return Optional.of(new MenuItem(resourceID, titleID));
+    }
+
+    /**
+     * Searches for a navigation layout file based on the given name.
+     *
+     * @param decodingOutputPath The path where the APK was decoded.
+     * @param name The name of the navigation layout file.
+     * @return Returns a layout file corresponding to the given name, otherwise {@code null}.
+     */
+    public static LayoutFile findNavigationLayoutFile(final File decodingOutputPath, final String name) {
+        final File navigationLayoutFilePath = new File(decodingOutputPath,
+                Paths.get("res", "navigation", name + ".xml").toString());
+        return navigationLayoutFilePath.exists() ? new LayoutFile(navigationLayoutFilePath) : null;
     }
 
     /**

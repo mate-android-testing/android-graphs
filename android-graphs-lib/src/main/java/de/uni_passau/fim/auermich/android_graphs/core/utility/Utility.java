@@ -124,6 +124,46 @@ public final class Utility {
                     predecessor = predecessor.getPredecessors().first();
                 }
             }
+        } else if (methodReference.endsWith("setContentView(Landroid/app/Activity;I)Landroidx/databinding/ViewDataBinding;")) {
+
+            /*
+             * We need to backtrack the call to the resource id, e.g:
+             * const v3, 0x7f0b001c
+             * invoke-static {v1, v3}, Landroidx/databinding/DataBindingUtil;
+             *                           ->setContentView(Landroid/app/Activity;I)Landroidx/databinding/ViewDataBinding;
+             *
+             * Here, v3 contains the resource id, thus we need to search backwards for the last
+             * change of v3. This is typically the previous instruction and is of type 'const'.
+             */
+
+            // the id of the register, which contains the layoutResID
+            int layoutResIDRegister = invokeVirtual.getRegisterD();
+
+            boolean foundLayoutResID = false;
+            assert !analyzedInstruction.getPredecessors().isEmpty();
+            AnalyzedInstruction predecessor = analyzedInstruction.getPredecessors().first();
+
+            while (!foundLayoutResID) {
+
+                Instruction pred = predecessor.getInstruction();
+
+                // the predecessor should be either const, const/4 or const/16 and holds the XML ID
+                if (pred instanceof NarrowLiteralInstruction
+                        && (pred.getOpcode() == Opcode.CONST || pred.getOpcode() == Opcode.CONST_4
+                        || pred.getOpcode() == Opcode.CONST_16 || pred.getOpcode() == Opcode.CONST_HIGH16)
+                        && predecessor.setsRegister(layoutResIDRegister)) {
+                    int resourceID = ((NarrowLiteralInstruction) pred).getNarrowLiteral();
+                    return "0x" + Integer.toHexString(resourceID);
+                }
+
+                if (predecessor.getPredecessors().isEmpty()) {
+                    // couldn't find layout resource id
+                    LOGGER.warn("Couldn't derive resource ID for class " + classDef);
+                    return null;
+                } else {
+                    predecessor = predecessor.getPredecessors().first();
+                }
+            }
         } else if (methodReference.endsWith("setContentView(Landroid/view/View;)V")) {
 
             /*
