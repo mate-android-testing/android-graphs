@@ -207,15 +207,15 @@ public class MethodUtils {
 
         // https://developer.android.com/reference/android/app/LoaderManager.LoaderCallbacks#summary
         add("onCreateLoader(ILandroid/os/Bundle;)Landroid/content/Loader;");
-        add("onLoadFinished(Landroid/content/Loader;Ljava/lang/Object;)V");
+        add("onLoadFinished(Landroid/content/Loader;Ljava/lang/Object;)V"); // synthetic
         add("onLoaderReset(Landroid/content/Loader;)V");
         add("onCreateLoader(ILandroid/os/Bundle;)Landroid/support/v4/content/Loader;");
-        add("onLoadFinished(Landroid/support/v4/content/Loader;Landroid/database/Cursor;)V");
+        add("onLoadFinished(Landroid/support/v4/content/Loader;Ljava/lang/Object;)V"); // synthetic
         add("onLoaderReset(Landroid/support/v4/content/Loader;)V");
         // https://developer.android.com/reference/androidx/loader/app/LoaderManager.LoaderCallbacks.html#summary
-        add("onLoadFinished(Landroidx/loader/content/Loader;Landroid/database/Cursor;)V");
         add("onLoaderReset(Landroidx/loader/content/Loader;)V");
         add("onCreateLoader(ILandroid/os/Bundle;)Landroidx/loader/content/Loader;");
+        add("onLoadFinished(Landroidx/loader/content/Loader;Ljava/lang/Object;)V"); // synthetic
 
         // https://developer.android.com/reference/android/view/ActionMode.Callback#summary
         add("onCreateActionMode(Landroid/view/ActionMode;Landroid/view/Menu;)Z");
