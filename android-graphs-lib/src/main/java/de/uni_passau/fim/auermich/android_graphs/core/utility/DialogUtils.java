@@ -18,6 +18,10 @@ public class DialogUtils {
     private static final Set<String> DIALOG_INVOCATIONS = new HashSet<>() {{
         add("showDialog(I)V");
         add("showDialog(ILandroid/os/Bundle;)V");
+        add("show(Landroid/support/v4/app/FragmentManager;Ljava/lang/String;)V");
+        add("show(Landroidx/fragment/app/FragmentManager;Ljava/lang/String;)V");
+        add("show(Landroidx/fragment/app/FragmentTransaction;Ljava/lang/String;)I");
+        add("show(Landroid/support/v4/app/FragmentTransaction;Ljava/lang/String;)I");
     }};
 
     /**
@@ -41,10 +45,15 @@ public class DialogUtils {
      */
     public static String getOnCreateDialogMethod(String methodSignature) {
         String method = MethodUtils.getMethodName(methodSignature);
-        if (method.equals("showDialog(I)V")) {
+        if (method.equals("showDialog(I)V")) { // seems deprecated
             return "onCreateDialog(I)Landroid/app/Dialog;";
-        } else if (method.equals("showDialog(ILandroid/os/Bundle;)V")) {
+        } else if (method.equals("showDialog(ILandroid/os/Bundle;)V")) { // seems deprecated
             return "onCreateDialog(ILandroid/os/Bundle;)Landroid/app/Dialog;";
+        } else if (method.equals("show(Landroid/support/v4/app/FragmentManager;Ljava/lang/String;)V")
+                || method.equals("show(Landroidx/fragment/app/FragmentManager;Ljava/lang/String;)V")
+                || method.equals("show(Landroidx/fragment/app/FragmentTransaction;Ljava/lang/String;)I")
+                || method.equals("show(Landroid/support/v4/app/FragmentTransaction;Ljava/lang/String;)I")) {
+            return "onCreateDialog(Landroid/os/Bundle;)Landroid/app/Dialog;";
         } else {
             throw new IllegalArgumentException("Method " + methodSignature + " doesn't refer to a dialog invocation!");
         }
