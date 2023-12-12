@@ -43,6 +43,7 @@ public class ComponentUtils {
         add("Landroid/app/Fragment;");
         add("Landroidx/fragment/app/Fragment;");
         add("Landroid/support/v4/app/Fragment;");
+        add("Landroid/support/v4/app/DialogFragment;");
         add("Landroid/app/DialogFragment;");
         add("Landroid/app/ListFragment;");
         add("Landroid/preference/PreferenceFragment;");
