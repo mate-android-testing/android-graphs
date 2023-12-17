@@ -78,11 +78,6 @@ public class CallTree implements BaseGraph {
     private final CallTreeVertex root;
 
     /**
-     * Caches all computed graph paths.
-     */
-    private final Map<String, Optional<GraphPath<CallTreeVertex, CallTreeEdge>>> cache = new HashMap<>();
-
-    /**
      * Constructs the call tree based on the supplied {@link InterCFG}.
      *
      * @param interCFG The inter CFG from which the call tree is derived.
@@ -160,8 +155,7 @@ public class CallTree implements BaseGraph {
      * @return Returns the shortest path between the given source and target vertex if such path exists.
      */
     public Optional<GraphPath<CallTreeVertex, CallTreeEdge>> getShortestPath(CallTreeVertex source, CallTreeVertex target) {
-        return cache.computeIfAbsent(source.getMethod() + "-->" + target.getMethod(),
-                t -> Optional.ofNullable(BFSShortestPath.findPathBetween(graph, source, target)));
+        return Optional.ofNullable(BidirectionalDijkstraShortestPath.findPathBetween(graph, source, target));
     }
 
     /**
