@@ -533,7 +533,7 @@ public class CallTree implements BaseGraph {
     @Override
     public void drawGraph() {
         // FIXME: drawing only works within IDE, no valid file path when being executed via command line
-        final Path resourceDirectory = Paths.get("android-graphs-core","src", "main", "resources");
+        final Path resourceDirectory = Paths.get("android-graphs-lib","src", "main", "resources");
 
         if (size() <= 1000) {
             File output = new File(resourceDirectory.toFile(), "graph.png");
