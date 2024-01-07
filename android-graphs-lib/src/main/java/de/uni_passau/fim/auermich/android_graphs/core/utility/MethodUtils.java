@@ -54,6 +54,10 @@ public class MethodUtils {
         // Landroid/support/v7/widget/RecyclerView$Adapter;
         add("onCreateViewHolder(Landroid/view/ViewGroup;I)Landroid/support/v7/widget/RecyclerView$ViewHolder;");
         add("onBindViewHolder(Landroid/support/v7/widget/RecyclerView$ViewHolder;I)V");
+        // https://developer.android.com/reference/androidx/recyclerview/widget/RecyclerView.Adapter
+        // #onBindViewHolder(VH,int,java.util.List%3Cjava.lang.Object%3E)
+        add("onCreateViewHolder(Landroid/view/ViewGroup;I)Landroidx/recyclerview/widget/RecyclerView$ViewHolder;");
+        add("onBindViewHolder(Landroidx/recyclerview/widget/RecyclerView$ViewHolder;I)V");
         // seems to be called by the application code itself
         // add("getItemCount()I");
 
