@@ -359,7 +359,8 @@ public class FragmentUtils {
             }
 
             // convenience method to add an fragment
-        } else if (targetMethod.endsWith("->show(Landroid/support/v4/app/FragmentManager;Ljava/lang/String;)V")) {
+        } else if (targetMethod.endsWith("->show(Landroid/support/v4/app/FragmentManager;Ljava/lang/String;)V")
+                || targetMethod.endsWith("->show(Landroidx/fragment/app/FragmentManager;Ljava/lang/String;)V")) {
 
             // NOTE: Retrieving the activity to which the fragment belongs is a mere heuristic. Ideally we should try
             // to backtrack the invocation instead of relying upon (direct and indirect) usages.
@@ -369,9 +370,57 @@ public class FragmentUtils {
             final Optional<Fragment> fragmentComponent
                     = ComponentUtils.getFragmentByName(components, fragmentName);
 
-            if (ClassUtils.isInnerClass(classDef.toString())) {
+            if (fragmentComponent.isEmpty()) {
+                LOGGER.warn("Couldn't derive fragment name from invocation: " + targetMethod + " in method: " + method);
+                return;
+            }
 
-                final String outerClassName = ClassUtils.getOuterClass(classDef.toString());
+            final String className = classDef.toString();
+            Optional<Activity> activityComponent = ComponentUtils.getActivityByName(components, className);
+
+            // the activity might directly invoke the show() method
+            if (activityComponent.isPresent()) {
+                final Activity activity = activityComponent.get();
+                final Fragment fragment = fragmentComponent.get();
+                activity.addHostingFragment(fragment);
+            } else if (ClassUtils.isInnerClass(className)) {
+                // NOTE: The inner class cannot be an activity since this case would be caught by the previous check.
+
+                // the outer class might represent an activity
+                final String outerClassName = ClassUtils.getOuterClass(className);
+                activityComponent = ComponentUtils.getActivityByName(components, outerClassName);
+
+                if (activityComponent.isPresent()) {
+                    final Activity activity = activityComponent.get();
+                    final Fragment fragment = fragmentComponent.get();
+                    activity.addHostingFragment(fragment);
+                } else {
+
+                    // TODO: The fragment invocation might be arbitrarily nested, thus it remains unclear which lookup level
+                    //  should be chosen for the (indirect) usages.
+
+                    // TODO: A plain usage does not guarantee that an activity is really making use of the fragment.
+
+                    // check which application classes make direct or indirect use of the given class
+                    final Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, outerClassName, 2);
+
+                    // check whether any found class represents an activity
+                    for (UsageSearch.Usage usage : usages) {
+
+                        final String clazzName = usage.getClazz().toString();
+                        activityComponent = ComponentUtils.getActivityByName(components, clazzName);
+
+                        // TODO: There are potentially several activities that make use of the fragment but the call to
+                        //  show() actually refers only to a single activity.
+                        if (activityComponent.isPresent()) {
+                            final Activity activity = activityComponent.get();
+                            final Fragment fragment = fragmentComponent.get();
+                            activity.addHostingFragment(fragment);
+                        }
+                    }
+                }
+            } else {
+                // rely upon the direct and indirect usages of the given class
 
                 // TODO: The fragment invocation might be arbitrarily nested, thus it remains unclear which lookup level
                 //  should be chosen for the (indirect) usages.
@@ -379,17 +428,17 @@ public class FragmentUtils {
                 // TODO: A plain usage does not guarantee that an activity is really making use of the fragment.
 
                 // check which application classes make direct or indirect use of the given class
-                final Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, outerClassName, 2);
+                final Set<UsageSearch.Usage> usages = UsageSearch.findClassUsages(apk, className, 2);
 
                 // check whether any found class represents an activity
                 for (UsageSearch.Usage usage : usages) {
 
                     final String clazzName = usage.getClazz().toString();
-                    final Optional<Activity> activityComponent = ComponentUtils.getActivityByName(components, clazzName);
+                    activityComponent = ComponentUtils.getActivityByName(components, clazzName);
 
                     // TODO: There are potentially several activities that make use of the fragment but the call to
                     //  show() actually refers only to a single activity.
-                    if (activityComponent.isPresent() && fragmentComponent.isPresent()) {
+                    if (activityComponent.isPresent()) {
                         final Activity activity = activityComponent.get();
                         final Fragment fragment = fragmentComponent.get();
                         activity.addHostingFragment(fragment);
