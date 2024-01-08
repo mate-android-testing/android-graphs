@@ -417,10 +417,22 @@ public class InterCFG extends BaseCFG {
 
                 if (onCreateDialog != null) {
                     if (intraCFGs.containsKey(onCreateDialog)) {
+                        // The onCreateDialog() is implemented by the current class or any super class.
                         targetCFGs.add(intraCFGs.get(onCreateDialog));
                     } else {
-                        LOGGER.warn("Method " + onCreateDialog + " not contained in dex files!");
-                        targetCFGs.add(dummyCFG(overriddenMethod));
+                        // The showDialog() invocation might refer to an abstract Dialog class, thus we have to backtrack
+                        // the call to the concrete Dialog class if possible.
+                        final String dialogClass = DialogUtils.isDialogInvocation(invokeStmt.getInstruction(), classHierarchy);
+                        if (dialogClass != null) {
+                            onCreateDialog = MethodUtils.getClassName(dialogClass) + "->" + onCreateDialogMethod;
+                        }
+
+                        if (intraCFGs.containsKey(onCreateDialog)) {
+                            targetCFGs.add(intraCFGs.get(onCreateDialog));
+                        } else {
+                            LOGGER.warn("Method " + onCreateDialog + " not contained in dex files!");
+                            targetCFGs.add(dummyCFG(overriddenMethod));
+                        }
                     }
                 } else {
                     LOGGER.warn("OnCreateDialog() not defined by any class for invocation: " + overriddenMethod);
@@ -1943,6 +1955,8 @@ public class InterCFG extends BaseCFG {
                         && !GoogleMapUtils.isRequestLocationUpdateInvocation(targetMethod)
                         // we want to resolve AsyncTask invocations in any case
                         && !AsyncTaskUtils.isAsyncTaskInvocation(targetMethod)
+                        // we want to resolve Dialog invocations in any case
+                        && !DialogUtils.isDialogInvocation(targetMethod)
                     // TODO: may use second getOverriddenMethods() that only returns overridden methods not the method itself
                     // we need to resolve overridden methods in any case (the method itself is always returned, thus < 2)
                     // && classHierarchy.getOverriddenMethods(targetMethod, packageName, properties).size() < 2) {
