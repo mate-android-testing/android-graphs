@@ -621,8 +621,9 @@ public class InterCFG extends BaseCFG {
                             // TODO: Add further methods of AppWidgetProvider, e.g. onAppWidgetOptionsChanged().
 
                         } else {
-                            // integrate onReceive() after constructor
-                            BaseCFG onReceiveCFG = intraCFGs.get(receiver.onReceiveMethod());
+                            // integrate onReceive() after constructor (might be inherited)
+                            BaseCFG onReceiveCFG = intraCFGs.get(classHierarchy.invokedByCurrentClassOrAnySuperClass(
+                                    receiver.onReceiveMethod()));
                             addEdge(receiverConstructor.getExit(), onReceiveCFG.getEntry());
                             addEdge(onReceiveCFG.getExit(), sendBroadcastCFG.getExit());
                         }
@@ -1023,6 +1024,8 @@ public class InterCFG extends BaseCFG {
 
         String constructor = service.getDefaultConstructor();
 
+        LOGGER.debug("Handling service: " + service);
+
         if (!intraCFGs.containsKey(constructor)) {
             LOGGER.warn("Service without explicit constructor: " + service);
         } else {
@@ -1109,6 +1112,9 @@ public class InterCFG extends BaseCFG {
 
                 String serviceConnection = service.getServiceConnection();
                 BaseCFG serviceConnectionConstructor = intraCFGs.get(ClassUtils.getDefaultConstructor(serviceConnection));
+
+                LOGGER.debug("ServiceConnection: " + serviceConnection);
+                LOGGER.debug("onBind() exists: " + intraCFGs.get(onBindMethod));
 
                 if (serviceConnectionConstructor == null) {
                     LOGGER.warn("Service connection '" + serviceConnection + "' for " + service.getName() + " has no intra CFG!");
@@ -1600,6 +1606,7 @@ public class InterCFG extends BaseCFG {
 
                 if (component.isPresent()) {
                     // component declares directly callback
+                    LOGGER.debug("Adding callback to component: " + outerClass + " -> " + callback);
                     classToCallbacksMapping.put(outerClass, callbackGraph);
                     assignedCallbackToClass = true;
                 } else {
@@ -1619,6 +1626,7 @@ public class InterCFG extends BaseCFG {
                              * The class that makes use of the wrapper class represents a component, thus
                              * the callback should be assigned to this class.
                              */
+                            LOGGER.debug("Adding callback to component: " + clazzName + " -> " + callback);
                             classToCallbacksMapping.put(clazzName, callbackGraph);
                             assignedCallbackToClass = true;
                         }
@@ -1634,6 +1642,7 @@ public class InterCFG extends BaseCFG {
                             uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
 
                             if (uiComponent.isPresent()) {
+                                LOGGER.debug("Adding callback to component: " + outerClassName + " -> " + callback);
                                 classToCallbacksMapping.put(outerClassName, callbackGraph);
                                 assignedCallbackToClass = true;
                             }
@@ -1648,6 +1657,7 @@ public class InterCFG extends BaseCFG {
 
                 if (component.isPresent()) {
                     // component declares directly callback
+                    LOGGER.debug("Adding callback to component: " + className + " -> " + callback);
                     classToCallbacksMapping.put(className, callbackGraph);
                     assignedCallbackToClass = true;
                 } else {
@@ -1666,6 +1676,7 @@ public class InterCFG extends BaseCFG {
                              * The class that makes use of the top-level listener (wrapper) class represents a
                              * component, thus the callback should be assigned to this class.
                              */
+                            LOGGER.debug("Adding callback to component: " + clazzName + " -> " + callback);
                             classToCallbacksMapping.put(clazzName, callbackGraph);
                             assignedCallbackToClass = true;
                         }
@@ -1681,6 +1692,7 @@ public class InterCFG extends BaseCFG {
                             uiComponent = ComponentUtils.getComponentByName(components, outerClassName);
 
                             if (uiComponent.isPresent()) {
+                                LOGGER.debug("Adding callback to component: " + outerClassName + " -> " + callback);
                                 classToCallbacksMapping.put(outerClassName, callbackGraph);
                                 assignedCallbackToClass = true;
                             }
@@ -2157,6 +2169,7 @@ public class InterCFG extends BaseCFG {
                     }
 
                     if (MenuUtils.isOnCreateMenu(methodSignature)) {
+                        LOGGER.debug("Found menu: " + methodSignature);
                         List<MenuItemWithResolvedTitle> menuItems = MenuUtils.getDefinedMenuItems(apk, dexFile, method)
                                 .collect(Collectors.toList());
                         var component = ComponentUtils.getComponentByName(components, classDef.toString());
