@@ -174,8 +174,10 @@ public final class ServiceUtils {
 
                 } else if (predecessor.getOpcode() == Opcode.IGET_OBJECT
                         && pred.setsRegister(serviceConnectionRegister)) {
-                    Instruction22c serviceConnectionObject = ((Instruction22c) predecessor);
-                    serviceConnection = Utility.getObjectType(serviceConnectionObject.getReference().toString());
+                    if (serviceConnection == null) {
+                        Instruction22c serviceConnectionObject = ((Instruction22c) predecessor);
+                        serviceConnection = Utility.getObjectType(serviceConnectionObject.getReference().toString());
+                    }
                 }
 
                 // consider next predecessor if available
