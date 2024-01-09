@@ -79,7 +79,6 @@ public class DialogUtils {
             return null;
         }
 
-        // go back until we find const-class instruction which holds the service name
         AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
 
         while (pred.getInstructionIndex() != -1) {

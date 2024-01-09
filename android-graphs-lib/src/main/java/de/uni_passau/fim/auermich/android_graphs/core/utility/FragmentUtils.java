@@ -367,8 +367,62 @@ public class FragmentUtils {
 
             // fragment name is encoded in the invocation call
             final String fragmentName = MethodUtils.getClassName(targetMethod);
-            final Optional<Fragment> fragmentComponent
-                    = ComponentUtils.getFragmentByName(components, fragmentName);
+            Optional<Fragment> fragmentComponent = ComponentUtils.getFragmentByName(components, fragmentName);
+
+            if (fragmentComponent.isEmpty()) { // The encoded fragment name might be an abstract fragment.
+
+                // Example:
+                // iget-object v0, p0, Lio/github/zwieback/familyfinance/business/chart/fragment/PieChartOfExpensesFragment;
+                //                          ->display:Lio/github/zwieback/familyfinance/business/chart/display/ChartDisplay;
+                // check-cast v0, Lio/github/zwieback/familyfinance/business/chart/display/PieChartDisplay;
+                // const v1, 0x7f0f01b1
+                // invoke-static {v0, v1}, Lio/github/zwieback/familyfinance/business/chart/dialog/PieChartDisplayDialog;
+                //                     ->newInstance(Lio/github/zwieback/familyfinance/business/chart/display/PieChartDisplay;I)
+                //                     Lio/github/zwieback/familyfinance/business/chart/dialog/PieChartDisplayDialog;
+                // move-result-object v0
+                // invoke-virtual {p0}, Lio/github/zwieback/familyfinance/business/chart/fragment/PieChartOfExpensesFragment;
+                //                      ->getChildFragmentManager()Landroid/support/v4/app/FragmentManager;
+                // move-result-object v1
+                // const-string v2, "PieChartDisplayDialog"
+                // invoke-virtual {v0, v1, v2}, Landroid/support/v4/app/DialogFragment;
+                //                              ->show(Landroid/support/v4/app/FragmentManager;Ljava/lang/String;)V
+
+                final String abstractFragmentClass = MethodUtils.getClassName(targetMethod);
+                final int targetRegister = ((Instruction35c) instruction).getRegisterC();
+
+                if (analyzedInstruction.getPredecessors().isEmpty()) {
+                    LOGGER.warn("Couldn't derive fragment name from invocation: " + targetMethod + " in method: " + method);
+                    return;
+                }
+
+                AnalyzedInstruction pred = analyzedInstruction.getPredecessors().first();
+
+                while (pred.getInstructionIndex() != -1) {
+
+                    Instruction predecessor = pred.getInstruction();
+
+                    if (pred.setsRegister(targetRegister) && predecessor.getOpcode() == Opcode.MOVE_RESULT_OBJECT) {
+
+                        // The return typ of the preceding invoke instruction refers to the concrete fragment class.
+                        pred = pred.getPredecessors().first();
+                        final String fragmentClass = MethodUtils.getReturnType(((ReferenceInstruction)
+                                pred.getInstruction()).getReference().toString());
+
+                        // Verify that the extracted class is actually a sub class of the supplied abstract fragment class.
+                        if (classHierarchy.getSuperClasses(fragmentClass).contains(abstractFragmentClass)) {
+                            fragmentComponent = ComponentUtils.getFragmentByName(components, fragmentName);
+                        }
+                        break;
+                    }
+
+                    // consider next predecessor if available
+                    if (!analyzedInstruction.getPredecessors().isEmpty()) {
+                        pred = pred.getPredecessors().first();
+                    } else {
+                        break;
+                    }
+                }
+            }
 
             if (fragmentComponent.isEmpty()) {
                 LOGGER.warn("Couldn't derive fragment name from invocation: " + targetMethod + " in method: " + method);
