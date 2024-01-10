@@ -453,7 +453,7 @@ public class ClassHierarchy {
      */
     private String invokesSuperMethod(Class superClazz, String methodName) {
 
-        while (superClazz != null) {
+        while (superClazz != null && superClazz.getClazz() != null) {
 
             for (Method method : superClazz.getClazz().getMethods()) {
                 if (MethodUtils.getMethodName(method.toString()).equals(methodName)) {
